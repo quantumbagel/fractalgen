@@ -1,4 +1,4 @@
-"""Numba kernels for 8K-scale fractal / RD loops."""
+"""Numba kernels for the heavy per-pixel / per-particle loops."""
 
 from __future__ import annotations
 
@@ -1161,3 +1161,39 @@ def volume_march_kernel(h, w, dens, phase, extent, camx, camy, camz, tx, ty, tz)
             rgb[y, x, 1] = eg + 0.008 * trans
             rgb[y, x, 2] = eb + 0.022 * trans
     return rgb
+
+
+@njit(parallel=True, fastmath=True)
+def escape_kernel_generic(cr, ci, max_iter, step, julia, jc, k, bailout2, log_degree):
+    """Escape time for any registered ``step(z, c, z_prev, k) -> z`` formula."""
+    h, w = cr.shape
+    escaped_n = np.zeros((h, w), dtype=np.float64)
+    escaped = np.zeros((h, w), dtype=np.uint8)
+    for y in prange(h):
+        for x in range(w):
+            p = complex(cr[y, x], ci[y, x])
+            if julia:
+                z = p
+                c = jc
+            else:
+                z = 0j
+                c = p
+            zp = 0j
+            for n in range(max_iter):
+                mag2 = z.real * z.real + z.imag * z.imag
+                if mag2 > bailout2:
+                    mag = np.sqrt(mag2)
+                    if mag < 1.0000001:
+                        mag = 1.0000001
+                    nu = n + 1.0 - np.log(np.log(mag) / np.log(np.sqrt(bailout2))) / log_degree
+                    if nu < 0.0:
+                        nu = 0.0
+                    if nu > max_iter:
+                        nu = float(max_iter)
+                    escaped_n[y, x] = nu
+                    escaped[y, x] = 1
+                    break
+                zn = step(z, c, zp, k)
+                zp = z
+                z = zn
+    return escaped_n, escaped

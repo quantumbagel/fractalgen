@@ -1,0 +1,66 @@
+# Built-in palettes. Stops are hex colors spaced evenly from 0 to 1
+# unless a `positions` list is given. Add your own anywhere on the load path.
+
+[palette.cosmic]
+description = "deep space → violet → magenta → gold"
+stops = ["05010a", "12062a", "2b0b5e", "6a1b9a", "c2185b", "ff8a3d", "ffe7a0"]
+
+[palette.abyss]
+description = "black → navy → teal → ice"
+stops = ["000208", "031428", "043c5c", "0a7a8c", "4ecdc4", "c8f4ff", "f5fdff"]
+
+[palette.ember]
+description = "ember / magma"
+stops = ["080206", "2a0612", "7a1024", "d43b1a", "ff7a18", "ffd166", "fff3d6"]
+
+[palette.aurora]
+description = "aurora borealis"
+stops = ["02060d", "06221f", "0b4d45", "1b8a5a", "7be07a", "c6f4c0", "e8fff0"]
+
+[palette.plasma]
+description = "plasma-like"
+stops = ["0d0887", "41049d", "6a00a8", "b12a90", "e16462", "fca636", "f0f921"]
+
+[palette.icefire]
+description = "ice fire diverging (Lyapunov)"
+stops = ["001a33", "0a4c7a", "7ec8e3", "f2efe9", "e8a03c", "c23b22", "3a0a08"]
+
+[palette.neon]
+description = "neon ink"
+stops = ["02010a", "0b1a4a", "123e8c", "00c2ff", "7b2cbf", "ff2d95", "fff5c0"]
+
+[palette.bronze]
+description = "copper / bronze on black"
+stops = ["070504", "1c1008", "4a2410", "b85c20", "e8a45c", "f5d7a8", "fff8ec"]
+
+[palette.twilight]
+description = "twilight rose"
+stops = ["0a0614", "1a1040", "3d2b8c", "7a4daf", "e07bb0", "f7c1c6", "fff0e6"]
+
+[palette.forest]
+description = "forest gold"
+stops = ["030805", "0a1f14", "14532d", "3f7d3a", "c4a35a", "efe0b0", "fffbeb"]
+
+[palette.biolum]
+description = "deep-sea bioluminescence"
+stops = ["02040c", "061428", "0a3a4a", "0e8a7a", "3ee0c8", "7b6cff", "d8fff4"]
+
+[palette.goldsmoke]
+description = "slime-mold / dark-matter gold"
+stops = ["070705", "16110a", "3a2410", "8a5a18", "e0a030", "f6d56a", "fff4c8"]
+
+[palette.obsidian]
+description = "refractive obsidian / smoky glass"
+stops = ["07060c", "1a1430", "2a3a48", "3d6a6e", "8a6a9a", "c8b8a0", "e8e4dc"]
+
+[palette.mercury]
+description = "liquid mercury & midnight indigo"
+stops = ["05060e", "101428", "2a3358", "6a7388", "b0b8c4", "e4e8ee", "f7f9fc"]
+
+[palette.rydberg]
+description = "quantum phase: amethyst → solar amber"
+stops = ["1a0828", "4a1a6a", "8a3a9a", "d47840", "f0b020", "ffe080", "fff6d0"]
+
+[palette.patina]
+description = "weathered bronze & patina"
+stops = ["0a0806", "1c140c", "3a2814", "6a4a22", "2a6a4a", "c4a050", "e8d8a8"]

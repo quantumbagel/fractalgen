@@ -1,0 +1,236 @@
+# Escape-time fractals. `fractalgen generators escape_time` lists every parameter.
+# Complex numbers are [re, im] (or strings like "-0.8+0.156j").
+
+[recipe.mandelbrot_cosmic]
+description = "The full Mandelbrot set in deep-space violet and gold"
+generator = "escape_time"
+palette = "cosmic"
+tags = ["keep", "vip"]
+view = { center = [-0.55, 0], half_width = 1.85 }
+params = { formula = "mandelbrot", max_iter = 420 }
+portrait.view = { center = [-0.62, 0.0], half_width = 0.92, fit = "fill" }
+
+[recipe.mandelbrot_seahorse]
+description = "Seahorse valley spirals"
+generator = "escape_time"
+palette = "ember"
+tags = ["keep", "vip"]
+view = { center = [-0.743643887037151, 0.13182590420533], half_width = 0.0018 }
+params = { formula = "mandelbrot", max_iter = 900 }
+portrait.view = { center = [-0.74315, 0.13145], half_width = 0.00072, fit = "fill" }
+
+[recipe.mandelbrot_spiral]
+generator = "escape_time"
+palette = "aurora"
+tags = ["keep", "vip"]
+view = { center = [-0.761574, -0.0847596], half_width = 0.00055 }
+params = { formula = "mandelbrot", max_iter = 1100 }
+portrait.view = { center = [-0.7614, -0.08472], fit = "cover" }
+
+[recipe.mandelbrot_antenna]
+generator = "escape_time"
+palette = "plasma"
+tags = ["keep", "vip"]
+view = { center = [-0.16, 1.04045], half_width = 0.026 }
+params = { formula = "mandelbrot", max_iter = 700 }
+portrait.view = { center = [-0.16, 1.04045], half_width = 0.013, fit = "fill" }
+
+[recipe.mandelbrot_elephant]
+description = "Elephant valley"
+generator = "escape_time"
+palette = "twilight"
+tags = ["draft"]
+view = { center = [0.27334, 0.00742], half_width = 0.016 }
+params = { formula = "mandelbrot", max_iter = 820 }
+
+[recipe.mandelbrot_minibrot]
+generator = "escape_time"
+palette = "plasma"
+tags = ["keep", "vip"]
+view = { center = [-1.25066, 0.02012], half_width = 0.0018 }
+params = { formula = "mandelbrot", max_iter = 800 }
+
+[recipe.mandelbrot_tendril]
+generator = "escape_time"
+palette = "cosmic"
+tags = ["keep", "vip"]
+view = { center = [-0.235125, 0.827215], half_width = 0.0004 }
+params = { formula = "mandelbrot", max_iter = 1000 }
+
+[recipe.julia_rabbit]
+description = "Douady rabbit"
+generator = "escape_time"
+palette = "twilight"
+tags = ["keep"]
+view = { center = [0, 0], half_width = 1.55 }
+params = { formula = "julia", c = [-0.123, 0.745], max_iter = 360 }
+portrait.view = { center = [0.08, -0.12], half_width = 0.7, fit = "fill" }
+
+[recipe.julia_swirl]
+generator = "escape_time"
+palette = "cosmic"
+tags = ["keep", "vip"]
+view = { center = [0, 0], half_width = 1.5 }
+params = { formula = "julia", c = [-0.7269, 0.1889], max_iter = 400 }
+portrait.view = { center = [-0.52, 0.1], half_width = 0.48, fit = "fill" }
+
+[recipe.julia_san_marco]
+generator = "escape_time"
+palette = "abyss"
+tags = ["keep"]
+view = { center = [0, 0], half_width = 1.65 }
+params = { formula = "julia", c = [-0.75, 0.0], max_iter = 320 }
+portrait.view = { center = [0.0, 0.0], half_width = 0.78, fit = "fill" }
+
+[recipe.julia_dragon]
+generator = "escape_time"
+palette = "ember"
+tags = ["keep", "vip"]
+view = { center = [0, 0.05], half_width = 1.45 }
+params = { formula = "julia", c = [-0.8, 0.156], max_iter = 480 }
+portrait.view = { center = [-0.18, 0.24], half_width = 0.6, fit = "fill" }
+
+[recipe.julia_snowflake]
+generator = "escape_time"
+palette = "aurora"
+tags = ["keep", "vip"]
+view = { center = [0, 0], half_width = 1.5 }
+params = { formula = "julia", c = [0.285, 0.01], max_iter = 420 }
+portrait.view = { center = [0.02, 0.18], half_width = 0.66, fit = "fill" }
+
+[recipe.julia_cauliflower]
+generator = "escape_time"
+palette = "forest"
+tags = ["draft"]
+view = { center = [0.55, 0.12], half_width = 0.28 }
+params = { formula = "julia", c = [0.25, 0.0], max_iter = 420 }
+portrait.view = { center = [0.58, 0.1], half_width = 0.15, fit = "fill" }
+
+[recipe.julia_siegel]
+description = "Siegel disk"
+generator = "escape_time"
+palette = "neon"
+tags = ["keep"]
+view = { center = [0, 0], half_width = 1.5 }
+params = { formula = "julia", c = [-0.391, -0.587], max_iter = 420 }
+portrait.view = { center = [0.06, -0.18], half_width = 0.68, fit = "fill" }
+
+[recipe.julia_dendrite]
+generator = "escape_time"
+palette = "ember"
+tags = ["keep"]
+view = { center = [0, 0], half_width = 1.55 }
+params = { formula = "julia", c = [0.0, 1.0], max_iter = 380 }
+portrait.view = { center = [0.0, 0.2], half_width = 0.7, fit = "fill" }
+
+[recipe.julia_spirals]
+generator = "escape_time"
+palette = "cosmic"
+tags = ["keep", "vip"]
+view = { center = [0, 0], half_width = 1.45 }
+params = { formula = "julia", c = [-0.4, 0.6], max_iter = 440 }
+portrait.view = { center = [-0.1, 0.4], half_width = 0.56, fit = "fill" }
+
+[recipe.julia_golden]
+generator = "escape_time"
+palette = "bronze"
+tags = ["keep", "vip"]
+view = { center = [0, 0], half_width = 1.4 }
+params = { formula = "julia", c = [0.355, 0.355], max_iter = 480 }
+portrait.view = { center = [0.16, 0.24], half_width = 0.52, fit = "fill" }
+
+[recipe.julia_airplane]
+generator = "escape_time"
+palette = "abyss"
+tags = ["keep"]
+view = { center = [0, 0], half_width = 1.7 }
+params = { formula = "julia", c = [-1.75, 0.0], max_iter = 340 }
+portrait.view = { center = [-0.22, 0.0], half_width = 0.52, fit = "fill" }
+
+[recipe.burning_ship]
+generator = "escape_time"
+palette = "bronze"
+tags = ["keep"]
+view = { center = [-0.45, -0.55], half_width = 1.15 }
+params = { formula = "burning_ship", max_iter = 380 }
+portrait.view = { center = [-0.78, -0.58], half_width = 0.52, fit = "fill" }
+
+[recipe.burning_ship_cathedral]
+generator = "escape_time"
+palette = "bronze"
+tags = ["keep", "vip"]
+view = { center = [-1.755, -0.03], half_width = 0.048 }
+params = { formula = "burning_ship", max_iter = 700 }
+portrait.view = { center = [-1.769, -0.026], half_width = 0.02, fit = "fill" }
+
+[recipe.phoenix]
+generator = "escape_time"
+palette = "twilight"
+tags = ["keep"]
+view = { center = [0, 0], half_width = 1.35 }
+params = { formula = "phoenix", c = [0.5667, 0.0], max_iter = 280, k = -0.5 }
+portrait.view = { center = [0.0, 0.62], half_width = 0.5, fit = "fill" }
+
+[recipe.phoenix_close]
+generator = "escape_time"
+palette = "twilight"
+tags = ["keep", "vip"]
+view = { center = [0, 0], half_width = 1.05 }
+params = { formula = "phoenix", c = [0.5667, 0.0], max_iter = 320, k = -0.5 }
+portrait.view = { center = [0.0, 0.66], half_width = 0.42, fit = "fill" }
+
+[recipe.tricorn]
+generator = "escape_time"
+palette = "abyss"
+tags = ["keep"]
+view = { center = [0, 0], half_width = 2.0 }
+params = { formula = "tricorn", max_iter = 360 }
+portrait.view = { center = [0.58, 0.0], half_width = 0.82, fit = "fill" }
+
+[recipe.multibrot3]
+generator = "escape_time"
+palette = "plasma"
+tags = ["keep"]
+view = { center = [-0.15, 0], half_width = 1.55 }
+params = { formula = "multibrot3", max_iter = 280 }
+portrait.view = { center = [-0.12, 0.0], half_width = 0.7, fit = "fill" }
+
+[recipe.multibrot4]
+generator = "escape_time"
+palette = "twilight"
+tags = ["keep"]
+view = { center = [0, 0], half_width = 1.35 }
+params = { formula = "multibrot4", max_iter = 240 }
+portrait.view = { center = [0.0, 0.0], half_width = 0.6, fit = "fill" }
+
+[recipe.celtic]
+generator = "escape_time"
+palette = "forest"
+tags = ["keep", "vip"]
+view = { center = [-0.4, 0], half_width = 1.7 }
+params = { formula = "celtic", max_iter = 340 }
+portrait.view = { center = [-0.88, 0.0], half_width = 0.7, fit = "fill" }
+
+[recipe.buffalo]
+generator = "escape_time"
+palette = "bronze"
+tags = ["keep", "vip"]
+view = { center = [-0.45, -0.35], half_width = 1.35 }
+params = { formula = "buffalo", max_iter = 360 }
+portrait.view = { center = [-0.65, -0.52], half_width = 0.55, fit = "fill" }
+
+[recipe.mandelbrot_orbit_trap]
+generator = "orbit_trap"
+palette = "neon"
+tags = ["keep"]
+view = { center = [-0.45, 0], half_width = 1.7 }
+params = { trap = "rings", max_iter = 180 }
+portrait.view = { center = [-0.22, 0.0], half_width = 0.92, fit = "fill" }
+
+[recipe.mandelbrot_orbit_cross]
+generator = "orbit_trap"
+palette = "ember"
+tags = ["keep"]
+view = { center = [-0.5, 0], half_width = 1.65 }
+params = { trap = "cross", max_iter = 160 }
+portrait.view = { center = [-0.28, 0.0], half_width = 0.88, fit = "fill" }

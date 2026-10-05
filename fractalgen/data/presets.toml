@@ -1,0 +1,55 @@
+# Output size presets. `tags` is the default recipe selection when no names
+# or --tag filters are given; `jobs` the default worker count, `max_jobs` a
+# hard memory cap (16 GB machine: at most two live recipes, one at 16K).
+
+[preset."4k"]
+description = "16:9 desktop"
+width = 3840
+height = 2160
+jobs = 1
+max_jobs = 2
+aliases = ["desktop-4k"]
+
+[preset."8k"]
+description = "16:9 desktop"
+width = 7680
+height = 4320
+jobs = 2
+max_jobs = 2
+tags = ["keep"]
+aliases = ["desktop-8k"]
+
+[preset."16k"]
+description = "16:9 desktop, VIP subset, JPEG to save disk"
+width = 15360
+height = 8640
+jobs = 1
+max_jobs = 1
+format = "jpg"
+tags = ["vip"]
+aliases = ["desktop-16k"]
+
+[preset.iphone]
+description = "~9:19.5 iPhone 14/15/16 Pro"
+width = 1290
+height = 2796
+jobs = 2
+max_jobs = 2
+tags = ["keep"]
+
+[preset."iphone-8k"]
+description = "~9:19.5, 8K-class long edge"
+width = 3840
+height = 8320
+jobs = 1
+max_jobs = 1
+tags = ["keep"]
+
+[preset."iphone-16k"]
+description = "~9:19.5, 16K-class long edge, VIP subset"
+width = 7680
+height = 16640
+jobs = 1
+max_jobs = 1
+format = "jpg"
+tags = ["vip"]
