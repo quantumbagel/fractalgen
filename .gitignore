@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.py[cod]
+*.nbi
+*.nbc
+.venv/
+venv/
+
+# Rendered output (multi-GB)
+backgrounds/
+out/
+
+# Editor / OS
+.idea/
+.DS_Store
