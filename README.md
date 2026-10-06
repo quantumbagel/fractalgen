@@ -7,8 +7,10 @@ and more. Everything that shapes a picture is data you can tweak: generator para
 palettes, framing (center / zoom / **rotation**), camera angles, and finishing.
 
 The original hard-coded scripts (`generate.py`, `ultra.py`, `bg/`) live on the
-`old-code` branch. Every recipe here reproduces their 4K output pixel-for-pixel;
-other sizes are now consistent with 4K (see "Same picture at every size").
+`old-code` branch. Every recipe reproduces their 4K output pixel-for-pixel except
+`physarum_dark_matter` (now simulated on all cores) and `kerr_einstein_rings` (a
+new, physically based black hole); other sizes are consistent with 4K (see
+"Same picture at every size").
 
 ```sh
 python -m venv .venv && .venv/bin/pip install -r requirements.txt   # or: pip install -e .
