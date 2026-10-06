@@ -129,7 +129,8 @@ def orbit_trap_kernel(cr, ci, max_iter, trap_id):
                     d = abs(np.sqrt((zr - 0.35) * (zr - 0.35) + zi * zi) - 0.7)
                 else:
                     d = mag
-                if d < best:
+                # z0 = 0 lies on the cross and point traps; measuring it would trap every pixel.
+                if d < best and (_n > 0 or trap_id == 0 or trap_id == 2):
                     best = d
                 nr = zr2 - zi2 + crx
                 ni = 2.0 * zr * zi + cix

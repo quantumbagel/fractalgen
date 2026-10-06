@@ -63,3 +63,15 @@ generator = "worley"
 palette = "aurora"
 tags = ["keep"]
 params = { n_points = 28, seed = 21, mode = "F1" }
+
+[recipe.chladni_gold]
+generator = "chladni"
+palette = "goldsmoke"
+tags = ["keep"]
+params = { n = 9, m = 4, node_sharpness = 28.0 }
+
+[recipe.cymatics_ember]
+generator = "cymatics"
+palette = "ember"
+tags = ["keep"]
+params = { n_sources = 5, freq = 11.0, seed = 3, highlight_palette = "goldsmoke" }

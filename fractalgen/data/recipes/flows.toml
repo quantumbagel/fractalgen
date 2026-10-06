@@ -82,3 +82,68 @@ blur = 0.8
 gamma = 0.7
 init_mean = [0.0, 0.0, 0.0]
 init_sigma = [0.4, 0.4, 0.4]
+
+[recipe.lorenz_ghost]
+description = "Lorenz attractor seen end-on: a glowing ghost"
+generator = "flow_attractor"
+palette = "biolum"
+tags = ["keep"]
+
+[recipe.lorenz_ghost.params]
+flow = "lorenz"
+seed = 7
+particle_base = 2500
+steps = 1800
+dt = 0.008
+skip = 80
+angle_deg = 100
+z_scale = 0.9
+tilt = 0.05
+blur = 0.8
+gamma = 0.62
+init_mean = [0.0, 1.0, 20.0]
+init_sigma = [0.4, 0.4, 2.0]
+
+[recipe.thomas_gilded]
+generator = "flow_attractor"
+palette = "rydberg"
+tags = ["keep"]
+
+[recipe.thomas_gilded.params]
+flow = "thomas"
+coeffs = { b = 0.17 }
+seed = 8
+particle_base = 2200
+steps = 2600
+dt = 0.05
+skip = 80
+angle_deg = 15
+z_scale = 0.75
+tilt = 0.35
+blur = 0.75
+gamma = 0.6
+init_mean = [0.0, 0.0, 0.0]
+init_sigma = [0.6, 0.6, 0.6]
+
+[recipe.halvorsen_loop]
+generator = "flow_attractor"
+palette = "cosmic"
+tags = ["keep"]
+
+[recipe.halvorsen_loop.params]
+flow = "halvorsen"
+seed = 9
+particle_base = 2000
+steps = 2400
+dt = 0.006
+skip = 200
+angle_deg = 45
+z_scale = 0.7
+tilt = 0.3
+blur = 0.8
+gamma = 0.65
+init_mean = [-1.0, 0.0, 0.0]
+init_sigma = [0.5, 0.5, 0.5]
+
+[recipe.halvorsen_loop.portrait]
+params = { angle_deg = 135 }

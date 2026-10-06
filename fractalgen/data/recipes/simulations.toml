@@ -34,3 +34,25 @@ tags = ["keep", "vip"]
 generator = "magnetic_pendulum"
 tags = ["keep", "vip"]
 params = { n_magnets = 3, steps = 130, seed = 4, framing = "wide" }
+
+[recipe.gray_scott_fingerprint]
+generator = "gray_scott"
+palette = "mercury"
+tags = ["keep"]
+params = { F = 0.037, k = 0.06, steps = 11000, seed = 6 }
+
+[recipe.gray_scott_solitons]
+generator = "gray_scott"
+palette = "biolum"
+tags = ["keep"]
+params = { F = 0.03, k = 0.062, steps = 11000, seed = 7 }
+
+[recipe.sandpile_ice]
+generator = "sandpile"
+palette = "abyss"
+tags = ["keep"]
+
+[recipe.magnetic_pendulum_quad]
+generator = "magnetic_pendulum"
+tags = ["keep"]
+params = { n_magnets = 4, steps = 140, framing = "wide", friction = 0.12 }

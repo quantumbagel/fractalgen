@@ -31,3 +31,10 @@ generator = "popcorn"
 tags = ["keep", "vip"]
 view = { center = [0, 0], half_width = 3.2 }
 portrait.view = { half_width = 1.55, fit = "fill" }
+
+[recipe.domain_sin_inv]
+description = "sin(1/z): rainbow petals around an essential singularity"
+generator = "domain_color"
+tags = ["keep"]
+view = { center = [0, 0], half_width = 0.6 }
+params = { expr = "sin(1/z)" }

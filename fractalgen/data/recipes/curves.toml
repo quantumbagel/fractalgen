@@ -4,3 +4,9 @@
 generator = "harmonograph"
 palette = "twilight"
 tags = ["keep"]
+
+[recipe.harmonograph_gold]
+generator = "harmonograph"
+palette = "goldsmoke"
+tags = ["keep"]
+params = { n_curves = 6, seed = 21, ratios = [[2.0, 3.0], [3.0, 2.0]], t_max = 120.0 }

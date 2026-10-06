@@ -20,3 +20,20 @@ description = "Halvorsen attractor with depth-of-field bokeh"
 generator = "bokeh_attractor"
 tags = ["keep"]
 
+[recipe.poincare_ember]
+description = "Hyperbolic {5,4} tiling in garnet and copper"
+generator = "hyperbolic_tiling"
+tags = ["keep", "vip"]
+params = { p = 5, q = 4, tile_colors = [[0.22, 0.05, 0.08], [0.04, 0.06, 0.16]], metal_color = [0.95, 0.72, 0.45] }
+
+[recipe.poincare_jade]
+description = "Hyperbolic {8,3} honeycomb in jade glass"
+generator = "hyperbolic_tiling"
+tags = ["keep"]
+params = { p = 8, q = 3, tile_colors = [[0.03, 0.12, 0.08], [0.02, 0.04, 0.1]], metal_color = [0.6, 0.9, 0.85] }
+
+[recipe.physarum_biolum]
+description = "Wide-angle slime mold mesh in deep-sea bioluminescence"
+generator = "physarum"
+tags = ["keep"]
+params = { palette = "biolum", seed = 3, sensor_angle = 45.0, rotate_angle = 45.0, sensor_distance = 9.0, background_color = [0.01, 0.02, 0.035] }

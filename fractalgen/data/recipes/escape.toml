@@ -1,6 +1,13 @@
 # Escape-time fractals. `fractalgen generators escape_time` lists every parameter.
 # Complex numbers are [re, im] (or strings like "-0.8+0.156j").
 
+[formula.sine_julia]
+z = "c * sin(z)"
+julia = true
+bailout = 50.0
+degree = 1.0
+description = "c sin(z), pixel is z0"
+
 [recipe.mandelbrot_cosmic]
 description = "The full Mandelbrot set in deep-space violet and gold"
 generator = "escape_time"
@@ -211,3 +218,57 @@ view = { center = [-0.45, 0], half_width = 1.7 }
 params = { trap = "rings", max_iter = 180 }
 portrait.view = { center = [-0.22, 0.0], half_width = 0.92, fit = "fill" }
 
+[recipe.mandelbrot_elephants]
+description = "Elephant valley parade in smoked gold"
+generator = "escape_time"
+palette = "goldsmoke"
+tags = ["keep", "vip"]
+view = { center = [0.27495, 0.00715], half_width = 0.0028 }
+params = { formula = "mandelbrot", max_iter = 1400 }
+
+[recipe.mandelbrot_seahorse_bands]
+description = "Seahorse valley in smooth ice-fire bands"
+generator = "escape_time"
+palette = "icefire"
+tags = ["keep"]
+view = { center = [-0.7453, 0.1127], half_width = 0.0065 }
+params = { formula = "mandelbrot", max_iter = 1200, coloring = "smooth", density = 0.03 }
+
+[recipe.julia_frost]
+generator = "escape_time"
+palette = "abyss"
+tags = ["keep"]
+view = { center = [0, 0], half_width = 1.3 }
+params = { formula = "julia", c = [-0.7, 0.27015], max_iter = 600, coloring = "smooth", density = 0.06 }
+
+[recipe.julia_galaxy]
+description = "Four-armed spiral Julia set in amethyst and amber"
+generator = "escape_time"
+palette = "rydberg"
+tags = ["keep", "vip"]
+view = { center = [0, 0], half_width = 1.5 }
+params = { formula = "julia", c = [-0.835, -0.2321], max_iter = 600 }
+
+[recipe.sine_julia]
+description = "Julia set of c·sin(z): a gilded lattice"
+generator = "escape_time"
+palette = "goldsmoke"
+tags = ["keep"]
+view = { center = [0, 0], half_width = 4.0 }
+params = { formula = "sine_julia", c = [1.0, 0.3], max_iter = 150 }
+
+[recipe.mandelbrot_cross_trap]
+description = "Seahorse valley through a cross-shaped orbit trap: golden filigree"
+generator = "orbit_trap"
+palette = "goldsmoke"
+tags = ["keep", "vip"]
+view = { center = [-0.7435, 0.1314], half_width = 0.02 }
+params = { trap = "cross", max_iter = 400 }
+
+[recipe.mandelbrot_point_trap]
+generator = "orbit_trap"
+palette = "biolum"
+tags = ["keep"]
+view = { center = [-0.1, 0.65], half_width = 0.35 }
+params = { trap = "point", max_iter = 300 }
+portrait.view = { center = [-0.1, 0.72], half_width = 0.16, fit = "fill" }

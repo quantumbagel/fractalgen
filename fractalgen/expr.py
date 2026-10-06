@@ -46,7 +46,9 @@ def compile_expr(source: str, variables: Sequence[str], params: Sequence[str] = 
     def fn(*args: Any, **kw: Any) -> Any:
         scope = dict(zip(var_names, args))
         scope.update(kw)
-        return eval(code, {"__builtins__": {}, **NAMESPACE}, scope)  # noqa: S307 - AST-checked
+        # Poles and overflow are expected; a numpy warning would also need the builtins we hide.
+        with np.errstate(all="ignore"):
+            return eval(code, {"__builtins__": {}, **NAMESPACE}, scope)  # noqa: S307 - AST-checked
 
     fn.__doc__ = source
     return fn

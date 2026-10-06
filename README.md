@@ -1,6 +1,6 @@
 # fractalgen
 
-An extensible math / fractal wallpaper generator. 77 built-in looks across escape-time
+An extensible math / fractal wallpaper generator. 108 built-in looks across escape-time
 fractals, Newton basins, Lyapunov space, domain coloring, strange attractors, IFS,
 reaction-diffusion, flow fields, slime mold, sandpiles, hyperbolic tilings, harmonographs and more. Everything that shapes a picture is data you can tweak: generator parameters,
 palettes, framing (center / zoom / **rotation**), camera angles, and finishing.

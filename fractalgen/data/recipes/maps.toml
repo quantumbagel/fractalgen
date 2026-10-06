@@ -161,3 +161,55 @@ n = 200000
 steps = 240
 seed = 13
 blur = 0.6
+
+[recipe.clifford_neon]
+generator = "map_attractor"
+palette = "neon"
+tags = ["keep"]
+
+[recipe.clifford_neon.params]
+map = "clifford"
+coeffs = { a = 1.5, b = -1.8, c = 1.6, d = 0.9 }
+n = 220000
+steps = 260
+seed = 4
+blur = 0.6
+
+[recipe.clifford_ribbon]
+generator = "map_attractor"
+palette = "twilight"
+tags = ["keep"]
+
+[recipe.clifford_ribbon.params]
+map = "clifford"
+coeffs = { a = -1.7, b = 1.3, c = -0.1, d = -1.21 }
+n = 220000
+steps = 260
+seed = 3
+blur = 0.6
+
+[recipe.dejong_smoke]
+generator = "map_attractor"
+palette = "mercury"
+tags = ["keep", "vip"]
+
+[recipe.dejong_smoke.params]
+map = "dejong"
+coeffs = { a = 2.01, b = -2.53, c = 1.61, d = -0.33 }
+n = 200000
+steps = 240
+seed = 5
+blur = 0.6
+
+[recipe.dejong_lantern]
+generator = "map_attractor"
+palette = "biolum"
+tags = ["keep"]
+
+[recipe.dejong_lantern.params]
+map = "dejong"
+coeffs = { a = -2.7, b = -0.09, c = -0.86, d = -2.2 }
+n = 200000
+steps = 240
+seed = 6
+blur = 0.6

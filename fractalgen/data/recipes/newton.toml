@@ -39,3 +39,17 @@ tags = ["draft"]
 view = { center = [0, 0], half_width = 1.8 }
 params = { coeffs = [1, 0, -2, 2] }
 portrait.view = { half_width = 1.05, fit = "fill" }
+
+[recipe.newton_cubic_edge]
+description = "Zoom on a Newton z³ = 1 basin border"
+generator = "newton"
+tags = ["keep"]
+view = { center = [-0.45, 0.0], half_width = 0.35 }
+params = { power = 3, style = "cinematic", max_iter = 80 }
+
+[recipe.newton_star]
+description = "Newton basins of z⁹ − z⁵ + 0.6z³ − 0.4"
+generator = "newton_poly"
+tags = ["keep"]
+view = { center = [0, 0], half_width = 1.6 }
+params = { coeffs = [1, 0, 0, 0, -1, 0, 0.6, 0, 0, -0.4] }

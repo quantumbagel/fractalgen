@@ -22,3 +22,11 @@ tags = ["keep", "vip"]
 view = { center = [3.5, 3.5], half_width = 0.8888888888888888, fit = "cover" }
 params = { sequence = "BABA" }
 portrait.view = { center = [3.62, 3.5] }
+
+[recipe.lyapunov_aurum]   # b spans 2.9..3.7
+description = "Lyapunov AAAAAABBBBBB in teal glass and molten gold"
+generator = "lyapunov"
+palette = ["02040c", "0a3a4a", "3ee0c8", "eafff8", "ffd166", "c2185b", "2a0b3e"]
+tags = ["keep", "vip"]
+view = { center = [3.3, 3.3], half_width = 0.7, fit = "cover" }
+params = { sequence = "AAAAAABBBBBB" }
