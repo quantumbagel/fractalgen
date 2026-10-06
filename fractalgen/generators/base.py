@@ -53,6 +53,8 @@ class GeneratorSpec:
     description: str = ""
     # Whether the generator reads ctx.view / ctx.plane(); drives view validation.
     uses_view: bool = False
+    # View used when a recipe doesn't set one (only for uses_view generators).
+    default_view: dict[str, Any] = field(default_factory=dict)
     # Param defaults applied automatically for portrait frames (recipe can override).
     portrait_params: dict[str, Any] = field(default_factory=dict)
 
@@ -92,6 +94,7 @@ def generator(
     *,
     category: str = "misc",
     uses_view: bool = False,
+    default_view: dict[str, Any] | None = None,
     portrait_params: dict[str, Any] | None = None,
     param_docs: dict[str, str] | None = None,
     ranges: dict[str, tuple] | None = None,
@@ -127,6 +130,7 @@ def generator(
             category=category,
             description=doc.splitlines()[0] if doc else "",
             uses_view=uses_view,
+            default_view=dict(default_view or {}),
             portrait_params=dict(portrait_params or {}),
         )
         GENERATORS.register(name, spec, replace=replace)

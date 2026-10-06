@@ -141,6 +141,7 @@ def catalog() -> dict[str, Any]:
             "category": g.category,
             "description": g.description,
             "uses_view": g.uses_view,
+            "default_view": jsonable(g.default_view),
             "params": [param_schema(p) for p in g.params.values()],
         }
     from ..generators.fields import VECTOR_FIELDS

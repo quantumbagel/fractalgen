@@ -711,7 +711,7 @@ function generatorBlankState(genName) {
     generator: genName,
     palette,
     params,
-    view: g.uses_view ? { center: [0, 0], half_width: 2, rotation: 0, fit: "fill" } : null,
+    view: g.uses_view ? { center: [0, 0], half_width: 2, rotation: 0, fit: "fill", ...deepClone(g.default_view) } : null,
     post: {},
     width: state.width,
     height: state.height,

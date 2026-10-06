@@ -1,8 +1,8 @@
 # fractalgen
 
-An extensible math / fractal wallpaper generator. 76 built-in looks across escape-time
+An extensible math / fractal wallpaper generator. 77 built-in looks across escape-time
 fractals, Newton basins, Lyapunov space, domain coloring, strange attractors, IFS,
-reaction-diffusion, flow fields, slime mold, sandpiles, hyperbolic tilings and more. Everything that shapes a picture is data you can tweak: generator parameters,
+reaction-diffusion, flow fields, slime mold, sandpiles, hyperbolic tilings, harmonographs and more. Everything that shapes a picture is data you can tweak: generator parameters,
 palettes, framing (center / zoom / **rotation**), camera angles, and finishing.
 
 The original hard-coded scripts (`generate.py`, `ultra.py`, `bg/`) live on the
@@ -25,7 +25,7 @@ python -m fractalgen render --preset 8k iphone   # batch: presets pick recipes b
 | **generator** | an algorithm: `fn(ctx, *, **params) -> RGB`. Its keyword args *are* its schema | `fractalgen/generators/*.py` |
 | **recipe** | a named look: generator + params + palette + view + post + tags | `fractalgen/data/recipes/*.toml` |
 | **palette** | gradient stops (optionally positioned) | `fractalgen/data/palettes.toml` |
-| **view** | complex-plane window: `center`, `half_width`, `rotation` (deg), `fit` | recipe `view = {...}` |
+| **view** | complex-plane window (Lyapunov: the (a, b) plane): `center`, `half_width`, `rotation` (deg), `fit` | recipe `view = {...}` |
 | **post** | finishing that works on *any* render: exposure, contrast, gamma, saturation, hue shift, tint, vignette, palette remap, flips | recipe `post = {...}` |
 | **formula registries** | escape-time formulas, 2D maps, 3D flows, vector fields, domain functions | Python or TOML |
 | **preset** | output size + default recipe selection + memory caps | `fractalgen/data/presets.toml` |

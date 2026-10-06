@@ -1,0 +1,6 @@
+# Harmonograph.
+
+[recipe.harmonograph]
+generator = "harmonograph"
+palette = "twilight"
+tags = ["keep"]

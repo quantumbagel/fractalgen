@@ -10,6 +10,14 @@ from ..view import fit_window
 from .base import generator
 from .density import deposit, tone_map_density
 
+# [a, b, c, d, e, f, p]: x' = a x + b y + e, y' = c x + d y + f, picked with probability p.
+BARNSLEY_FERN = (
+    (0.0, 0.0, 0.0, 0.16, 0.0, 0.0, 0.01),
+    (0.85, 0.04, -0.04, 0.85, 0.0, 1.6, 0.85),
+    (0.20, -0.26, 0.23, 0.22, 0.0, 1.6, 0.07),
+    (-0.15, 0.28, 0.26, 0.24, 0.0, 0.44, 0.07),
+)
+
 
 @generator(
     "ifs",
@@ -45,7 +53,7 @@ from .density import deposit, tone_map_density
 def ifs(
     ctx,
     *,
-    maps: Sequence[Sequence[float]],
+    maps: Sequence[Sequence[float]] = BARNSLEY_FERN,
     palette: Any = "forest",
     n: int = 6_000_000,
     seed: int = 1,

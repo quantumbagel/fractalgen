@@ -94,7 +94,7 @@ class Recipe:
             params.update(spec.portrait_params)
         params.update(self.params)
         palette = self.palette
-        view = dict(self.view)
+        view = {**spec.default_view, **self.view}
         if portrait:
             params.update(self.portrait.get("params") or {})
             palette = self.portrait.get("palette", palette)

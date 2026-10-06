@@ -8,6 +8,7 @@ import numpy as np
 
 from ..color import histogram_index
 from ..palette import sample_palette
+from ..view import REF_ASPECT
 from .base import generator
 
 
@@ -46,43 +47,32 @@ def _color_lyapunov(exponents: np.ndarray, palette: Any) -> np.ndarray:
 @generator(
     "lyapunov",
     category="lyapunov",
-    uses_view=False,
-    portrait_params={"a_focus": 0.62},
+    uses_view=True,
+    # The plane is (a, b) = (re, im). cover keeps b spanning 3.4..4.0 at every aspect.
+    default_view={"center": [3.7, 3.7], "half_width": 0.3 * REF_ASPECT, "fit": "cover"},
     param_docs={
         "sequence": "string of A's and B's picking a vs b each step; the pattern changes the image",
-        "a_range": "[lo, hi] logistic r for letter A; view is centered at a_focus along this span",
-        "b_range": "[lo, hi] logistic r for letter B; sets the full vertical axis span",
         "warmup": "settling iterations before measuring; higher = cleaner, slower",
         "samples": "iterations averaged into the exponent; higher = sharper, slower",
         "palette": "first half of the gradient colors stable pixels, second half chaotic",
-        "a_focus": "horizontal center as 0..1 of a_range; 0.5 = midpoint",
     },
     ranges={
         "warmup": (10, 500, 10),
         "samples": (50, 2000, 10),
-        "a_focus": (0.0, 1.0),
     },
 )
 def lyapunov(
     ctx,
     *,
     sequence: str = "BBBBBBAAAAAA",
-    a_range: tuple = (3.4, 4.0),
-    b_range: tuple = (3.4, 4.0),
     warmup: int = 80,
     samples: int = 220,
     palette: Any = "icefire",
-    a_focus: float = 0.5,
 ):
-    """Stable vs chaotic bands of a two-parameter logistic map driven by an A/B sequence."""
-    a0, a1 = float(a_range[0]), float(a_range[1])
-    b0, b1 = float(b_range[0]), float(b_range[1])
-    mid_a = a0 + a_focus * (a1 - a0)
-    mid_b = 0.5 * (b0 + b1)
-    db = 0.5 * (b1 - b0)
-    da = db * (ctx.width / float(ctx.height))
-    a = np.linspace(mid_a - da, mid_a + da, ctx.width)
-    b = np.linspace(mid_b + db, mid_b - db, ctx.height)
-    a_grid, b_grid = np.meshgrid(a, b)
+    """Stable vs chaotic bands of a two-parameter logistic map driven by an A/B sequence.
+
+    The view's horizontal axis is the logistic r for letter A, the vertical axis r for B.
+    """
+    a_grid, b_grid = ctx.plane()
     exponents = _lyapunov_field(a_grid, b_grid, sequence, warmup, samples)
     return _color_lyapunov(exponents, palette)
