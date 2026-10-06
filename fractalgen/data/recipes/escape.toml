@@ -35,14 +35,6 @@ view = { center = [-0.16, 1.04045], half_width = 0.026 }
 params = { formula = "mandelbrot", max_iter = 700 }
 portrait.view = { center = [-0.16, 1.04045], half_width = 0.013, fit = "fill" }
 
-[recipe.mandelbrot_elephant]
-description = "Elephant valley"
-generator = "escape_time"
-palette = "twilight"
-tags = ["draft"]
-view = { center = [0.27334, 0.00742], half_width = 0.016 }
-params = { formula = "mandelbrot", max_iter = 820 }
-
 [recipe.mandelbrot_minibrot]
 generator = "escape_time"
 palette = "plasma"
@@ -97,14 +89,6 @@ tags = ["keep", "vip"]
 view = { center = [0, 0], half_width = 1.5 }
 params = { formula = "julia", c = [0.285, 0.01], max_iter = 420 }
 portrait.view = { center = [0.02, 0.18], half_width = 0.66, fit = "fill" }
-
-[recipe.julia_cauliflower]
-generator = "escape_time"
-palette = "forest"
-tags = ["draft"]
-view = { center = [0.55, 0.12], half_width = 0.28 }
-params = { formula = "julia", c = [0.25, 0.0], max_iter = 420 }
-portrait.view = { center = [0.58, 0.1], half_width = 0.15, fit = "fill" }
 
 [recipe.julia_siegel]
 description = "Siegel disk"
@@ -227,10 +211,3 @@ view = { center = [-0.45, 0], half_width = 1.7 }
 params = { trap = "rings", max_iter = 180 }
 portrait.view = { center = [-0.22, 0.0], half_width = 0.92, fit = "fill" }
 
-[recipe.mandelbrot_orbit_cross]
-generator = "orbit_trap"
-palette = "ember"
-tags = ["keep"]
-view = { center = [-0.5, 0], half_width = 1.65 }
-params = { trap = "cross", max_iter = 160 }
-portrait.view = { center = [-0.28, 0.0], half_width = 0.88, fit = "fill" }

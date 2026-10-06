@@ -1,4 +1,4 @@
-# Reaction-diffusion, CA, sandpile, magnetic pendulum.
+# Reaction-diffusion, sandpile, magnetic pendulum.
 
 [recipe.gray_scott_coral]
 description = "Gray-Scott coral growth"
@@ -13,12 +13,6 @@ palette = "abyss"
 tags = ["keep"]
 params = { F = 0.046, k = 0.063, steps = 11000, seed = 9 }
 
-[recipe.gray_scott_spots]
-generator = "gray_scott"
-palette = "plasma"
-tags = ["draft"]
-params = { F = 0.035, k = 0.065, steps = 10000, seed = 16 }
-
 [recipe.gray_scott_maze]
 generator = "gray_scott"
 palette = "cosmic"
@@ -31,25 +25,10 @@ palette = "ember"
 tags = ["keep"]
 params = { F = 0.012, k = 0.050, steps = 12000, seed = 18 }
 
-[recipe.cyclic_cellular]
-generator = "cyclic_ca"
-tags = ["draft"]
-params = { n_states = 14, steps = 80, seed = 22 }
-
 [recipe.sandpile]
 generator = "sandpile"
 palette = "ember"
 tags = ["keep", "vip"]
-
-[recipe.magnetic_pendulum]
-generator = "magnetic_pendulum"
-tags = ["draft"]
-params = { n_magnets = 5, steps = 110, seed = 3, framing = "wide" }
-
-[recipe.magnetic_pendulum_close]
-generator = "magnetic_pendulum"
-tags = ["draft"]
-params = { n_magnets = 5, steps = 160, seed = 3, framing = "close" }
 
 [recipe.magnetic_pendulum_tri]
 generator = "magnetic_pendulum"

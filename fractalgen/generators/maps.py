@@ -86,12 +86,6 @@ def _bedhead(x, y, a, b):
     return nx, ny
 
 
-def _tinkerbell(x, y, a=0.9, b=-0.6013, c=2.0, d=0.5):
-    nx = x * x - y * y + a * x + b * y
-    ny = 2.0 * x * y + c * x + d * y
-    return nx, ny
-
-
 def _fractal_dream(x, y, a, b, c, d):
     nx = np.sin(b * y) + c * np.sin(b * x)
     ny = np.sin(a * x) + d * np.sin(a * y)
@@ -106,7 +100,6 @@ for _n, _fn, _defs, _desc in (
     ("gumowski_mira", _gumowski_mira, {"a": -0.48, "b": 0.95}, "Gumowski–Mira"),
     ("svensson", _svensson, {"a": 1.4, "b": 1.56, "c": 1.4, "d": -6.6}, "Svensson map"),
     ("bedhead", _bedhead, {"a": -0.81, "b": -0.92}, "Bedhead map"),
-    ("tinkerbell", _tinkerbell, {"a": 0.9, "b": -0.6013, "c": 2.0, "d": 0.5}, "Tinkerbell map"),
     ("fractal_dream", _fractal_dream, {"a": -0.9669, "b": 2.8798, "c": 0.765, "d": 0.745}, "Fractal dream map"),
 ):
     register_map(_n, _fn, _defs, description=_desc)

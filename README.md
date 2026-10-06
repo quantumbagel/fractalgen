@@ -1,15 +1,13 @@
 # fractalgen
 
-An extensible math / fractal wallpaper generator. 95 built-in looks across escape-time
+An extensible math / fractal wallpaper generator. 76 built-in looks across escape-time
 fractals, Newton basins, Lyapunov space, domain coloring, strange attractors, IFS,
-reaction-diffusion, flow fields, cellular automata, black holes, raymarched 3D fractals
-and more. Everything that shapes a picture is data you can tweak: generator parameters,
+reaction-diffusion, flow fields, slime mold, sandpiles, hyperbolic tilings and more. Everything that shapes a picture is data you can tweak: generator parameters,
 palettes, framing (center / zoom / **rotation**), camera angles, and finishing.
 
 The original hard-coded scripts (`generate.py`, `ultra.py`, `bg/`) live on the
 `old-code` branch. Every recipe reproduces their 4K output pixel-for-pixel except
-`physarum_dark_matter` (now simulated on all cores) and `kerr_einstein_rings` (a
-new, physically based black hole); other sizes are consistent with 4K (see
+`physarum_dark_matter` (now simulated on all cores); other sizes are consistent with 4K (see
 "Same picture at every size").
 
 ```sh
@@ -55,8 +53,8 @@ python -m fractalgen render clifford_gold --size 960x540 --sweep post.hue_shift=
 python -m fractalgen gui
 
 # 4. Fork into an editable file with EVERY parameter spelled out and documented
-python -m fractalgen fork mandelbulb_grotto my_grotto     # -> custom/my_grotto.toml
-python -m fractalgen render my_grotto --size 3840x2160
+python -m fractalgen fork physarum_dark_matter my_slime   # -> custom/my_slime.toml
+python -m fractalgen render my_slime --size 3840x2160
 ```
 
 `custom/` is loaded automatically. In a recipe file, small tweaks don't need a full copy:
@@ -96,7 +94,7 @@ Every look is defined at a 4K reference frame (3840×2160's pixel count, at your
 frame's aspect), so a 720p preview, a 4K wallpaper and a 16K export show the same
 picture, only sharper:
 
-- simulations (reaction-diffusion, slime mold, cellular automata, sandpiles) run on
+- simulations (reaction-diffusion, slime mold, sandpiles) run on
   a grid sized from the reference and are upsampled; repeated renders with the same
   simulation parameters reuse the result in-process, so recoloring is instant;
 - particle and line renders put their hit counts on the reference's scale before tone

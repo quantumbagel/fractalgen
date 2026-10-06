@@ -1,8 +1,9 @@
 [recipe.newton_cubic]
 generator = "newton"
-tags = ["draft"]
+tags = ["keep"]
 view = { center = [0, 0], half_width = 1.7 }
 params = { power = 3, style = "cinematic" }
+portrait.view = { half_width = 0.95, fit = "fill" }
 
 [recipe.newton_sextic]
 generator = "newton"
@@ -10,15 +11,6 @@ tags = ["keep"]
 view = { center = [0, 0], half_width = 1.55 }
 params = { power = 6, style = "cinematic" }
 portrait.view = { half_width = 0.90, fit = "fill" }
-
-[recipe.newton_cubic_dusk]
-extends = "newton_cubic"
-tags = ["keep"]
-portrait.view = { half_width = 0.95, fit = "fill" }
-
-[recipe.newton_sextic_dusk]
-extends = "newton_sextic"
-tags = ["keep"]
 
 [recipe.newton_quartic]
 generator = "newton"

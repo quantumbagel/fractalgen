@@ -52,8 +52,9 @@ body { margin: 0; height: 100vh; display: flex; flex-direction: column; overflow
 .render-ms { color: var(--muted); font-variant-numeric: tabular-nums; min-width: 4em; }
 .recipe-wrap { position: relative; }
 .recipe-wrap input { width: 140px; }
+/* fixed, not absolute: the topbar scrolls horizontally, which would clip an absolute dropdown */
 .recipe-list {
-  position: absolute; top: 100%; left: 0; z-index: 100; max-height: 280px; overflow: auto;
+  position: fixed; z-index: 100; max-height: min(420px, calc(100vh - 60px)); overflow: auto;
   background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius);
   min-width: 220px; display: none; box-shadow: 0 8px 24px rgba(0,0,0,.4);
 }
@@ -660,9 +661,23 @@ function buildRecipeList() {
 
 function filterRecipeList(q) {
   const ql = q.toLowerCase();
-  $("recipeList").querySelectorAll("button").forEach((b) => {
-    b.style.display = !ql || b.dataset.name.toLowerCase().includes(ql) ? "" : "none";
-  });
+  let grp = null, any = false;
+  const hideEmpty = () => { if (grp) grp.style.display = any ? "" : "none"; };
+  for (const el of $("recipeList").children) {
+    if (el.classList.contains("grp")) { hideEmpty(); grp = el; any = false; continue; }
+    const show = !ql || el.dataset.name.toLowerCase().includes(ql);
+    el.style.display = show ? "" : "none";
+    any ||= show;
+  }
+  hideEmpty();
+}
+
+function openRecipeList() {
+  const r = $("recipeSearch").getBoundingClientRect();
+  const list = $("recipeList");
+  list.style.top = `${r.bottom + 2}px`;
+  list.style.left = `${r.left}px`;
+  list.classList.add("open");
 }
 
 async function selectRecipe(name) {
@@ -1657,14 +1672,21 @@ async function onAspectChange() {
 
 // --- wire UI ---
 function initUi() {
-  $("recipeSearch").onfocus = () => $("recipeList").classList.add("open");
+  // Focusing shows every recipe and selects the current name, so typing starts a fresh search
+  $("recipeSearch").onfocus = (e) => {
+    filterRecipeList("");
+    e.target.select();
+    openRecipeList();
+  };
   $("recipeSearch").oninput = (e) => {
-    $("recipeList").classList.add("open");
+    openRecipeList();
     filterRecipeList(e.target.value);
   };
   document.addEventListener("click", (e) => {
     if (!$("recipeWrap").contains(e.target)) $("recipeList").classList.remove("open");
   });
+  // the list is anchored in viewport coordinates, so close it if the topbar scrolls
+  $("topbar").addEventListener("scroll", () => $("recipeList").classList.remove("open"));
 
   $("genPicker").onchange = () => {
     const g = $("genPicker").value;
