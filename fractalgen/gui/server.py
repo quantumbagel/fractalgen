@@ -8,7 +8,7 @@ TOML formulas show up automatically.
 
 API (JSON unless noted)
 -----------------------
-GET  /api/catalog                     generators (+ param schema), recipes, palettes, post ops, presets,
+GET  /api/catalog                     generators (+ param schema), recipes, palettes, post / tone ops, presets,
                                       and per-formula default `coeffs` for map/flow attractors
 GET  /api/state?recipe=NAME&w=&h=     a recipe resolved to an editable *state*
 POST /api/render   {state}            -> image/png (204 if the same client asked for a newer seq meanwhile)
@@ -23,7 +23,7 @@ A *state* is::
     {"recipe": "julia_dragon" | null, "generator": "escape_time",
      "palette": "ember" | ["000000", ...] | null,
      "params": {...}, "view": {"center": [re, im], "half_width": h, "rotation": deg, "fit": "fill"} | null,
-     "post": {...}, "width": 640, "height": 360, "seq": 12, "client": "a1b2"}
+     "post": {...}, "tone": {...}, "width": 640, "height": 360, "seq": 12, "client": "a1b2"}
 """
 
 from __future__ import annotations
@@ -50,6 +50,7 @@ from ..generators.base import GENERATORS, Param
 from ..loader import CUSTOM_DIR, bootstrap
 from ..palette import PALETTES
 from ..post import POST_OPS
+from ..tone import TONE_KEYS
 from ..recipe import RECIPES, Recipe
 
 STATIC = Path(__file__).resolve().parent / "static"
@@ -170,6 +171,10 @@ def catalog() -> dict[str, Any]:
              "range": list(op.range) if op.range else None}
             for n, op in POST_OPS.items()
         ],
+        "tone_ops": [
+            {"name": n, "doc": k.doc, "kind": k.kind, "neutral": k.neutral, "range": list(k.range) if k.range else None}
+            for n, k in TONE_KEYS.items()
+        ],
         "presets": [
             {"name": n, "width": p.width, "height": p.height}
             for n, p in PRESETS.items() if n == p.name
@@ -189,6 +194,7 @@ def recipe_state(name: str, w: int, h: int) -> dict[str, Any]:
         "view": {"center": jsonable(view.center), "half_width": view.half_width,
                  "rotation": view.rotation, "fit": view.fit} if spec.uses_view else None,
         "post": jsonable(r.resolve_post(w, h)),
+        "tone": jsonable(r.resolve_tone(w, h)),
         "width": w,
         "height": h,
     }
@@ -197,7 +203,7 @@ def recipe_state(name: str, w: int, h: int) -> dict[str, Any]:
 def state_edits(state: dict[str, Any], base: Recipe) -> dict[str, Any]:
     """What the GUI changed relative to ``base`` resolved at the state's own frame size."""
     ref = recipe_state(base.name, int(state.get("width", 640)), int(state.get("height", 360)))
-    edits: dict[str, Any] = {"params": {}, "view": {}, "post": {}}
+    edits: dict[str, Any] = {"params": {}, "view": {}, "post": {}, "tone": {}}
     for k, v in (state.get("params") or {}).items():
         if v != ref["params"].get(k):
             edits["params"][k] = v
@@ -208,6 +214,10 @@ def state_edits(state: dict[str, Any], base: Recipe) -> dict[str, Any]:
     for k in set(post) | set(ref_post):
         if post.get(k) != ref_post.get(k):
             edits["post"][k] = post.get(k)  # None switches a recipe's op off
+    tone, ref_tone = state.get("tone") or {}, ref["tone"]
+    for k in set(tone) | set(ref_tone):
+        if tone.get(k) != ref_tone.get(k):
+            edits["tone"][k] = tone.get(k)
     if state.get("palette") != ref["palette"]:
         edits["palette"] = state.get("palette")
     return edits
@@ -227,7 +237,7 @@ def state_recipe(state: dict[str, Any], name: str = "gui") -> Recipe:
         e = state_edits(state, base)
         e["params"] = {k: v for k, v in e["params"].items() if k in gen.params and k != "palette"}
         portrait = {k: dict(v) if isinstance(v, dict) else v for k, v in base.portrait.items()}
-        for key in ("params", "view", "post"):
+        for key in ("params", "view", "post", "tone"):
             if e[key]:
                 portrait[key] = {**(portrait.get(key) or {}), **e[key]}
         palette = base.palette
@@ -241,7 +251,10 @@ def state_recipe(state: dict[str, Any], name: str = "gui") -> Recipe:
             portrait=portrait,
             palette=palette if "palette" in gen.params else None,
             post={k: v for k, v in {**base.post, **e["post"]}.items() if v is not None},
+            tone={k: v for k, v in {**base.tone, **e["tone"]}.items() if v is not None},
             description=base.description,
+            # Pans and zooms keep the recipe's own exposure (see tone.py).
+            tone_view=recipe_state(base.name, int(state.get("width", 640)), int(state.get("height", 360)))["view"],
         )
     view = dict(state.get("view") or {}) if gen.uses_view else {}
     return Recipe(
@@ -252,6 +265,8 @@ def state_recipe(state: dict[str, Any], name: str = "gui") -> Recipe:
         portrait={"view": dict(view)} if view else {},  # keep the chosen fit on phones too
         palette=state.get("palette") if "palette" in gen.params else None,
         post={k: v for k, v in (state.get("post") or {}).items() if v is not None},
+        tone={k: v for k, v in (state.get("tone") or {}).items() if v is not None},
+        tone_view={} if gen.uses_view else None,  # expose as at the generator's default view
     )
 
 
@@ -295,14 +310,24 @@ class Exports:
 
     def start(self, body: dict[str, Any]) -> str:
         job = uuid.uuid4().hex[:10]
-        self.jobs[job] = {"status": "running", "path": None, "error": None, "seconds": 0.0}
+        self.jobs[job] = {"status": "running", "path": None, "error": None, "seconds": 0.0, "_t0": time.perf_counter()}
         threading.Thread(target=self._run, args=(job, body), daemon=True).start()
         return job
+
+    def status(self, job: str) -> dict[str, Any] | None:
+        """A job's public fields; ``seconds`` counts up while it is still running."""
+        info = self.jobs.get(job)
+        if info is None:
+            return None
+        out = {k: v for k, v in info.items() if not k.startswith("_")}
+        if out["status"] == "running":
+            out["seconds"] = time.perf_counter() - info["_t0"]
+        return out
 
     def _run(self, job: str, body: dict[str, Any]) -> None:
         from ..engine import default_n_strips
 
-        t0 = time.perf_counter()
+        t0 = self.jobs[job]["_t0"]
         try:
             state = body["state"]
             w, h = int(body["width"]), int(body["height"])
@@ -377,7 +402,7 @@ def make_handler(renderer: Renderer, exports: Exports):
                 elif url.path == "/api/state":
                     self._json(recipe_state(q["recipe"], int(q.get("w", 640)), int(q.get("h", 360))))
                 elif url.path.startswith("/api/export/"):
-                    job = exports.jobs.get(url.path.rsplit("/", 1)[-1])
+                    job = exports.status(url.path.rsplit("/", 1)[-1])
                     self._json(job or {"status": "unknown"}, 200 if job else 404)
                 else:
                     self._send(404, b"not found", "text/plain")

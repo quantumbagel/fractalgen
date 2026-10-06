@@ -20,7 +20,8 @@ recipe in place; each becomes its own recipe ``NAME@VARIANT``::
     palette = "abyss"
     post = { saturation = 0.8 }
 
-``post`` applies generator-independent finishing (see post.py).
+``post`` applies generator-independent finishing (see post.py); ``tone``
+adjusts the generator's own auto-exposure (black / white point, curve; see tone.py).
 """
 
 from __future__ import annotations
@@ -31,6 +32,7 @@ from typing import Any
 
 import numpy as np
 
+from . import simcache, tone
 from .context import RenderContext
 from .generators.base import GENERATORS, GeneratorSpec
 from .params import deep_merge
@@ -38,8 +40,8 @@ from .post import apply_post
 from .registry import Registry
 from .view import View
 
-_KEYS = {"generator", "palette", "params", "view", "post", "portrait", "tags", "description", "extends", "variants"}
-_PORTRAIT_KEYS = {"params", "view", "palette", "post"}
+_KEYS = {"generator", "palette", "params", "view", "post", "tone", "portrait", "tags", "description", "extends", "variants"}
+_PORTRAIT_KEYS = {"params", "view", "palette", "post", "tone"}
 
 
 @dataclass
@@ -51,9 +53,13 @@ class Recipe:
     portrait: dict[str, Any] = field(default_factory=dict)
     palette: Any = None
     post: dict[str, Any] = field(default_factory=dict)
+    tone: dict[str, Any] = field(default_factory=dict)
     tags: tuple[str, ...] = ()
     description: str = ""
     source: str = ""
+    # View dict whose tone the recipe keeps when its view is edited (merged over
+    # the generator default); None = the recipe's own view without overrides.
+    tone_view: dict[str, Any] | None = None
 
     @classmethod
     def from_table(cls, name: str, table: dict[str, Any], source: str = "") -> "Recipe":
@@ -74,6 +80,7 @@ class Recipe:
             portrait=portrait,
             palette=table.get("palette"),
             post=dict(table.get("post") or {}),
+            tone=tone.check_tone(table.get("tone")),
             tags=tuple(table.get("tags") or ()),
             description=str(table.get("description") or ""),
             source=source,
@@ -114,6 +121,20 @@ class Recipe:
             raise TypeError(f"Generator {spec.name!r} does not use a view; remove 'view' from {self.name!r}")
         return spec, spec.bind(params), View.from_dict(view)
 
+    def anchor_view(self, width: int, height: int, overrides: dict[str, Any] | None = None) -> View:
+        """The view whose tone statistics frames of this recipe reuse (see tone.py)."""
+        if self.tone_view is not None:
+            return View.from_dict({**self.spec.default_view, **self.tone_view})
+        ov = {k: v for k, v in (overrides or {}).items() if k != "view"}
+        return self.resolve(width, height, ov)[2]
+
+    def resolve_tone(self, width: int, height: int, overrides: dict[str, Any] | None = None) -> dict[str, Any]:
+        out = dict(self.tone)
+        if height > width:
+            out.update(self.portrait.get("tone") or {})
+        out.update((overrides or {}).get("tone") or {})
+        return tone.check_tone(out)
+
     def resolve_post(self, width: int, height: int, overrides: dict[str, Any] | None = None) -> dict[str, Any]:
         post = dict(self.post)
         if height > width:
@@ -131,10 +152,37 @@ class Recipe:
     ) -> np.ndarray:
         spec, params, view = self.resolve(width, height, overrides)
         ctx = RenderContext(width=width, height=height, view=view, name=self.name, n_strips=n_strips)
-        rgb = np.asarray(spec.fn(ctx, **params))
+        adjust = self.resolve_tone(width, height, overrides)
+        anchor = self.anchor_view(width, height, overrides) if spec.uses_view else view
+        if anchor == view or adjust.get("per_frame"):
+            with tone.adjusting(adjust):
+                rgb = np.asarray(spec.fn(ctx, **params))
+        else:
+            # Off the authored view: expose with the authored view's statistics
+            # (measured on a small frame of the same aspect) so pans and zooms
+            # don't re-expose the image.
+            rw, rh = _tone_frame(width, height)
+            ref = RenderContext(width=rw, height=rh, view=anchor, name=self.name)
+            key = (spec.name, simcache.freeze(params), anchor, rw, rh)
+            stats = tone.anchored(key, lambda: spec.fn(ref, **params))
+            ctx.tone_view = anchor
+            with tone.replaying(stats), tone.adjusting(adjust):
+                rgb = np.asarray(spec.fn(ctx, **params))
         if rgb.shape != (height, width, 3):
             raise ValueError(f"{self.name}: generator returned shape {rgb.shape}, expected {(height, width, 3)}")
         return apply_post(rgb, self.resolve_post(width, height, overrides), ctx)
+
+
+_TONE_PIXELS = 640 * 360
+
+
+def _tone_frame(width: int, height: int) -> tuple[int, int]:
+    """Frame tone statistics are measured on: this aspect, a fixed ~0.23 MP.
+
+    Fixed, so the GUI's draft, its preview and a full export share one measurement.
+    """
+    s = (_TONE_PIXELS / float(width * height)) ** 0.5
+    return max(16, round(width * s)), max(16, round(height * s))
 
 
 RECIPES: Registry[Recipe] = Registry("recipe")

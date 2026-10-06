@@ -1,8 +1,8 @@
 # fractalgen
 
-An extensible math / fractal wallpaper generator. 108 built-in looks across escape-time
+An extensible math / fractal wallpaper generator. 126 built-in looks across escape-time
 fractals, Newton basins, Lyapunov space, domain coloring, strange attractors, IFS,
-reaction-diffusion, flow fields, slime mold, sandpiles, hyperbolic tilings, harmonographs and more. Everything that shapes a picture is data you can tweak: generator parameters,
+reaction-diffusion, flow fields, slime mold, sandpiles, hyperbolic tilings, harmonographs, fractal flames, Buddhabrots, KAM islands, caustics and more. Everything that shapes a picture is data you can tweak: generator parameters,
 palettes, framing (center / zoom / **rotation**), camera angles, and finishing.
 
 The original hard-coded scripts (`generate.py`, `ultra.py`, `bg/`) live on the
@@ -23,9 +23,10 @@ python -m fractalgen render --preset 8k iphone   # batch: presets pick recipes b
 | Thing | What it is | Where it lives |
 |---|---|---|
 | **generator** | an algorithm: `fn(ctx, *, **params) -> RGB`. Its keyword args *are* its schema | `fractalgen/generators/*.py` |
-| **recipe** | a named look: generator + params + palette + view + post + tags | `fractalgen/data/recipes/*.toml` |
+| **recipe** | a named look: generator + params + palette + view + tone + post + tags | `fractalgen/data/recipes/*.toml` |
 | **palette** | gradient stops (optionally positioned) | `fractalgen/data/palettes.toml` |
 | **view** | complex-plane window (Lyapunov: the (a, b) plane): `center`, `half_width`, `rotation` (deg), `fit` | recipe `view = {...}` |
+| **tone** | adjusts a generator's automatic exposure before the palette: `black`, `white`, `curve`, `per_frame` (see below) | recipe `tone = {...}` |
 | **post** | finishing that works on *any* render: exposure, contrast, gamma, saturation, hue shift, tint, vignette, palette remap, flips | recipe `post = {...}` |
 | **formula registries** | escape-time formulas, 2D maps, 3D flows, vector fields, domain functions | Python or TOML |
 | **preset** | output size + default recipe selection + memory caps | `fractalgen/data/presets.toml` |
@@ -43,7 +44,7 @@ From quickest to most permanent:
 python -m fractalgen render julia_dragon --size 1920x1080 \
     --set max_iter=900 --set c=-0.79+0.16j --palette aurora_r \
     --center -0.1+0.2j --zoom 2 --rotate 30 \
-    --post saturation=1.3 --post vignette=0.35
+    --tone white=0.85 --post saturation=1.3 --post vignette=0.35
 
 # 2. Explore one knob: renders julia_dragon@max_iter=200.png, ...
 python -m fractalgen render julia_dragon --size 960x540 --sweep max_iter=200,400,800
@@ -72,6 +73,25 @@ post = { hue_shift = 40 }
 [recipe.dragon_night.portrait]          # merged in when height > width (phones)
 view = { center = [-0.2, 0.25], half_width = 0.6, fit = "fill" }
 ```
+
+### Tone
+
+Most generators stretch their raw values (iteration counts, orbit hits, densities) to
+the screen automatically: a histogram or percentile range measured from the pixels.
+That measurement is taken once, on the recipe's own view, and frozen as the look's
+default tone. Panning, zooming or resizing (in the GUI or with `--center` / `--zoom`)
+then keeps the same exposure instead of re-measuring every frame. `tone` adjusts that
+stretch before the palette is applied (`post` works afterwards, on the final colors):
+
+```toml
+tone = { black = 0.05, white = 0.9, curve = 1.3 }   # omitted keys keep the default
+```
+
+`black` / `white` clip the stretch (0..1), `curve` bends the midtones (>1 brighter), and
+`per_frame = true` brings back re-measuring on every frame, which is handy for deep zooms
+past where the default's range runs out. `python -m fractalgen tone` lists them;
+`--sweep tone.white=1,0.8,0.6` explores one. Generators with no automatic stretch
+(domain coloring, for instance) ignore `tone`.
 
 Palettes anywhere: a name (`"ember"`), reversed (`"ember_r"`), inline stops
 (`["000000", "ff6a00", "fff3d6"]`), or `{ stops = [...], positions = [0, 0.3, 1] }`.

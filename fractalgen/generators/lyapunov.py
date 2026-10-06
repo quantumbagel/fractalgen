@@ -37,10 +37,10 @@ def _color_lyapunov(exponents: np.ndarray, palette: Any) -> np.ndarray:
     sta = ~cha
     if np.any(sta):
         s = exponents[sta]
-        t[sta] = 0.5 * histogram_index(-s, np.ones_like(s, dtype=bool))
+        t[sta] = 0.5 * histogram_index(-s, np.ones_like(s, dtype=bool), key="lyapunov.stable")
     if np.any(cha):
         c = exponents[cha]
-        t[cha] = 0.5 + 0.5 * histogram_index(c, np.ones_like(c, dtype=bool))
+        t[cha] = 0.5 + 0.5 * histogram_index(c, np.ones_like(c, dtype=bool), key="lyapunov.chaotic")
     return sample_palette(palette, t)
 
 

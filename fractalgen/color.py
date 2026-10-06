@@ -7,6 +7,8 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
+from . import tone
+
 
 def hsv_to_rgb(h: np.ndarray, s: np.ndarray, v: np.ndarray) -> np.ndarray:
     h = np.mod(h, 1.0)
@@ -24,35 +26,55 @@ def hsv_to_rgb(h: np.ndarray, s: np.ndarray, v: np.ndarray) -> np.ndarray:
     return np.stack([r, g, b], axis=-1)
 
 
-def histogram_index(values: np.ndarray, mask: np.ndarray, bins: int = 4096) -> np.ndarray:
-    """Histogram-equalize ``values[mask]`` into [0, 1]; unmasked pixels are 0."""
+def histogram_index(
+    values: np.ndarray, mask: np.ndarray, bins: int = 4096, key: str = "histogram"
+) -> np.ndarray:
+    """Histogram-equalize ``values[mask]`` into [0, 1]; unmasked pixels are 0.
+
+    The equalization curve is a tone statistic (see tone.py): off the anchor
+    view it comes from the anchor, so panning and zooming don't re-expose.
+    """
     out = np.zeros(values.shape, dtype=np.float64)
     if not np.any(mask):
         return out
     v = values[mask]
-    vmin, vmax = np.percentile(v, 0.5), np.percentile(v, 99.5)
-    if vmax <= vmin:
-        out[mask] = 1.0
+    curve = tone.stat(key, lambda: _equalize_curve(v, bins))
+    if curve is None:
+        out[mask] = tone.levels(np.ones(v.shape))
         return out
+    vmin, vmax, cdf = curve
     scaled = np.clip((v - vmin) / (vmax - vmin), 0.0, 1.0)
-    ix = np.clip((scaled * (bins - 1)).astype(np.int32), 0, bins - 1)
-    hist = np.bincount(ix, minlength=bins).astype(np.float64)
-    cdf = np.cumsum(hist)
-    cdf /= cdf[-1]
-    out[mask] = cdf[ix]
+    ix = np.clip((scaled * (len(cdf) - 1)).astype(np.int32), 0, len(cdf) - 1)
+    out[mask] = tone.levels(cdf[ix])
     return out
 
 
-def log_tone(density: np.ndarray, lo: float = 1.0, hi: float = 99.5) -> np.ndarray:
-    """log1p + percentile stretch for accumulation buffers."""
+def _equalize_curve(v: np.ndarray, bins: int) -> tuple[float, float, np.ndarray] | None:
+    vmin, vmax = np.percentile(v, 0.5), np.percentile(v, 99.5)
+    if vmax <= vmin:
+        return None
+    scaled = np.clip((v - vmin) / (vmax - vmin), 0.0, 1.0)
+    ix = np.clip((scaled * (bins - 1)).astype(np.int32), 0, bins - 1)
+    cdf = np.cumsum(np.bincount(ix, minlength=bins).astype(np.float64))
+    return float(vmin), float(vmax), cdf / cdf[-1]
+
+
+def log_tone(density: np.ndarray, lo: float = 1.0, hi: float = 99.5, key: str = "log_tone") -> np.ndarray:
+    """log1p + percentile stretch for accumulation buffers (range is a tone statistic)."""
     d = np.log1p(np.maximum(density, 0.0))
-    finite = np.isfinite(d) & (d > 0)
-    if not np.any(finite):
+
+    def stretch() -> tuple[float, float] | None:
+        finite = np.isfinite(d) & (d > 0)
+        if not np.any(finite):
+            return None
+        a, b = np.percentile(d[finite], [lo, hi])
+        return (float(a), float(b)) if b > a else (0.0, float(d.max()) + 1e-12)
+
+    ab = tone.stat(key, stretch)
+    if ab is None:
         return np.zeros_like(d)
-    a, b = np.percentile(d[finite], [lo, hi])
-    if b <= a:
-        return np.clip(d / (d.max() + 1e-12), 0.0, 1.0)
-    return np.clip((d - a) / (b - a), 0.0, 1.0)
+    a, b = ab
+    return tone.levels(np.clip((d - a) / (b - a), 0.0, 1.0))
 
 
 def to_uint8(rgb: np.ndarray) -> np.ndarray:

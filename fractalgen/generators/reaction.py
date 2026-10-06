@@ -9,7 +9,7 @@ from scipy.ndimage import gaussian_filter, zoom
 
 from ..color import histogram_index
 from ..palette import sample_palette
-from .. import simcache
+from .. import simcache, tone
 from .base import generator
 
 
@@ -168,7 +168,7 @@ def sandpile(
     field = g.astype(np.float64)
     field = zoom(field, (height / n, width / n), order=0)
     field = field[:height, :width]
-    t = field / max(float(field.max()), 1.0)
+    t = tone.levels(field / tone.stat("sandpile.max", lambda: max(float(field.max()), 1.0)))
     rgb = sample_palette(palette, t)
     rgb *= (tone_floor + (1.0 - tone_floor) * np.power(t, tone_gamma))[..., None]
     return np.clip(rgb, 0.0, 1.0)

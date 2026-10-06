@@ -7,6 +7,7 @@ from typing import Any
 import numpy as np
 
 from ..color import hsv_to_rgb
+from .. import tone
 from .base import generator
 
 _CINEMATIC_HUES: dict[int, np.ndarray] = {
@@ -47,7 +48,7 @@ def _color_newton_power(
     cine_hue_base: float,
     cine_hue_span: float,
 ) -> np.ndarray:
-    tmax = max(float(iters.max()), 1.0)
+    tmax = tone.stat("newton.tmax", lambda: max(float(iters.max()), 1.0))
     if style == "cinematic":
         if hues is not None:
             h = hues[root_ix]
@@ -55,7 +56,7 @@ def _color_newton_power(
             h = _CINEMATIC_HUES[power][root_ix]
         else:
             h = np.mod(cine_hue_base + root_ix.astype(np.float64) / power * cine_hue_span, 1.0)
-        t = np.clip(iters / tmax, 0.0, 1.0)
+        t = 1.0 - tone.levels(1.0 - np.clip(iters / tmax, 0.0, 1.0))  # levels act on brightness
         shade = cine_shade_lo + cine_shade_hi * (1.0 - t) ** cine_shade_pow
         shade *= cine_cos_base + cine_cos_amp * np.cos(iters * cine_cos_freq)
         if zr is not None and zi is not None:
@@ -66,7 +67,7 @@ def _color_newton_power(
         return hsv_to_rgb(h, s, np.clip(shade, 0.0, 1.0))
 
     h = root_ix.astype(np.float64) / power
-    shade = classic_shade_lo + classic_shade_hi * (1.0 - np.clip(iters / tmax, 0.0, 1.0)) ** classic_shade_pow
+    shade = classic_shade_lo + classic_shade_hi * tone.levels(1.0 - np.clip(iters / tmax, 0.0, 1.0)) ** classic_shade_pow
     s = np.full_like(h, classic_sat)
     h = np.mod(h + classic_hue_iter * (iters / tmax), 1.0)
     return hsv_to_rgb(h, s, shade)
@@ -305,8 +306,8 @@ def newton_poly(
     hue = (np.angle(zf) + np.pi) / (2.0 * np.pi)
     basin = np.mod(np.round(hue * basin_scale), n_roots)
     h = hue_table[basin.astype(np.int32)]
-    tmax = max(float(iters.max()), 1.0)
-    t = np.clip(iters / tmax, 0.0, 1.0)
+    tmax = tone.stat("newton.tmax", lambda: max(float(iters.max()), 1.0))
+    t = 1.0 - tone.levels(1.0 - np.clip(iters / tmax, 0.0, 1.0))  # levels act on brightness
     val = cine_shade_lo + cine_shade_hi * (1.0 - t) ** cine_shade_pow
     val *= cine_cos_base + cine_cos_amp * np.cos(iters * cine_cos_freq)
     r = np.sqrt(zr * zr + zi * zi)

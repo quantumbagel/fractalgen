@@ -26,6 +26,8 @@ class RenderContext:
     name: str = ""
     # Row strips for per-pixel kernels (bounds peak memory at 8K/16K).
     n_strips: int = 1
+    # View this frame's tone statistics come from (see tone.py); None = this view.
+    tone_view: View | None = None
 
     @property
     def portrait(self) -> bool:
@@ -77,6 +79,19 @@ class RenderContext:
         """
         rw, rh = self.ref_size
         return (n_ref / float(rw * rh)) / (max(n_used, 1) / float(self.pixels))
+
+    def zoom_gain(self, power: float = 2.0) -> float:
+        """How many times more hits per pixel the tone view would collect.
+
+        Density renders over the plane multiply their hit counts by this so a
+        zoom keeps the anchor's exposure: ``power`` 2 for area-filling density,
+        1 for hits along curves. 1.0 on the tone view itself.
+        """
+        if self.tone_view is None:
+            return 1.0
+        here = self.view.extents(self.width, self.height)[0]
+        there = self.tone_view.extents(self.width, self.height)[0]
+        return (there / max(here, 1e-300)) ** power
 
     def sim_grid(self, scale: float, min_side: int = 8) -> tuple[int, int]:
         """Simulation grid of ``scale`` x the reference frame (independent of output size)."""

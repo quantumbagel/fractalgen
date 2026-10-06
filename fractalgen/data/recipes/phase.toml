@@ -1,0 +1,22 @@
+# Phase portraits of area-preserving maps (generator `symplectic`).
+
+[recipe.standard_map]
+description = "Chirikov standard map, K = 1.2: island chains in a chaotic sea"
+generator = "symplectic"
+tags = ["keep", "vip"]
+params = { k = 1.2 }
+
+[recipe.standard_map_golden]
+description = "Standard map at the golden-mean breakup (K ≈ 0.9716)"
+generator = "symplectic"
+palette = "twilight"
+tags = ["keep"]
+params = { k = 0.971635, color_by = "start", seed = 8 }
+
+[recipe.henon_icefire]
+description = "Henon area-preserving map: nested invariant curves and island chains"
+generator = "symplectic"
+palette = "icefire"
+tags = ["keep"]
+view = { center = [0.2, 0.0], half_width = 1.25, fit = "cover" }
+params = { map = "henon", k = 1.1, orbits = 2000 }

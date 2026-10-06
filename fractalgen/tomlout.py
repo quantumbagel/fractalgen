@@ -43,6 +43,7 @@ def _line(key: str, value: Any, doc: str = "") -> str:
 def recipe_to_toml(src: Recipe, name: str, *, width: int = 3840, height: int = 2160) -> str:
     """A self-contained recipe with every generator parameter written out."""
     from .post import POST_OPS
+    from .tone import TONE_KEYS
 
     spec, params, view = src.resolve(width, height)
     out = [
@@ -82,6 +83,13 @@ def recipe_to_toml(src: Recipe, name: str, *, width: int = 3840, height: int = 2
             out.append(_line(op, src.post[op], doc))
         else:
             out.append(f"# {op} = ...  # {doc}")
+
+    out += ["", f"[recipe.{name}.tone]", "# Auto-exposure adjustments; omitted keys keep the look's default."]
+    for key, tk in TONE_KEYS.items():
+        if key in src.tone:
+            out.append(_line(key, src.tone[key], tk.doc))
+        else:
+            out.append(f"# {key} = {toml_value(tk.neutral)}  # {tk.doc}")
 
     portrait = {k: dict(v) if isinstance(v, dict) else v for k, v in src.portrait.items()}
     if spec.portrait_params:
@@ -123,7 +131,7 @@ def overrides_to_toml(name: str, generator: str, ov: dict[str, Any]) -> str:
     lines = [f"[recipe.{name}]", _line("generator", generator)]
     if "palette" in ov:
         lines.append(_line("palette", ov["palette"]))
-    for key in ("view", "params", "post"):
+    for key in ("view", "params", "post", "tone"):
         if ov.get(key):
             lines.append(f"{key} = {toml_value(ov[key])}")
     return "\n".join(lines)

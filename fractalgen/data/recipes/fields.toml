@@ -75,3 +75,30 @@ generator = "cymatics"
 palette = "ember"
 tags = ["keep"]
 params = { n_sources = 5, freq = 11.0, seed = 3, highlight_palette = "goldsmoke" }
+
+[recipe.caustics_pool]
+description = "Sunlit pool floor"
+generator = "caustics"
+tags = ["keep", "vip"]
+params = { focus = 1.0 }
+
+[recipe.caustics_prism]
+description = "Caustics with chromatic dispersion: rainbow-fringed light"
+generator = "caustics"
+palette = ["000000", "101010", "707070", "ffffff"]
+tags = ["keep", "vip"]
+params = { dispersion = 0.045, focus = 2.0, seed = 11 }
+
+[recipe.caustics_rain]
+description = "Pool caustics with raindrop ripples"
+generator = "caustics"
+palette = "biolum"
+tags = ["keep"]
+params = { drops = 9, drop_k = 34.0, focus = 1.5, seed = 3 }
+
+[recipe.caustics_sunlit]
+description = "Shallow-water caustics on sand"
+generator = "caustics"
+palette = ["1a0f05", "4a2a10", "a87a3a", "f0d58a", "fff8e0"]
+tags = ["keep"]
+params = { focus = 1.4, seed = 17, k_lo = 2.0, k_hi = 18.0 }

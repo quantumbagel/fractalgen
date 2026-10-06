@@ -39,6 +39,8 @@ def _add_override_args(p: argparse.ArgumentParser) -> None:
     g.add_argument("--fit", choices=("fill", "cover", "contain"), help="How the view meets the frame aspect")
     g.add_argument("--post", dest="posts", type=_kv, action="append", default=[], metavar="KEY=VALUE",
                    help="Finishing op for any render, e.g. --post saturation=1.3 --post hue_shift=40 (see `post`)")
+    g.add_argument("--tone", dest="tones", type=_kv, action="append", default=[], metavar="KEY=VALUE",
+                   help="Adjust the auto-exposure, e.g. --tone white=0.8 --tone curve=1.4 (see `tone`)")
 
 
 def _overrides(args: argparse.Namespace) -> dict[str, Any]:
@@ -63,6 +65,8 @@ def _overrides(args: argparse.Namespace) -> dict[str, Any]:
         ov["view"] = view
     if args.posts:
         ov["post"] = dict(args.posts)
+    if args.tones:
+        ov["tone"] = dict(args.tones)
     return ov
 
 
@@ -90,6 +94,7 @@ def _parser() -> argparse.ArgumentParser:
 
     sub.add_parser("presets", help="List size presets")
     sub.add_parser("post", help="List post-processing ops usable in `post = {...}` / --post")
+    sub.add_parser("tone", help="List auto-exposure adjustments usable in `tone = {...}` / --tone")
 
     s = sub.add_parser("fork", help="Copy a recipe into an editable TOML with every parameter spelled out")
     s.add_argument("name", help="Recipe to copy")
@@ -114,7 +119,7 @@ def _parser() -> argparse.ArgumentParser:
     s.add_argument("--no-isolate", action="store_true", help="Render in-process (no timeout, easier debugging)")
     s.add_argument("--no-lock", action="store_true", help="Allow concurrent batches")
     s.add_argument("--sweep", type=_kv, metavar="KEY=V1,V2,...",
-                   help="Render one image per value of a parameter (or post.KEY / view.KEY / palette)")
+                   help="Render one image per value of a parameter (or post.KEY / tone.KEY / view.KEY / palette)")
     _add_override_args(s)
 
     s = sub.add_parser("gui", help="Open the live-tweaking GUI in your browser")
@@ -143,6 +148,7 @@ def main(argv: list[str] | None = None) -> int:
         "palettes": _cmd_palettes,
         "presets": _cmd_presets,
         "post": _cmd_post,
+        "tone": _cmd_tone,
         "fork": _cmd_fork,
         "gui": _cmd_gui,
         "render": _cmd_render,
@@ -309,6 +315,14 @@ def _cmd_post(args, _loads) -> int:
 
     for name, (_, doc) in POST_OPS.items():
         print(f"  {name:12s} {doc}")
+    return 0
+
+
+def _cmd_tone(args, _loads) -> int:
+    from .tone import TONE_KEYS
+
+    for name, key in TONE_KEYS.items():
+        print(f"  {name:12s} {key.doc} (default {key.neutral})")
     return 0
 
 

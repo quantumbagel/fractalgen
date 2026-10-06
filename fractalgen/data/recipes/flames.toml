@@ -1,0 +1,59 @@
+# Fractal flames. `fractalgen generators flame` lists parameters; an empty
+# `xforms` draws random transforms from `seed`.
+
+[recipe.flame_bloom]
+description = "Three-fold fractal flame petals in twilight rose"
+generator = "flame"
+palette = "twilight"
+tags = ["keep"]
+params = { seed = 21, symmetry = 3, percentiles = [0.5, 99.5] }
+
+[recipe.flame_starburst]
+description = "Fractal flame starburst in neon ink"
+generator = "flame"
+palette = "neon"
+tags = ["keep", "vip"]
+params = { seed = 23, symmetry = 3, percentiles = [0.5, 99.5] }
+
+[recipe.flame_rosette]
+description = "Six-pointed fractal flame rosette"
+generator = "flame"
+palette = "cosmic"
+tags = ["keep", "vip"]
+params = { seed = 24, symmetry = 3, percentiles = [0.5, 99.5] }
+
+[recipe.flame_vortex]
+description = "Fractal flame vortex in embers"
+generator = "flame"
+palette = "ember"
+tags = ["keep"]
+params = { seed = 30, symmetry = 3, percentiles = [0.5, 99.5] }
+
+[recipe.flame_lily]
+description = "Three-petal fractal flame in bioluminescent teal"
+generator = "flame"
+palette = "biolum"
+tags = ["keep"]
+params = { seed = 31, symmetry = 3, percentiles = [0.5, 99.5] }
+
+[recipe.flame_thorns]
+description = "Fractal flame of bronze thorns"
+generator = "flame"
+palette = "bronze"
+tags = ["keep"]
+params = { seed = 26, symmetry = 3, percentiles = [0.5, 99.5] }
+
+[recipe.flame_julia_veil]
+description = "Hand-built flame: julia, spherical and swirl transforms"
+generator = "flame"
+palette = "aurora"
+tags = ["keep"]
+
+[recipe.flame_julia_veil.params]
+symmetry = 2
+color_speed = 0.4
+xforms = [
+  { affine = [0.56, -0.31, 0.31, 0.56, 0.12, 0.2], weight = 1.0, color = 0.0, variations = { julia = 1.0 } },
+  { affine = [0.7, 0.45, -0.45, 0.7, -0.4, 0.1], weight = 0.6, color = 0.6, variations = { spherical = 0.7, linear = 0.3 } },
+  { affine = [0.3, 0.0, 0.0, 0.3, 0.8, -0.5], weight = 0.25, color = 1.0, variations = { swirl = 1.0 } },
+]

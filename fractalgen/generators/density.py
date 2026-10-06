@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-from typing import Sequence
+from typing import Any, Sequence
 
 import numpy as np
 from scipy.ndimage import gaussian_filter, label
 
 from ..color import log_tone
+from ..tone import levels, stat
 from ..palette import sample_palette
 from ..view import fit_window
 
@@ -178,3 +179,40 @@ def paint_density(
         deposit(density, hue_acc, x, y, xmin, xmax, ymin, ymax, hue_val=h)
 
     return tone_map_density(density, hue_acc, palette, blur=blur, gamma=gamma, norm=norm)
+
+
+def palette_lut(palette: Any, n: int = 1024) -> np.ndarray:
+    """(n, 3) palette samples for numba splat kernels."""
+    return np.ascontiguousarray(sample_palette(palette, np.linspace(0.0, 1.0, n)), dtype=np.float64)
+
+
+def tone_map_rgb_acc(
+    acc: np.ndarray,
+    gamma: float = 0.5,
+    blur: float = 0.0,
+    norm: float = 1.0,
+    hi: float = 99.7,
+    vibrancy: float = 1.0,
+) -> np.ndarray:
+    """Tone-map an (H, W, 4) (hits, r, g, b) buffer, fractal-flame style.
+
+    Color is the mean palette color of the hits in each pixel; brightness is
+    log(hits) stretched to the ``hi`` percentile, then raised to ``gamma``.
+    ``vibrancy`` < 1 mixes in a per-channel gamma that pushes dense areas to white.
+    """
+    hits = acc[..., 0]
+    col = acc[..., 1:]
+    if blur > 0:
+        hits = gaussian_filter(hits, sigma=blur)
+        col = np.stack([gaussian_filter(col[..., i], sigma=blur) for i in range(3)], axis=-1)
+    mean = col / np.maximum(hits, 1e-12)[..., None]
+    hits = hits * norm
+    ld = np.log1p(np.maximum(hits, 0.0))
+    pos = ld[ld > 0]
+    top = stat("tone_map_rgb_acc", lambda: float(np.percentile(pos, hi)) if pos.size else 1.0)
+    tone = levels(np.clip(ld / max(top, 1e-12), 0.0, 1.0))
+    alpha = np.power(tone, gamma)[..., None]
+    rgb = mean * alpha
+    if vibrancy < 1.0:
+        rgb = vibrancy * rgb + (1.0 - vibrancy) * np.power(np.clip(mean * tone[..., None], 0.0, 1.0), gamma)
+    return np.clip(rgb, 0.0, 1.0)

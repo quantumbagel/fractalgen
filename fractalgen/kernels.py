@@ -567,3 +567,400 @@ def escape_kernel_generic(cr, ci, max_iter, step, julia, jc, k, bailout2, log_de
                 zp = z
                 z = zn
     return escaped_n, escaped
+
+
+# ---- shared helpers for point-splat generators ---------------------------------
+
+@njit(fastmath=True)
+def _mix64(z):
+    """splitmix64 finalizer: a stateless, scheduling-independent hash."""
+    z = (z ^ (z >> np.uint64(30))) * np.uint64(0xBF58476D1CE4E5B9)
+    z = (z ^ (z >> np.uint64(27))) * np.uint64(0x94D049BB133111EB)
+    return z ^ (z >> np.uint64(31))
+
+
+@njit(fastmath=True)
+def _rand01(key, i, t):
+    """Uniform [0, 1) from (key, i, t)."""
+    h = _mix64(key ^ (np.uint64(i) * np.uint64(0x9E3779B97F4A7C15)) ^ (np.uint64(t) * np.uint64(0xD1B54A32D192ED03)))
+    return float(h >> np.uint64(11)) * (1.0 / 9007199254740992.0)
+
+
+@njit(fastmath=True)
+def splat_rgb(acc, x, y, c, lut, ax, bx, cx, ay, by, cy):
+    """Serial nearest-pixel splat of plane points into acc[H, W, 4] = (hits, r, g, b).
+    ``c`` is a 0..1 palette coordinate per point, looked up in ``lut`` (N, 3)."""
+    h, w = acc.shape[0], acc.shape[1]
+    nl = lut.shape[0]
+    for i in range(x.shape[0]):
+        xi = x[i]
+        yi = y[i]
+        if not (np.isfinite(xi) and np.isfinite(yi)):
+            continue
+        fx = ax * xi + bx * yi + cx + 0.5
+        fy = ay * xi + by * yi + cy + 0.5
+        if fx < 0.0 or fy < 0.0 or fx >= w or fy >= h:
+            continue
+        ix = int(fx)
+        iy = int(fy)
+        k = int(c[i] * (nl - 1) + 0.5)
+        if k < 0:
+            k = 0
+        elif k >= nl:
+            k = nl - 1
+        acc[iy, ix, 0] += 1.0
+        acc[iy, ix, 1] += lut[k, 0]
+        acc[iy, ix, 2] += lut[k, 1]
+        acc[iy, ix, 3] += lut[k, 2]
+
+
+# ---- fractal flame -------------------------------------------------------------
+
+@njit(fastmath=True)
+def _flame_variation(v, x, y, key, i, t):
+    r2 = x * x + y * y + 1e-12
+    r = np.sqrt(r2)
+    if v == 0:  # linear
+        return x, y
+    if v == 1:  # sinusoidal
+        return np.sin(x), np.sin(y)
+    if v == 2:  # spherical
+        return x / r2, y / r2
+    if v == 3:  # swirl
+        s, c = np.sin(r2), np.cos(r2)
+        return x * s - y * c, x * c + y * s
+    if v == 4:  # horseshoe
+        return (x - y) * (x + y) / r, 2.0 * x * y / r
+    th = np.arctan2(x, y)
+    if v == 5:  # polar
+        return th / np.pi, r - 1.0
+    if v == 6:  # handkerchief
+        return r * np.sin(th + r), r * np.cos(th - r)
+    if v == 7:  # heart
+        return r * np.sin(th * r), -r * np.cos(th * r)
+    if v == 8:  # disc
+        return th / np.pi * np.sin(np.pi * r), th / np.pi * np.cos(np.pi * r)
+    if v == 9:  # spiral
+        return (np.cos(th) + np.sin(r)) / r, (np.sin(th) - np.cos(r)) / r
+    if v == 10:  # hyperbolic
+        return np.sin(th) / r, r * np.cos(th)
+    if v == 11:  # diamond
+        return np.sin(th) * np.cos(r), np.cos(th) * np.sin(r)
+    if v == 12:  # ex
+        p0 = np.sin(th + r)
+        p1 = np.cos(th - r)
+        return r * (p0 * p0 * p0 + p1 * p1 * p1), r * (p0 * p0 * p0 - p1 * p1 * p1)
+    if v == 13:  # julia
+        om = np.pi if _rand01(key, i, t * 7 + 3) < 0.5 else 0.0
+        sr = np.sqrt(r)
+        return sr * np.cos(th * 0.5 + om), sr * np.sin(th * 0.5 + om)
+    if v == 14:  # bent
+        nx = x * 2.0 if x < 0.0 else x
+        ny = y * 0.5 if y < 0.0 else y
+        return nx, ny
+    if v == 15:  # fisheye
+        f = 2.0 / (r + 1.0)
+        return f * y, f * x
+    if v == 16:  # exponential
+        e = np.exp(x - 1.0)
+        return e * np.cos(np.pi * y), e * np.sin(np.pi * y)
+    if v == 17:  # cosine
+        return np.cos(np.pi * x) * np.cosh(y), -np.sin(np.pi * x) * np.sinh(y)
+    if v == 18:  # eyefish
+        f = 2.0 / (r + 1.0)
+        return f * x, f * y
+    if v == 19:  # bubble
+        f = 4.0 / (r2 + 4.0)
+        return f * x, f * y
+    if v == 20:  # cylinder
+        return np.sin(x), y
+    return x, y
+
+
+@njit(parallel=True, fastmath=True)
+def flame_chunk(x, y, col, t0, n_steps, coefs, varw, cum, xcol, cspeed, sym, key, out_x, out_y, out_c):
+    """Advance flame walkers ``n_steps`` chaos-game steps, recording every point.
+
+    coefs (n_xf, 6) affine [a b c d e f]; varw (n_xf, n_var) variation weights;
+    cum (n_xf,) cumulative pick probabilities; xcol (n_xf,) colors. With
+    ``sym`` > 1, half the steps instead rotate by a multiple of 2 pi / sym.
+    """
+    n = x.shape[0]
+    nx = coefs.shape[0]
+    nv = varw.shape[1]
+    for i in prange(n):
+        px = x[i]
+        py = y[i]
+        pc = col[i]
+        for s in range(n_steps):
+            t = t0 + s
+            u = _rand01(key, i, t * 4)
+            if sym > 1 and u < 0.5:
+                kk = 1 + int(_rand01(key, i, t * 4 + 1) * (sym - 1))
+                a = 2.0 * np.pi * kk / sym
+                ca, sa = np.cos(a), np.sin(a)
+                px, py = ca * px - sa * py, sa * px + ca * py
+            else:
+                u2 = _rand01(key, i, t * 4 + 2)
+                j = 0
+                while j < nx - 1 and cum[j] <= u2:
+                    j += 1
+                tx = coefs[j, 0] * px + coefs[j, 1] * py + coefs[j, 4]
+                ty = coefs[j, 2] * px + coefs[j, 3] * py + coefs[j, 5]
+                vx = 0.0
+                vy = 0.0
+                for v in range(nv):
+                    wv = varw[j, v]
+                    if wv != 0.0:
+                        ox, oy = _flame_variation(v, tx, ty, key, i, t)
+                        vx += wv * ox
+                        vy += wv * oy
+                px = vx
+                py = vy
+                pc = pc + (xcol[j] - pc) * cspeed
+            if not (np.isfinite(px) and np.isfinite(py)) or abs(px) > 1e8 or abs(py) > 1e8:
+                px = _rand01(key, i, t * 4 + 3) * 2.0 - 1.0
+                py = _rand01(key, i ^ 0x5555, t * 4 + 3) * 2.0 - 1.0
+            out_x[s, i] = px
+            out_y[s, i] = py
+            out_c[s, i] = pc
+        x[i] = px
+        y[i] = py
+        col[i] = pc
+
+
+# ---- buddhabrot ----------------------------------------------------------------
+
+@njit(fastmath=True)
+def _bb_step(zr, zi, cr, ci, kind):
+    if kind == 2 or kind == 3:  # burning ship / buffalo fold
+        zr = abs(zr)
+        zi = abs(zi)
+    elif kind == 4:  # tricorn
+        zi = -zi
+    if kind == 7:
+        zr2 = zr * zr
+        zi2 = zi * zi
+        return zr * (zr2 - 3.0 * zi2) + cr, zi * (3.0 * zr2 - zi2) + ci
+    if kind == 8:
+        a = zr * zr - zi * zi
+        b = 2.0 * zr * zi
+        return a * a - b * b + cr, 2.0 * a * b + ci
+    nr = zr * zr - zi * zi
+    ni = 2.0 * zr * zi
+    if kind == 6:  # celtic
+        nr = abs(nr)
+    if kind == 3:  # buffalo: |z|^2 - |z| + c
+        return nr - zr + cr, ni - zi + ci
+    return nr + cr, ni + ci
+
+
+@njit(parallel=True, fastmath=True)
+def buddhabrot_escape(n, key, i0, x0, x1, y0, y1, max_iter, bailout2, kind):
+    """Pick ``n`` random c in the window and return (cr, ci, escape iteration or -1)."""
+    cr = np.empty(n)
+    ci = np.empty(n)
+    out = np.full(n, -1, dtype=np.int64)
+    for k in prange(n):
+        a = x0 + (x1 - x0) * _rand01(key, i0 + k, 0)
+        b = y0 + (y1 - y0) * _rand01(key, i0 + k, 1)
+        cr[k] = a
+        ci[k] = b
+        if kind == 0:  # skip the main cardioid and period-2 bulb: never escape
+            q = (a - 0.25) * (a - 0.25) + b * b
+            if q * (q + (a - 0.25)) <= 0.25 * b * b or (a + 1.0) * (a + 1.0) + b * b <= 0.0625:
+                continue
+        zr = 0.0
+        zi = 0.0
+        for it in range(max_iter):
+            zr, zi = _bb_step(zr, zi, a, b, kind)
+            if zr * zr + zi * zi > bailout2:
+                out[k] = it + 1
+                break
+    return cr, ci, out
+
+
+@njit(parallel=True, fastmath=True)
+def buddhabrot_orbits(cr, ci, steps, offsets, kind, ax, bx, cx, ay, by, cy, w, h, pix):
+    """Replay each orbit's first ``steps[k]`` points into flat pixel indices (-1 = off frame)."""
+    for k in prange(cr.shape[0]):
+        zr = 0.0
+        zi = 0.0
+        o = offsets[k]
+        for s in range(steps[k]):
+            zr, zi = _bb_step(zr, zi, cr[k], ci[k], kind)
+            fx = ax * zr + bx * zi + cx + 0.5
+            fy = ay * zr + by * zi + cy + 0.5
+            if fx >= 0.0 and fy >= 0.0 and fx < w and fy < h:
+                pix[o + s] = int(fy) * w + int(fx)
+            else:
+                pix[o + s] = -1
+
+
+@njit(fastmath=True)
+def buddhabrot_splat(acc, pix, steps, offsets, chan_mask):
+    """acc (n_chan, H*W): add each orbit's pixels to the channels in its bitmask."""
+    nch = acc.shape[0]
+    for k in range(steps.shape[0]):
+        m = chan_mask[k]
+        o = offsets[k]
+        for s in range(steps[k]):
+            p = pix[o + s]
+            if p < 0:
+                continue
+            for ch in range(nch):
+                if (m >> ch) & 1:
+                    acc[ch, p] += 1.0
+
+
+# ---- area-preserving maps (standard map, Henon) ----------------------------------
+
+@njit(parallel=True, fastmath=True)
+def symplectic_orbits(x0, y0, steps, kind, k, cov_box, cov_n, out_x, out_y):
+    """Iterate orbits of an area-preserving map; return per-orbit coverage of a
+    cov_n x cov_n grid over cov_box (chaotic orbits wander, regular ones trace curves).
+
+    kind 0: Chirikov standard map on the torus [0, 2pi)^2 (k = kick strength).
+    kind 1: Henon's quadratic area-preserving map (k = rotation angle, radians).
+    Escaped orbits are NaN from the escape on.
+    """
+    n = x0.shape[0]
+    cov = np.zeros(n)
+    two_pi = 2.0 * np.pi
+    ck, sk = np.cos(k), np.sin(k)
+    bx0, bx1, by0, by1 = cov_box[0], cov_box[1], cov_box[2], cov_box[3]
+    for i in prange(n):
+        seen = np.zeros(cov_n * cov_n, dtype=np.uint8)
+        hits = 0
+        x = x0[i]
+        y = y0[i]
+        alive = True
+        for s in range(steps):
+            if alive:
+                if kind == 0:
+                    y = y + k * np.sin(x)
+                    y -= two_pi * np.floor(y / two_pi)
+                    x = x + y
+                    x -= two_pi * np.floor(x / two_pi)
+                else:
+                    q = y - x * x
+                    x, y = x * ck - q * sk, x * sk + q * ck
+                    if abs(x) > 10.0 or abs(y) > 10.0:
+                        alive = False
+            if alive:
+                out_x[i, s] = x
+                out_y[i, s] = y
+                gx = int((x - bx0) / (bx1 - bx0) * cov_n)
+                gy = int((y - by0) / (by1 - by0) * cov_n)
+                if gx >= 0 and gy >= 0 and gx < cov_n and gy < cov_n:
+                    cell = gy * cov_n + gx
+                    if seen[cell] == 0:
+                        seen[cell] = 1
+                        hits += 1
+            else:
+                out_x[i, s] = np.nan
+                out_y[i, s] = np.nan
+        cov[i] = hits / float(cov_n * cov_n)
+    return cov
+
+
+@njit(fastmath=True)
+def splat_periodic(acc, xs, ys, rgb, period, i0, i1, j0, j1, ax, bx, cx, ay, by, cy):
+    """Splat orbits (n_orbits, steps) with one color each into acc[H, W, 4],
+    repeating every ``period`` in x and y for tile offsets i0..i1, j0..j1."""
+    h, w = acc.shape[0], acc.shape[1]
+    for o in range(xs.shape[0]):
+        r = rgb[o, 0]
+        g = rgb[o, 1]
+        b = rgb[o, 2]
+        for s in range(xs.shape[1]):
+            x = xs[o, s]
+            y = ys[o, s]
+            if not np.isfinite(x):
+                continue
+            for ti in range(i0, i1 + 1):
+                for tj in range(j0, j1 + 1):
+                    px = x + ti * period
+                    py = y + tj * period
+                    fx = ax * px + bx * py + cx + 0.5
+                    fy = ay * px + by * py + cy + 0.5
+                    if fx < 0.0 or fy < 0.0 or fx >= w or fy >= h:
+                        continue
+                    ix = int(fx)
+                    iy = int(fy)
+                    acc[iy, ix, 0] += 1.0
+                    acc[iy, ix, 1] += r
+                    acc[iy, ix, 2] += g
+                    acc[iy, ix, 3] += b
+
+
+# ---- caustics ------------------------------------------------------------------
+
+@njit(parallel=True, fastmath=True)
+def caustic_rays(py0, py1, w_lo, w_hi, ss, inv, fwd, waves, drops, depths, out_x, out_y):
+    """Bend a ss x ss-per-pixel grid of vertical light rays through a wavy surface.
+
+    Rows py0..py1 and columns w_lo..w_hi are pixel ranges (may extend past the
+    frame). inv: pixel -> plane affine (6,), fwd: plane -> pixel affine (6,).
+    waves (n, 5): kx, ky, amp, phase, unused. drops (m, 5): x, y, k, amp, phase.
+    Landing = start + depth * grad(height), for each depth (color channel).
+    out_x / out_y: (n_depths, rows * ss, cols * ss) in pixel coordinates.
+    """
+    ncols = (w_hi - w_lo) * ss
+    nrows = (py1 - py0) * ss
+    nd = depths.shape[0]
+    for r in prange(nrows):
+        fy = py0 + (r + 0.5) / ss - 0.5
+        for cidx in range(ncols):
+            fx = w_lo + (cidx + 0.5) / ss - 0.5
+            x = inv[0] * fx + inv[1] * fy + inv[2]
+            y = inv[3] * fx + inv[4] * fy + inv[5]
+            gx = 0.0
+            gy = 0.0
+            for q in range(waves.shape[0]):
+                kx = waves[q, 0]
+                ky = waves[q, 1]
+                d = waves[q, 2] * np.cos(kx * x + ky * y + waves[q, 3])
+                gx += d * kx
+                gy += d * ky
+            for q in range(drops.shape[0]):
+                dx = x - drops[q, 0]
+                dy = y - drops[q, 1]
+                rr = np.sqrt(dx * dx + dy * dy) + 1e-9
+                kq = drops[q, 2]
+                d = drops[q, 3] * kq * np.cos(kq * rr + drops[q, 4]) / np.sqrt(1.0 + kq * rr)
+                gx += d * dx / rr
+                gy += d * dy / rr
+            for m in range(nd):
+                lx = x + depths[m] * gx
+                ly = y + depths[m] * gy
+                out_x[m, r, cidx] = fwd[0] * lx + fwd[1] * ly + fwd[2]
+                out_y[m, r, cidx] = fwd[3] * lx + fwd[4] * ly + fwd[5]
+
+
+@njit(fastmath=True)
+def splat_bilinear(dens, px, py, weight):
+    """Serial bilinear splat of pixel-space points into dens (H, W)."""
+    h, w = dens.shape
+    flat_x = px.reshape(-1)
+    flat_y = py.reshape(-1)
+    for i in range(flat_x.shape[0]):
+        fx = flat_x[i]
+        fy = flat_y[i]
+        if not (fx > -1.0 and fy > -1.0 and fx < w and fy < h):
+            continue
+        x0 = int(np.floor(fx))
+        y0 = int(np.floor(fy))
+        tx = fx - x0
+        ty = fy - y0
+        for oy in range(2):
+            yy = y0 + oy
+            if yy < 0 or yy >= h:
+                continue
+            wy = ty if oy else 1.0 - ty
+            for ox in range(2):
+                xx = x0 + ox
+                if xx < 0 or xx >= w:
+                    continue
+                wx = tx if ox else 1.0 - tx
+                dens[yy, xx] += weight * wx * wy

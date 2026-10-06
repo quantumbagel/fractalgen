@@ -307,11 +307,18 @@ function genSpec() {
   return catalog?.generators[state?.generator];
 }
 
-function cleanPost(post) {
-  if (!post || !catalog) return undefined;
+// Generator-independent op tables: `post` (finishing) and `tone` (auto-exposure).
+const OP_GROUPS = ["post", "tone"];
+
+function groupOps(group) {
+  return catalog?.[`${group}_ops`] || [];
+}
+
+function cleanOps(group, table) {
+  if (!table || !catalog) return undefined;
   const out = {};
-  for (const op of catalog.post_ops) {
-    const v = post[op.name];
+  for (const op of groupOps(group)) {
+    const v = table[op.name];
     if (v === null || v === undefined) continue;
     if (deepEq(v, op.neutral)) continue;
     out[op.name] = v;
@@ -323,9 +330,11 @@ function stateForApi(s) {
   const o = deepClone(s);
   o.seq = seq;
   o.client = clientId;
-  const p = cleanPost(o.post);
-  if (p) o.post = p;
-  else delete o.post;
+  for (const g of OP_GROUPS) {
+    const t = cleanOps(g, o[g]);
+    if (t) o[g] = t;
+    else delete o[g];
+  }
   return o;
 }
 
@@ -370,7 +379,7 @@ function applyFrameAspect(asp) {
 // Controls mutate `state` freely; checkpoint() diffs it against the last
 // committed snapshot and records the old one. Rapid edits of the same control
 // (slider drags, wheel zooms) merge into one undo step.
-const HISTORY_KEYS = ["recipe", "generator", "palette", "params", "view", "post"];
+const HISTORY_KEYS = ["recipe", "generator", "palette", "params", "view", "post", "tone"];
 let committed = null;
 let lastCommitKey = null;
 let lastCommitTime = 0;
@@ -463,11 +472,13 @@ function recomputeModified() {
       if (!deepEq(state.view[k], baseline.view[k])) modified.add(`view.${k}`);
     }
   }
-  const bp = baseline.post || {};
-  const sp = state.post || {};
-  for (const op of catalog.post_ops) {
-    const n = op.name;
-    if (!deepEq(sp[n] ?? op.neutral, bp[n] ?? op.neutral)) modified.add(`post.${n}`);
+  for (const g of OP_GROUPS) {
+    const bt = baseline[g] || {};
+    const st = state[g] || {};
+    for (const op of groupOps(g)) {
+      const n = op.name;
+      if (!deepEq(st[n] ?? op.neutral, bt[n] ?? op.neutral)) modified.add(`${g}.${n}`);
+    }
   }
 }
 
@@ -508,6 +519,7 @@ function persistHash() {
       params: state.params,
       view: state.view,
       post: state.post,
+      tone: state.tone,
       aspectKey,
       previewSize: parseInt($("previewSize").value, 10),
     };
@@ -713,6 +725,7 @@ function generatorBlankState(genName) {
     params,
     view: g.uses_view ? { center: [0, 0], half_width: 2, rotation: 0, fit: "fill", ...deepClone(g.default_view) } : null,
     post: {},
+    tone: {},
     width: state.width,
     height: state.height,
     seq,
@@ -746,11 +759,12 @@ async function stateFromHash(h) {
   st.params = { ...st.params, ...(h.params || {}) };
   if (h.view && st.view) st.view = h.view;
   st.post = h.post || {};
+  st.tone = h.tone || {};
   return st;
 }
 
 async function loadInitial() {
-  state = { width: 640, height: 360, params: {}, post: {} };
+  state = { width: 640, height: 360, params: {}, post: {}, tone: {} };
   syncDimensions();
   let restored = null;
   if (location.hash.length > 1) {
@@ -843,12 +857,23 @@ function rebuildSidebar() {
 
   sb.appendChild(paramsSec);
 
+  const toneSec = document.createElement("div");
+  toneSec.className = "section";
+  toneSec.innerHTML = `<h3>Tone</h3><div class="intro">Adjusts the generator's automatic exposure before the palette ` +
+    `is applied. The default is measured once on the recipe's own view, so panning and zooming keep it. ` +
+    `Generators without an automatic stretch (e.g. domain coloring) ignore these.</div>`;
+  if (!state.tone) state.tone = {};
+  for (const op of groupOps("tone")) {
+    toneSec.appendChild(opRow("tone", op, "default at"));
+  }
+  sb.appendChild(toneSec);
+
   const postSec = document.createElement("div");
   postSec.className = "section";
   postSec.innerHTML = `<h3>Post</h3><div class="intro">Finishing applied after rendering; works the same for every generator.</div>`;
   if (!state.post) state.post = {};
-  for (const op of catalog.post_ops) {
-    postSec.appendChild(postOpRow(op));
+  for (const op of groupOps("post")) {
+    postSec.appendChild(opRow("post", op));
   }
   sb.appendChild(postSec);
   refreshModifiedMarks();
@@ -1401,21 +1426,21 @@ function paletteRow(path, label, value, onApply, allowNone = false, doc = "") {
   return row;
 }
 
-function postOpRow(op) {
-  const path = `post.${op.name}`;
-  const cur = state.post?.[op.name];
+function opRow(group, op, neutralLabel = "off at") {
+  const path = `${group}.${op.name}`;
+  const cur = state[group]?.[op.name];
   const val = cur !== undefined && cur !== null ? cur : op.neutral;
   const onSet = (v) => {
-    if (!state.post) state.post = {};
-    if (deepEq(v, op.neutral)) delete state.post[op.name];
-    else state.post[op.name] = v;
+    if (!state[group]) state[group] = {};
+    if (deepEq(v, op.neutral)) delete state[group][op.name];
+    else state[group][op.name] = v;
     commitChange(path);
   };
   if (op.kind === "bool") return boolRow(path, op.name, val, op.doc, onSet);
   if (op.kind === "palette") return paletteRow(path, op.name, val, onSet, true, op.doc);
   if (op.kind === "color") return colorRow(path, op.name, val, op.doc, onSet, op.neutral == null);
   const rng = op.range || [-1, 1];
-  return floatRow(path, op.name, val, rng[0], rng[1], 0.01, onSet, false, [op.doc, `off at ${fmtVal(op.neutral)}`]);
+  return floatRow(path, op.name, val, rng[0], rng[1], 0.01, onSet, false, [op.doc, `${neutralLabel} ${fmtVal(op.neutral)}`]);
 }
 
 // --- view interaction ---
@@ -1653,12 +1678,14 @@ async function onAspectChange() {
       if (!modified.has(`params.${key}`)) state.params[key] = deepClone(fresh.params[key]);
     }
     if (!modified.has("palette")) state.palette = deepClone(fresh.palette);
-    const post = {};
-    for (const op of catalog.post_ops) {
-      const v = modified.has(`post.${op.name}`) ? state.post?.[op.name] : fresh.post?.[op.name];
-      if (v !== undefined && v !== null) post[op.name] = deepClone(v);
+    for (const g of OP_GROUPS) {
+      const table = {};
+      for (const op of groupOps(g)) {
+        const v = modified.has(`${g}.${op.name}`) ? state[g]?.[op.name] : fresh[g]?.[op.name];
+        if (v !== undefined && v !== null) table[op.name] = deepClone(v);
+      }
+      state[g] = table;
     }
-    state.post = post;
     // Portrait overrides change the recipe's own values: reset targets them now.
     baseline = fresh;
     recomputeModified();

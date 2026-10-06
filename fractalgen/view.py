@@ -120,6 +120,21 @@ class View:
         ct, st = math.cos(th), math.sin(th)
         return c.real + U * ct - V * st, c.imag + U * st + V * ct
 
+    def to_pixel(self, width: int, height: int) -> tuple[float, float, float, float, float, float]:
+        """Affine (ax, bx, cx, ay, by, cy) mapping plane (x, y) to pixel coordinates,
+        px = ax*x + bx*y + cx, py = ay*x + by*y + cy: the inverse of :meth:`plane`."""
+        hw, hh = self.extents(width, height)
+        th = math.radians(self.rotation)
+        ct, st = math.cos(th), math.sin(th)
+        sx = (width - 1) / (2.0 * hw)
+        sy = (height - 1) / (2.0 * hh)
+        x0, y0 = self.center.real, self.center.imag
+        # u = (x-x0) ct + (y-y0) st;  v = -(x-x0) st + (y-y0) ct;  px = (u+hw) sx;  py = (hh-v) sy
+        return (
+            ct * sx, st * sx, (hw - x0 * ct - y0 * st) * sx,
+            st * sy, -ct * sy, (hh - x0 * st + y0 * ct) * sy,
+        )
+
 
 def fit_window(
     xmin: float, xmax: float, ymin: float, ymax: float, width: int, height: int, fill: str = "auto"
