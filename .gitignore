@@ -4,6 +4,8 @@ __pycache__/
 *.nbi
 *.nbc
 .venv/
+*.egg-info/
+build/
 venv/
 
 # Rendered output (multi-GB)

@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fractalgen"
+version = "0.1.0"
+description = "Extensible math / fractal wallpaper generator"
+requires-python = ">=3.11"
+dependencies = ["numpy>=2.0", "pillow>=11.0", "scipy>=1.14", "numba>=0.61"]
+
+[project.scripts]
+fractalgen = "fractalgen.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["fractalgen*"]
+
+[tool.setuptools.package-data]
+fractalgen = ["data/*.toml", "data/recipes/*.toml", "gui/static/*"]

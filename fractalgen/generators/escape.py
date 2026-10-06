@@ -14,7 +14,7 @@ or from TOML, where ``z`` is an expression compiled to numba::
     [formula.sine_julia]
     z = "c * sin(z)"
     julia = true        # pixel is z0, `c` param is the constant
-    degree = 1.0        # growth rate used for smooth coloring
+    degree = 1.0        # polynomial degree for smooth coloring (<= 1: plain counts)
     bailout = 50.0
 """
 
@@ -153,7 +153,7 @@ def escape_field(
     else:
         n, esc = kernels.escape_kernel_generic(
             cr, ci, int(max_iter), f.step, f.julia, complex(c), float(k),
-            float(f.bailout) ** 2, math.log(max(f.degree, 1.0001)),
+            float(f.bailout) ** 2, math.log(f.degree) if f.degree > 1.0 else 0.0,
         )
     return n, esc.astype(bool)
 
@@ -163,14 +163,19 @@ def escape_field(
     category="escape-time",
     uses_view=True,
     param_docs={
-        "formula": "registered formula name (`fractalgen formulas` via generators escape_time)",
-        "c": "constant for Julia-style formulas (pixel is z0)",
-        "k": "extra formula parameter (phoenix: previous-z weight)",
-        "coloring": "histogram (equalized) or smooth (cyclic bands)",
-        "density": "bands per iteration for coloring='smooth'",
-        "gamma": "tone curve applied to the color index",
-        "interior": "RGB of points that never escape",
+        "formula": "which fractal to draw (mandelbrot, julia, burning_ship, … or a custom name)",
+        "max_iter": "iterations per pixel; higher = more filament detail, slower",
+        "c": "complex constant [re, im] for Julia formulas; ignored by Mandelbrot-style",
+        "k": "extra formula weight (phoenix: mix of previous z); ignored by most formulas",
+        "palette": "color gradient for the exterior (name, name_r to reverse, or hex list)",
+        "coloring": "histogram = even color spread; smooth = repeating bands from iteration count",
+        "density": "palette cycles per iteration in smooth mode; higher = thinner color bands",
+        "gamma": "tone curve on the color index; lower = brighter midtones",
+        "cyclic": "wrap the palette when the index exceeds 1 (smooth always wraps; rarely change)",
+        "interior": "interior color [r, g, b] in 0..1 for points that never escape (the 'set')",
     },
+    ranges={"max_iter": (10, 5000, 10), "k": (-1.5, 1.5), "density": (0.005, 0.5), "gamma": (0.2, 3.0)},
+    choices={"formula": FORMULAS.names, "coloring": ["histogram", "smooth"]},
 )
 def escape_time(
     ctx,
@@ -186,7 +191,7 @@ def escape_time(
     cyclic: bool = False,
     interior: tuple = (0.0, 0.0, 0.0),
 ):
-    """Smooth escape-time coloring for Mandelbrot / Julia / Burning Ship / custom formulas."""
+    """Mandelbrot / Julia family: each pixel colored by how fast its orbit escapes."""
     cr, ci = ctx.plane()
     n, esc = ctx.strips(lambda a, b: escape_field(a, b, max_iter, formula, c, k), cr, ci)
     del cr, ci
@@ -209,7 +214,16 @@ TRAPS = {"rings": 0, "cross": 1, "circle": 2, "point": 3}
     "orbit_trap",
     category="escape-time",
     uses_view=True,
-    param_docs={"trap": f"one of {sorted(TRAPS)}"},
+    param_docs={
+        "max_iter": "orbit steps per pixel; higher = richer trap hits, slower",
+        "trap": "shape each orbit is measured against (rings, cross, circle, or point)",
+        "palette": "color gradient mapped to closeness to the trap",
+        "gamma": "tone curve on trap-distance colors; lower = brighter midtones",
+        "shade_gamma": "darkening from trap distance; higher = punchier contrast, darker far pixels",
+        "floor": "minimum brightness mix 0..1; higher = less dark shading overall",
+    },
+    ranges={"max_iter": (10, 2000, 10), "gamma": (0.2, 3.0), "shade_gamma": (0.2, 3.0), "floor": (0.0, 1.0)},
+    choices={"trap": list(TRAPS)},
 )
 def orbit_trap(
     ctx,
@@ -221,7 +235,7 @@ def orbit_trap(
     shade_gamma: float = 0.7,
     floor: float = 0.12,
 ):
-    """Mandelbrot orbits colored by their closest approach to a trap shape."""
+    """Mandelbrot colored by how close each orbit comes to a trap shape."""
     from .. import kernels
 
     if trap not in TRAPS:

@@ -5,7 +5,8 @@ Search path (later entries may add to, or with ``replace``, override earlier):
 1. built-in generators (``fractalgen.generators``)
 2. built-in data (``fractalgen/data/**.toml``)
 3. every entry of ``$FRACTALGEN_PATH`` (``os.pathsep``-separated)
-4. paths passed to :func:`bootstrap` (CLI ``--load``)
+4. the project's ``custom/`` directory, if present
+5. paths passed to :func:`bootstrap` (CLI ``--load``)
 
 A path may be a ``.toml`` data file, a ``.py`` plugin, or a directory of them.
 A data file may hold any of these top-level tables::
@@ -32,6 +33,8 @@ from pathlib import Path
 from typing import Any, Callable, Iterable
 
 DATA_DIR = Path(__file__).resolve().parent / "data"
+# Your own recipes / palettes / plugins; `fractalgen fork` writes here. Auto-loaded.
+CUSTOM_DIR = Path(__file__).resolve().parent.parent / "custom"
 
 # section name -> handler(name, table, source, replace)
 SECTION_HANDLERS: dict[str, Callable[[str, dict[str, Any], str, bool], None]] = {}
@@ -51,8 +54,11 @@ def section(name: str):
 
 
 def load_toml(path: Path) -> None:
-    with open(path, "rb") as f:
-        doc = tomllib.load(f)
+    try:
+        with open(path, "rb") as f:
+            doc = tomllib.load(f)
+    except tomllib.TOMLDecodeError as exc:
+        raise ValueError(f"{path}: invalid TOML: {exc}") from None
     replace = bool(doc.pop("replace", False))
     for sect, entries in doc.items():
         if sect not in SECTION_HANDLERS:
@@ -92,6 +98,8 @@ def load_path(path: str | Path) -> None:
         load_plugin(p)
     elif p.exists():
         raise ValueError(f"Don't know how to load {p} (want .toml, .py, or a directory)")
+    elif "/" in str(path) or "\\" in str(path) or p.suffix:
+        raise FileNotFoundError(f"No such file or directory to load: {p}")
     else:
         # A dotted module name, e.g. `--load mypkg.fractals`
         importlib.import_module(str(path))
@@ -122,6 +130,8 @@ def bootstrap(extra: Iterable[str | Path] = ()) -> list[str]:
         env = os.environ.get("FRACTALGEN_PATH", "")
         for entry in filter(None, env.split(os.pathsep)):
             load_path(entry)
+        if CUSTOM_DIR.is_dir():
+            load_path(CUSTOM_DIR)
         _booted = True
     for p in extra:
         key = str(p)

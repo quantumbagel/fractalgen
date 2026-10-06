@@ -1,0 +1,213 @@
+# 2D iterated-map strange attractors.
+
+[recipe.clifford_gold]
+generator = "map_attractor"
+palette = "bronze"
+tags = ["keep"]
+
+[recipe.clifford_gold.params]
+map = "clifford"
+coeffs = { a = -1.4, b = 1.6, c = 1.0, d = 0.7 }
+n = 220000
+steps = 260
+seed = 1
+blur = 0.65
+
+[recipe.clifford_ice]
+generator = "map_attractor"
+palette = "abyss"
+tags = ["keep"]
+
+[recipe.clifford_ice.params]
+map = "clifford"
+coeffs = { a = 1.7, b = 1.7, c = 0.6, d = 1.2 }
+n = 220000
+steps = 260
+seed = 2
+blur = 0.7
+
+[recipe.clifford_fire]
+generator = "map_attractor"
+palette = "ember"
+tags = ["keep"]
+
+[recipe.clifford_fire.params]
+map = "clifford"
+coeffs = { a = -1.7, b = 1.8, c = -1.9, d = -0.4 }
+n = 220000
+steps = 260
+seed = 8
+blur = 0.65
+
+[recipe.dejong_ember]
+generator = "map_attractor"
+palette = "ember"
+tags = ["keep"]
+
+[recipe.dejong_ember.params]
+map = "dejong"
+coeffs = { a = -2.05, b = -1.15, c = -2.14, d = 1.41 }
+n = 200000
+steps = 240
+seed = 4
+blur = 0.6
+
+[recipe.dejong_ice]
+generator = "map_attractor"
+palette = "abyss"
+tags = ["keep"]
+
+[recipe.dejong_ice.params]
+map = "dejong"
+coeffs = { a = 1.4, b = -2.3, c = 2.4, d = -2.1 }
+n = 200000
+steps = 240
+seed = 9
+blur = 0.6
+
+[recipe.ikeda]
+generator = "map_attractor"
+palette = "neon"
+tags = ["draft"]
+
+[recipe.ikeda.params]
+map = "ikeda"
+n = 240000
+warmup = 70
+steps = 300
+seed = 5
+blur = 0.5
+tight = true
+init = [0.55, -0.35]
+init_sigma = 0.22
+explode = 8.0
+xlim = [0.15, 1.20]
+ylim = [-1.10, 0.25]
+
+[recipe.ikeda_whirl]
+generator = "map_attractor"
+palette = "neon"
+tags = ["draft"]
+
+[recipe.ikeda_whirl.params]
+map = "ikeda"
+n = 280000
+warmup = 80
+steps = 340
+seed = 5
+blur = 0.42
+tight = true
+init = [0.55, -0.35]
+init_sigma = 0.18
+explode = 8.0
+xlim = [0.22, 1.05]
+ylim = [-0.92, 0.12]
+
+[recipe.hopalong]
+generator = "map_attractor"
+palette = "plasma"
+tags = ["keep"]
+
+[recipe.hopalong.params]
+map = "hopalong"
+n = 200000
+warmup = 20
+steps = 200
+seed = 6
+blur = 0.5
+
+[recipe.hopalong_alt]
+generator = "map_attractor"
+palette = "aurora"
+tags = ["keep", "vip"]
+
+[recipe.hopalong_alt.params]
+map = "hopalong"
+coeffs = { a = -1.1, b = 1.6, c = 0.4 }
+n = 200000
+warmup = 20
+steps = 220
+seed = 14
+blur = 0.5
+
+[recipe.gumowski_mira]
+generator = "map_attractor"
+palette = "forest"
+tags = ["keep"]
+
+[recipe.gumowski_mira.params]
+map = "gumowski_mira"
+n = 180000
+warmup = 30
+steps = 220
+seed = 7
+blur = 0.7
+
+[recipe.gumowski_alt]
+generator = "map_attractor"
+palette = "bronze"
+tags = ["keep"]
+
+[recipe.gumowski_alt.params]
+map = "gumowski_mira"
+coeffs = { a = 0.31, b = 1.0 }
+n = 180000
+warmup = 30
+steps = 220
+seed = 15
+blur = 0.7
+
+[recipe.svensson]
+generator = "map_attractor"
+palette = "plasma"
+tags = ["keep"]
+
+[recipe.svensson.params]
+map = "svensson"
+n = 200000
+warmup = 40
+steps = 220
+seed = 10
+blur = 0.55
+
+[recipe.bedhead]
+generator = "map_attractor"
+palette = "twilight"
+tags = ["keep"]
+
+[recipe.bedhead.params]
+map = "bedhead"
+n = 180000
+warmup = 50
+steps = 240
+seed = 11
+blur = 0.6
+
+[recipe.tinkerbell]
+generator = "map_attractor"
+palette = "neon"
+tags = ["draft"]
+
+[recipe.tinkerbell.params]
+map = "tinkerbell"
+n = 280000
+warmup = 90
+steps = 340
+seed = 12
+blur = 0.55
+tight = true
+init = [-0.72, -0.64]
+init_sigma = 0.07
+explode = 6.0
+
+[recipe.fractal_dream]
+generator = "map_attractor"
+palette = "cosmic"
+tags = ["keep", "vip"]
+
+[recipe.fractal_dream.params]
+map = "fractal_dream"
+n = 200000
+steps = 240
+seed = 13
+blur = 0.6

@@ -72,7 +72,8 @@ class View:
         if "half_width" in d:
             kw["half_width"] = float(d.pop("half_width"))
         if "rotation" in d:
-            kw["rotation"] = math.degrees(angle(d.pop("rotation")))
+            rot = d.pop("rotation")
+            kw["rotation"] = float(rot) if isinstance(rot, (int, float)) else math.degrees(angle(rot))
         if "fit" in d:
             fit = str(d.pop("fit"))
             if fit not in FITS:

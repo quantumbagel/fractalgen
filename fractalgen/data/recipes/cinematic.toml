@@ -1,0 +1,47 @@
+# Cinematic simulations and raymarchers. `fractalgen generators` lists parameters.
+
+[recipe.kerr_einstein_rings]
+description = "Spinning black hole: lensed accretion disk, photon ring, Doppler beaming"
+generator = "kerr_black_hole"
+tags = ["keep", "vip"]
+
+[recipe.kerr_einstein_rings.variants.above]   # looking down onto the disk
+params = { camera_elevation = 32.0, camera_distance = 58.0, roll = -14.0, fov = 28.0, disk_outer = 14.0, exposure = -0.7, temperature = 3800.0 }
+
+[recipe.kerr_einstein_rings.variants.white_hot]   # hotter, bluer gas, stronger beaming
+params = { temperature = 16000.0, doppler = 0.8, turbulence = 0.85, saturation = 1.8, exposure = -0.3 }
+
+[recipe.gray_scott_morphogenesis]
+description = "Gray–Scott morphogenesis blend (maze, coral, spots)"
+generator = "gray_scott_blend"
+tags = ["keep", "vip"]
+
+[recipe.physarum_dark_matter]
+description = "Physarum slime-mold cosmic web"
+generator = "physarum"
+tags = ["keep", "vip"]
+
+[recipe.poincare_mirage]
+description = "Hyperbolic {7,3} Poincaré disk mirage"
+generator = "hyperbolic_tiling"
+tags = ["keep", "vip"]
+
+[recipe.halvorsen_ribbon]
+description = "Halvorsen attractor with depth-of-field bokeh"
+generator = "bokeh_attractor"
+tags = ["keep"]
+
+[recipe.hydrogen_orbitals]
+description = "Superposition of hydrogen eigenstates, volume rendered"
+generator = "hydrogen_orbitals"
+tags = ["keep"]
+
+[recipe.ferrofluid_rosettes]
+description = "Ferrofluid spike rosettes under studio lighting"
+generator = "ferrofluid"
+tags = ["keep"]
+
+[recipe.mandelbulb_grotto]
+description = "Raymarched Mandelbulb grotto, bronze and patina"
+generator = "raymarch_fractal"
+tags = ["keep", "vip"]

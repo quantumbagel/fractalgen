@@ -1,4 +1,10 @@
-"""Numba kernels for the heavy per-pixel / per-particle loops."""
+"""Numba kernels for the heavy per-pixel / per-particle loops.
+
+Kernels deliberately do NOT use numba's on-disk cache (``cache=True``): with
+``fastmath`` a cache-loaded kernel can round differently from a fresh compile,
+flipping chaotic boundary pixels, so the same recipe rendered differently
+depending on cache state. Compiling costs ~1-4 s per worker process.
+"""
 
 from __future__ import annotations
 
@@ -18,7 +24,7 @@ KIND = {
 }
 
 
-@njit(parallel=True, fastmath=True, cache=True)
+@njit(parallel=True, fastmath=True)
 def escape_kernel(cr, ci, max_iter, kind, jcr, jci, pk):
     h, w = cr.shape
     escaped_n = np.zeros((h, w), dtype=np.float64)
@@ -95,7 +101,7 @@ def escape_kernel(cr, ci, max_iter, kind, jcr, jci, pk):
     return escaped_n, escaped
 
 
-@njit(parallel=True, fastmath=True, cache=True)
+@njit(parallel=True, fastmath=True)
 def orbit_trap_kernel(cr, ci, max_iter, trap_id):
     h, w = cr.shape
     trap_d = np.empty((h, w), dtype=np.float64)
@@ -135,7 +141,7 @@ def orbit_trap_kernel(cr, ci, max_iter, trap_id):
     return trap_d
 
 
-@njit(parallel=True, fastmath=True, cache=True)
+@njit(parallel=True, fastmath=True)
 def newton_kernel(zr0, zi0, power, max_iter, tol):
     h, w = zr0.shape
     root_ix = np.zeros((h, w), dtype=np.int32)
@@ -188,7 +194,7 @@ def newton_kernel(zr0, zi0, power, max_iter, tol):
     return root_ix, done_n
 
 
-@njit(parallel=True, fastmath=True, cache=True)
+@njit(parallel=True, fastmath=True)
 def lyapunov_kernel(a, b, seq, warmup, samples):
     h, w = a.shape
     out = np.zeros((h, w), dtype=np.float64)
@@ -216,7 +222,7 @@ def lyapunov_kernel(a, b, seq, warmup, samples):
     return out
 
 
-@njit(parallel=True, fastmath=True, cache=True)
+@njit(parallel=True, fastmath=True)
 def popcorn_kernel(zr, zi, steps, hstep):
     h, w = zr.shape
     dx = np.empty((h, w), dtype=np.float64)
@@ -246,7 +252,7 @@ def popcorn_kernel(zr, zi, steps, hstep):
     return dx, dy
 
 
-@njit(cache=True, fastmath=True, parallel=True)
+@njit(fastmath=True, parallel=True)
 def gray_scott_kernel(u, v, F, k, steps, Du, Dv, dt):
     sh, sw = u.shape
     u2 = np.empty_like(u)
@@ -277,7 +283,15 @@ def gray_scott_kernel(u, v, F, k, steps, Du, Dv, dt):
     return u, v
 
 
-@njit(fastmath=True, cache=True)
+@njit(fastmath=True)
+def scatter_add2(a, b, iy, ix, wb):
+    """a[iy, ix] += 1 and b[iy, ix] += wb, in input order (same sums as np.add.at, much faster)."""
+    for i in range(iy.shape[0]):
+        a[iy[i], ix[i]] += 1.0
+        b[iy[i], ix[i]] += wb[i]
+
+
+@njit(fastmath=True)
 def deposit_kernel(density, hue, x, y, xmin, xmax, ymin, ymax, hue_t):
     """Serial hit-count deposit. Not parallel: many particles share pixels."""
     h, w = density.shape
@@ -296,7 +310,7 @@ def deposit_kernel(density, hue, x, y, xmin, xmax, ymin, ymax, hue_t):
             hue[iy, ix] += hue_t
 
 
-@njit(fastmath=True, cache=True)
+@njit(fastmath=True)
 def sandpile_topple(g, max_iter):
     """In-place abelian sandpile relaxation. Grains that fall off the edge are lost."""
     n = g.shape[0]
@@ -322,7 +336,7 @@ def sandpile_topple(g, max_iter):
     return g
 
 
-@njit(cache=True, fastmath=True, parallel=True)
+@njit(fastmath=True, parallel=True)
 def gray_scott_field_kernel(u, v, F, k, steps, Du, Dv, dt):
     """Gray-Scott with spatially varying feed / kill."""
     sh, sw = u.shape
@@ -356,48 +370,33 @@ def gray_scott_field_kernel(u, v, F, k, steps, Du, Dv, dt):
     return u, v
 
 
-@njit(fastmath=True, cache=True)
-def _lcg(state):
-    state[0] = (state[0] * 1664525 + 1013904223) & 0xFFFFFFFF
-    return state[0] * 2.3283064365386963e-10
+@njit(fastmath=True)
+def _wrap_cell(v, n):
+    i = int(np.floor(v)) % n
+    return i + n if i < 0 else i
 
 
-@njit(fastmath=True, cache=True)
-def physarum_steps(x, y, heading, trail, sa, ra, sd, step, deposit, n_steps, rng):
-    """Jeff Jones slime-mold agents. Positions in pixel coordinates."""
+@njit(parallel=True, fastmath=True)
+def physarum_steps(x, y, heading, trail, sa, ra, sd, step, deposit, n_steps, seed):
+    """Jeff Jones slime-mold agents (positions in pixel coordinates).
+
+    Synchronous update so agents run on all cores: every agent senses the same
+    trail snapshot and moves, then all deposit. Ties break with a per-agent,
+    per-step hash, so the result does not depend on thread scheduling.
+    """
     h, w = trail.shape
     n = x.shape[0]
     wf = float(w)
     hf = float(h)
-    for _s in range(n_steps):
-        for i in range(n):
+    cells = np.empty(n, dtype=np.int64)
+    for s in range(n_steps):
+        for i in prange(n):
             hd = heading[i]
             px = x[i]
             py = y[i]
-            s0 = hd + sa
-            s1 = hd
-            s2 = hd - sa
-            ix0 = int(np.floor(px + np.cos(s0) * sd)) % w
-            iy0 = int(np.floor(py + np.sin(s0) * sd)) % h
-            ix1 = int(np.floor(px + np.cos(s1) * sd)) % w
-            iy1 = int(np.floor(py + np.sin(s1) * sd)) % h
-            ix2 = int(np.floor(px + np.cos(s2) * sd)) % w
-            iy2 = int(np.floor(py + np.sin(s2) * sd)) % h
-            if ix0 < 0:
-                ix0 += w
-            if iy0 < 0:
-                iy0 += h
-            if ix1 < 0:
-                ix1 += w
-            if iy1 < 0:
-                iy1 += h
-            if ix2 < 0:
-                ix2 += w
-            if iy2 < 0:
-                iy2 += h
-            fl = trail[iy0, ix0]
-            ff = trail[iy1, ix1]
-            fr = trail[iy2, ix2]
+            fl = trail[_wrap_cell(py + np.sin(hd + sa) * sd, h), _wrap_cell(px + np.cos(hd + sa) * sd, w)]
+            ff = trail[_wrap_cell(py + np.sin(hd) * sd, h), _wrap_cell(px + np.cos(hd) * sd, w)]
+            fr = trail[_wrap_cell(py + np.sin(hd - sa) * sd, h), _wrap_cell(px + np.cos(hd - sa) * sd, w)]
             if ff >= fl and ff >= fr:
                 pass
             elif fl > fr:
@@ -405,7 +404,9 @@ def physarum_steps(x, y, heading, trail, sa, ra, sd, step, deposit, n_steps, rng
             elif fr > fl:
                 hd -= ra
             else:
-                hd += ra if _lcg(rng) > 0.5 else -ra
+                r = (np.uint32(i) * np.uint32(2654435761)) ^ (np.uint32(s + seed) * np.uint32(2246822519))
+                r = (r ^ (r >> np.uint32(15))) * np.uint32(2246822519)
+                hd += ra if (r >> np.uint32(16)) & np.uint32(1) else -ra
             px += np.cos(hd) * step
             py += np.sin(hd) * step
             if px < 0.0:
@@ -419,199 +420,13 @@ def physarum_steps(x, y, heading, trail, sa, ra, sd, step, deposit, n_steps, rng
             x[i] = px
             y[i] = py
             heading[i] = hd
-            ix = int(px) % w
-            iy = int(py) % h
-            if ix < 0:
-                ix += w
-            if iy < 0:
-                iy += h
-            trail[iy, ix] += deposit
+            cells[i] = _wrap_cell(py, h) * w + _wrap_cell(px, w)
+        flat = trail.reshape(-1)
+        for i in range(n):
+            flat[cells[i]] += deposit
 
 
-@njit(fastmath=True, cache=True)
-def _hash3(x, y, z):
-    n = np.sin(x * 127.1 + y * 311.7 + z * 74.7 + 19.19) * 43758.5453123
-    return n - np.floor(n)
-
-
-@njit(fastmath=True, cache=True)
-def _hash3b(x, y, z):
-    n = np.sin(x * 269.5 + y * 183.3 + z * 419.2 + 7.13) * 23421.631
-    return n - np.floor(n)
-
-
-@njit(fastmath=True, cache=True)
-def _sky_rgb(dx, dy, dz):
-    nrm = np.sqrt(dx * dx + dy * dy + dz * dz) + 1e-12
-    dx /= nrm
-    dy /= nrm
-    dz /= nrm
-    # clustered stars
-    s = _hash3(dx * 220.0, dy * 220.0, dz * 220.0)
-    star = 0.0
-    if s > 0.994:
-        star = (s - 0.994) * 140.0
-        star = star * star
-    s2 = _hash3b(dx * 110.0, dy * 110.0, dz * 110.0)
-    if s2 > 0.988:
-        star += (s2 - 0.988) * 28.0
-    # milky-way band + nebula blobs so lensing reads as Einstein arcs
-    band = np.exp(-((dy - 0.08) ** 2) * 8.0)
-    n1 = 0.5 + 0.5 * np.sin(dx * 3.4 + dz * 2.6 + dy * 1.8)
-    n2 = 0.5 + 0.5 * np.sin(dx * 7.2 - dz * 5.1 + 1.7)
-    n3 = 0.5 + 0.5 * np.sin(dz * 4.4 + dy * 6.0)
-    neb = band * (0.35 + 0.85 * n1 * n2) + 0.16 * n3 * n2
-    c1 = np.exp(-((dx - 0.35) ** 2 + (dy + 0.15) ** 2 + (dz - 0.55) ** 2) * 2.4)
-    c2 = np.exp(-((dx + 0.45) ** 2 + (dy - 0.22) ** 2 + (dz + 0.15) ** 2) * 2.0)
-    c3 = np.exp(-((dx - 0.05) ** 2 + (dy + 0.40) ** 2 + (dz + 0.60) ** 2) * 2.1)
-    r = 0.012 + 0.16 * neb + 0.55 * c2 + 0.12 * c3 + star
-    g = 0.014 + 0.14 * neb + 0.18 * c1 + 0.12 * c2 + 0.10 * c3 + star * 0.92
-    b = 0.028 + 0.22 * neb + 0.55 * c1 + 0.08 * c2 + 0.32 * c3 + star * 0.85
-    return r, g, b
-
-
-@njit(parallel=True, fastmath=True, cache=True)
-def kerr_trace_kernel(h, w, rs, spin, cam_dist, cam_elev, max_steps, dt):
-    """Schwarzschild null geodesics + Kerr frame-dragging and Doppler disk."""
-    rgb = np.zeros((h, w, 3), dtype=np.float64)
-    aspect = w / float(h)
-    se = np.sin(cam_elev)
-    ce = np.cos(cam_elev)
-    camx = 0.0
-    camy = se * cam_dist
-    camz = ce * cam_dist
-    fx, fy, fz = -camx, -camy, -camz
-    fl = np.sqrt(fx * fx + fy * fy + fz * fz) + 1e-12
-    fx /= fl
-    fy /= fl
-    fz /= fl
-    # right = fwd × world-up, then up = right × fwd
-    rx = fy * 0.0 - fz * 1.0
-    ry = fz * 0.0 - fx * 0.0
-    rz = fx * 1.0 - fy * 0.0
-    rl = np.sqrt(rx * rx + ry * ry + rz * rz) + 1e-12
-    rx /= rl
-    ry /= rl
-    rz /= rl
-    ux = ry * fz - rz * fy
-    uy = rz * fx - rx * fz
-    uz = rx * fy - ry * fx
-    # Geometric units M=1: Schwarzschild horizon 2, photon sphere 3.
-    r_horizon = 1.35 + 0.25 * (1.0 - spin)
-    r_inner = 2.6
-    r_outer = 7.5
-    fov = 0.40
-    for y in prange(h):
-        for x in range(w):
-            u = (2.0 * x / (w - 1.0) - 1.0) * aspect * fov
-            v = (1.0 - 2.0 * y / (h - 1.0)) * fov
-            vx = fx + u * rx + v * ux
-            vy = fy + u * ry + v * uy
-            vz = fz + u * rz + v * uz
-            vl = np.sqrt(vx * vx + vy * vy + vz * vz) + 1e-12
-            vx /= vl
-            vy /= vl
-            vz /= vl
-            px, py, pz = camx, camy, camz
-            er = 0.0
-            eg = 0.0
-            eb = 0.0
-            trans = 1.0
-            captured = False
-            escaped = False
-            edx, edy, edz = vx, vy, vz
-            near_photon = 0.0
-            for _s in range(max_steps):
-                r = np.sqrt(px * px + py * py + pz * pz)
-                if r < r_horizon:
-                    captured = True
-                    break
-                if r > cam_dist * 1.8 and (px * vx + py * vy + pz * vz) > 0.0:
-                    escaped = True
-                    edx, edy, edz = vx, vy, vz
-                    break
-                y0 = py
-                # photon-sphere glow
-                if r < rs * 2.15:
-                    near_photon += 1.0 / (0.35 + abs(r - 1.5 * rs))
-                cxv = py * vz - pz * vy
-                cyv = pz * vx - px * vz
-                czv = px * vy - py * vx
-                h2 = cxv * cxv + cyv * cyv + czv * czv
-                r5 = r * r * r * r * r + 1e-9
-                acc = -1.5 * h2 / r5
-                ax, ay, az = acc * px, acc * py, acc * pz
-                # Lense–Thirring: angular kick on the velocity only
-                omega = 2.0 * spin / (r * r * r + 0.8)
-                dang = omega * dt
-                cd, sd = np.cos(dang), np.sin(dang)
-                nvx = cd * vx + sd * vz
-                nvz = -sd * vx + cd * vz
-                vx, vz = nvx, nvz
-                vx += ax * dt
-                vy += ay * dt
-                vz += az * dt
-                px += vx * dt
-                py += vy * dt
-                pz += vz * dt
-                # thin equatorial disk: accumulate on plane crossings
-                if y0 * py <= 0.0:
-                    rho = np.sqrt(px * px + pz * pz)
-                    if rho > r_inner and rho < r_outer:
-                        beta = 0.55 / np.sqrt(rho + 0.4)
-                        if beta > 0.68:
-                            beta = 0.68
-                        tx, tz = -pz, px
-                        tl = np.sqrt(tx * tx + tz * tz) + 1e-12
-                        tx /= tl
-                        tz /= tl
-                        vl2 = np.sqrt(vx * vx + vy * vy + vz * vz) + 1e-12
-                        cosi = (tx * vx + tz * vz) / vl2
-                        dop = 1.0 / max(0.18, 1.0 - beta * cosi)
-                        zgrav = np.sqrt(max(0.10, 1.0 - 2.0 / (rho + 0.6)))
-                        fall = 4.2 / (0.18 + ((rho - 2.4) / 1.6) ** 2.2)
-                        phi = np.arctan2(px, pz)
-                        arms = 0.70 + 0.30 * np.sin(1.8 * phi + 2.8 * np.log(rho + 1e-6))
-                        I = fall * (dop**3.4) * zgrav * arms
-                        cool = (dop - 0.78) * 1.35
-                        if cool < 0.0:
-                            cool = 0.0
-                        elif cool > 1.0:
-                            cool = 1.0
-                        warm = 1.0 - cool
-                        er += I * (0.20 * cool + 1.35 * warm) * trans
-                        eg += I * (0.75 * cool + 0.42 * warm) * trans
-                        eb += I * (1.55 * cool + 0.12 * warm) * trans
-                        trans *= 0.55
-                        if trans < 0.05:
-                            break
-            if captured:
-                # pitch-black horizon, faint photon-ring bloom only
-                bloom = min(0.35, near_photon * 0.0024)
-                er += bloom * 0.55
-                eg += bloom * 0.72
-                eb += bloom * 1.05
-            elif escaped:
-                sr, sg, sb = _sky_rgb(edx, edy, edz)
-                er += trans * sr
-                eg += trans * sg
-                eb += trans * sb
-                bloom = min(0.55, near_photon * 0.003)
-                er += bloom * 0.70
-                eg += bloom * 0.85
-                eb += bloom * 1.15
-            else:
-                sr, sg, sb = _sky_rgb(vx, vy, vz)
-                er += trans * sr
-                eg += trans * sg
-                eb += trans * sb
-            rgb[y, x, 0] = er
-            rgb[y, x, 1] = eg
-            rgb[y, x, 2] = eb
-    return rgb
-
-
-@njit(parallel=True, fastmath=True, cache=True)
+@njit(parallel=True, fastmath=True)
 def poincare_kernel(h, w, p_gon, q_star, max_fold):
     """Fold the Poincaré disk into a {p,q} fundamental domain."""
     depth = np.zeros((h, w), dtype=np.float64)
@@ -670,7 +485,7 @@ def poincare_kernel(h, w, p_gon, q_star, max_fold):
     return depth, edge, sector
 
 
-@njit(fastmath=True, cache=True)
+@njit(fastmath=True)
 def _mandelbulb_de(px, py, pz, power, max_iter):
     x, y, z = px, py, pz
     dr = 1.0
@@ -697,7 +512,7 @@ def _mandelbulb_de(px, py, pz, power, max_iter):
     return 0.5 * np.log(r) * r / dr, trap, float(i)
 
 
-@njit(fastmath=True, cache=True)
+@njit(fastmath=True)
 def _quat_julia_de(px, py, pz, cr, ci, cj, ck, qw, max_iter):
     zr, zi, zj, zk = px, py, pz, qw
     dr = 1.0
@@ -723,7 +538,7 @@ def _quat_julia_de(px, py, pz, cr, ci, cj, ck, qw, max_iter):
     return 0.5 * np.log(max(r, 1e-8)) * r / dr, trap, float(i)
 
 
-@njit(parallel=True, fastmath=True, cache=True)
+@njit(parallel=True, fastmath=True)
 def fractal3d_kernel(h, w, kind, camx, camy, camz, tx, ty, tz, max_steps, max_iter, power, jc):
     """Raymarch Mandelbulb (kind=0) or quaternionic Julia (kind=1)."""
     rgb = np.zeros((h, w, 3), dtype=np.float64)
@@ -870,7 +685,7 @@ def fractal3d_kernel(h, w, kind, camx, camy, camz, tx, ty, tz, max_steps, max_it
     return rgb
 
 
-@njit(fastmath=True, cache=True)
+@njit(fastmath=True)
 def splat_bokeh(img, px, py, depth, z_focus, aperture, weight, cr, cg, cb, keep):
     """Variable-CoC splat with a hint of chromatic aberration."""
     h, w = img.shape[0], img.shape[1]
@@ -914,7 +729,7 @@ def splat_bokeh(img, px, py, depth, z_focus, aperture, weight, cr, cg, cb, keep)
                         img[iy, ixb, 2] += wr * cb[i]
 
 
-@njit(fastmath=True, cache=True)
+@njit(fastmath=True)
 def ferro_height(x, z, spacing, h0):
     sx = spacing
     sz = spacing * 0.8660254037844386
@@ -943,7 +758,7 @@ def ferro_height(x, z, spacing, h0):
     return base + h0 * best
 
 
-@njit(parallel=True, fastmath=True, cache=True)
+@njit(parallel=True, fastmath=True)
 def ferrofluid_kernel(h, w, spacing, h0, camx, camy, camz, tx, ty, tz):
     rgb = np.zeros((h, w, 3), dtype=np.float64)
     aspect = w / float(h)
@@ -1045,7 +860,7 @@ def ferrofluid_kernel(h, w, spacing, h0, camx, camy, camz, tx, ty, tz):
     return rgb
 
 
-@njit(parallel=True, fastmath=True, cache=True)
+@njit(parallel=True, fastmath=True)
 def volume_march_kernel(h, w, dens, phase, extent, camx, camy, camz, tx, ty, tz):
     """Emission-absorption march through a cubic complex-orbital volume."""
     rgb = np.zeros((h, w, 3), dtype=np.float64)
@@ -1185,7 +1000,10 @@ def escape_kernel_generic(cr, ci, max_iter, step, julia, jc, k, bailout2, log_de
                     mag = np.sqrt(mag2)
                     if mag < 1.0000001:
                         mag = 1.0000001
-                    nu = n + 1.0 - np.log(np.log(mag) / np.log(np.sqrt(bailout2))) / log_degree
+                    if log_degree > 0.0:
+                        nu = n + 1.0 - np.log(np.log(mag) / np.log(np.sqrt(bailout2))) / log_degree
+                    else:  # no polynomial growth rate (e.g. transcendental): plain count
+                        nu = n + 1.0
                     if nu < 0.0:
                         nu = 0.0
                     if nu > max_iter:

@@ -1,0 +1,33 @@
+[recipe.domain_rational]
+generator = "domain_color"
+tags = ["keep"]
+view = { center = [0, 0], half_width = 2.2 }
+params = { kind = "rational" }
+portrait.view = { half_width = 1.15, fit = "fill" }
+
+[recipe.domain_poly]
+generator = "domain_color"
+tags = ["keep"]
+view = { center = [0, 0], half_width = 1.8 }
+params = { kind = "poly" }
+portrait.view = { half_width = 0.95, fit = "fill" }
+
+[recipe.domain_sin]
+generator = "domain_color"
+tags = ["keep"]
+view = { center = [0, 0], half_width = 3.2 }
+params = { kind = "sin" }
+portrait.view = { half_width = 1.65, fit = "fill" }
+
+[recipe.domain_exp]
+generator = "domain_color"
+tags = ["keep", "vip"]
+view = { center = [0, 0], half_width = 1.4 }
+params = { kind = "exp_inv" }
+portrait.view = { half_width = 0.70, fit = "fill" }
+
+[recipe.popcorn]
+generator = "popcorn"
+tags = ["keep", "vip"]
+view = { center = [0, 0], half_width = 3.2 }
+portrait.view = { half_width = 1.55, fit = "fill" }

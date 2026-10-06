@@ -1,0 +1,77 @@
+# Example extension file. Load with `--load examples/extensions.toml`,
+# or copy into custom/ to load automatically.
+
+[palette.sunset]
+description = "night -> ember -> peach -> white, weighted toward the warm end"
+stops = ["000000", "ff5500", "ffd27f", "ffffff"]
+positions = [0, 0.3, 0.8, 1]
+
+# --- escape-time formula compiled to numba --------------------------------
+[formula.sine_julia]
+z = "c * sin(z)"
+julia = true
+degree = 1.0
+bailout = 50.0
+
+[recipe.sine_glow]
+generator = "escape_time"
+palette = "sunset"
+view = { center = [0, 0], half_width = 3.5, rotation = 30 }
+params = { formula = "sine_julia", c = [1.0, 0.1], max_iter = 120 }
+post = { vignette = 0.3 }
+
+[recipe.sine_glow.variants.cold]
+palette = "abyss_r"
+post = { saturation = 1.2 }
+
+# --- 2D map attractor -----------------------------------------------------
+[map.peter_de_jong_wobble]
+x = "sin(a*y) - cos(b*x) + e*sin(x)"
+y = "sin(c*x) - cos(d*y)"
+params = { a = 1.4, b = -2.3, c = 2.4, d = -2.1, e = 0.15 }
+
+[recipe.wobble]
+generator = "map_attractor"
+palette = "neon"
+params = { map = "peter_de_jong_wobble", n = 120000, steps = 160, seed = 3 }
+
+# --- 3D ODE attractor (Chen system) ---------------------------------------
+[flow.chen]
+dx = "a*(y - x)"
+dy = "(c - a)*x - x*z + c*y"
+dz = "x*y - b*z"
+params = { a = 35.0, b = 3.0, c = 28.0 }
+
+[recipe.chen_wings]
+generator = "flow_attractor"
+palette = "twilight"
+params = { flow = "chen", dt = 0.002, steps = 1500, init_mean = [-0.1, 0.5, -0.6], init_sigma = [0.5, 0.5, 0.5], angle_deg = 60 }
+
+# --- vector field for flow_field -----------------------------------------
+[vectorfield.braids]
+vx = "sin(a*py) + 0.5*cos(2.0*px*py)"
+vy = "cos(a*px) - 0.5*sin(py)"
+params = { a = 2.2 }
+
+[recipe.braided_silk]
+generator = "flow_field"
+palette = "aurora"
+params = { field = "braids", particles = 60000, steps = 240, seed = 5 }
+
+# --- complex function for domain coloring --------------------------------
+[domain.blossom]
+w = "(z**5 - a) / (z**2 + 0.5j)"
+params = { a = 1.0 }
+
+[recipe.blossom]
+generator = "domain_color"
+view = { center = [0, 0], half_width = 1.8, rotation = 18 }
+params = { kind = "blossom" }
+
+# --- uses the Python plugin in ripples_plugin.py (load both) -------------
+[recipe.ripple_pool]
+generator = "ripples"
+palette = "biolum"
+view = { half_width = 1.6 }
+params = { waves = 7, freq = 18.0 }
+post = { posterize = 12, vignette = 0.4 }

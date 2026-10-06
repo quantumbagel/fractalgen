@@ -1,0 +1,16 @@
+[recipe.lyapunov_logistic]
+generator = "lyapunov"
+palette = "icefire"
+tags = ["keep"]
+
+[recipe.lyapunov_ab]
+generator = "lyapunov"
+palette = "icefire"
+tags = ["keep", "vip"]
+params = { sequence = "AB", a_range = [2.0, 4.0], b_range = [2.0, 4.0] }
+
+[recipe.lyapunov_baba]
+generator = "lyapunov"
+palette = "icefire"
+tags = ["keep", "vip"]
+params = { sequence = "BABA", a_range = [3.0, 4.0], b_range = [3.0, 4.0] }

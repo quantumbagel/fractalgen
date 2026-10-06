@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
@@ -11,6 +12,10 @@ from .view import View
 
 REF_4K = 3840 * 2160
 _REF_720 = 1280 * 720
+
+# Pixel count of the reference frame every look is defined at (see RenderContext.res_scale).
+# Lowering it makes simulations cheaper but changes their look; the tests do that for speed.
+REFERENCE_PIXELS = REF_4K
 
 
 @dataclass
@@ -36,6 +41,47 @@ class RenderContext:
 
     def plane(self, view: View | None = None) -> tuple[np.ndarray, np.ndarray]:
         return (view or self.view).plane(self.width, self.height)
+
+    # ---- resolution independence ------------------------------------------
+    # Looks are defined at the 4K reference: a frame with 3840x2160's pixel
+    # count and this frame's aspect. Pixel-sized knobs are "pixels at 4K" and
+    # simulations run on a grid sized from the reference, so a 720p preview and
+    # a 16K export show the same picture (only the sampling differs).
+
+    @property
+    def res_scale(self) -> float:
+        """Linear size relative to the reference: 0.5 at 1080p, 1 at 4K, 2 at 8K."""
+        return math.sqrt(self.pixels / REFERENCE_PIXELS)
+
+    @property
+    def ref_size(self) -> tuple[int, int]:
+        """(width, height) of the 4K reference frame with this aspect."""
+        s = 1.0 / self.res_scale
+        return max(1, round(self.width * s)), max(1, round(self.height * s))
+
+    def ref_px(self, px_at_4k: float) -> float:
+        """A length given in 4K pixels, in this frame's pixels."""
+        return px_at_4k * self.res_scale
+
+    def reference(self) -> "RenderContext":
+        """This context at the 4K reference size (same view)."""
+        w, h = self.ref_size
+        return RenderContext(width=w, height=h, view=self.view, name=self.name)
+
+    def density_norm(self, n_used: float, n_ref: float) -> float:
+        """Factor that puts a hit-count buffer from ``n_used`` samples on the
+        scale it would have at the reference, where ``n_ref`` samples are drawn.
+
+        Hits per pixel otherwise change with resolution, and log tone mapping
+        turns that into a brighter or darker picture. 1.0 at the reference.
+        """
+        rw, rh = self.ref_size
+        return (n_ref / float(rw * rh)) / (max(n_used, 1) / float(self.pixels))
+
+    def sim_grid(self, scale: float, min_side: int = 8) -> tuple[int, int]:
+        """Simulation grid of ``scale`` x the reference frame (independent of output size)."""
+        rw, rh = self.ref_size
+        return max(min_side, int(rw * scale)), max(min_side, int(rh * scale))
 
     def ultra_mul(self, cap: float = 4.0) -> float:
         """1 at 4K, 4 at 8K. Never shrinks sub-4K counts."""

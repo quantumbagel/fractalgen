@@ -7,6 +7,7 @@ Extension points (all importable from here):
 * ``Recipe`` / ``register_recipe`` -- a named, parameterized look
 * ``register_map`` / ``register_flow`` / ``register_formula`` -- formulas for
   the map-attractor, ODE-attractor, and escape-time generators
+* ``post_op``          -- add a finishing op usable from any recipe's ``post``
 * ``loader.section``   -- teach the TOML loader a new top-level table
 
 Quick use::
@@ -25,6 +26,7 @@ from .color import hsv_to_rgb, histogram_index, log_tone, save_image
 from .context import RenderContext
 from .generators.base import GENERATORS, generator
 from .loader import bootstrap, load_path
+from .post import POST_OPS, apply_post, post_op
 from .palette import PALETTES, Palette, get_palette, register_palette, sample_palette
 from .recipe import RECIPES, Recipe, register_recipe
 from .view import View, angle

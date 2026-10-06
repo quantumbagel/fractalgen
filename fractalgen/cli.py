@@ -7,7 +7,9 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from .params import parse_literal
+from .params import deep_merge, parse_literal
+
+from .loader import CUSTOM_DIR
 
 
 def _size(text: str) -> tuple[int, int]:
@@ -35,6 +37,8 @@ def _add_override_args(p: argparse.ArgumentParser) -> None:
     g.add_argument("--zoom", type=float, help="View zoom (= 1 / half-width)")
     g.add_argument("--rotate", help="View rotation: degrees, or '0.5rad', 'pi/6'")
     g.add_argument("--fit", choices=("fill", "cover", "contain"), help="How the view meets the frame aspect")
+    g.add_argument("--post", dest="posts", type=_kv, action="append", default=[], metavar="KEY=VALUE",
+                   help="Finishing op for any render, e.g. --post saturation=1.3 --post hue_shift=40 (see `post`)")
 
 
 def _overrides(args: argparse.Namespace) -> dict[str, Any]:
@@ -57,6 +61,8 @@ def _overrides(args: argparse.Namespace) -> dict[str, Any]:
         view["fit"] = args.fit
     if view:
         ov["view"] = view
+    if args.posts:
+        ov["post"] = dict(args.posts)
     return ov
 
 
@@ -83,6 +89,14 @@ def _parser() -> argparse.ArgumentParser:
     s.add_argument("--swatch", type=Path, metavar="PNG", help="Write a swatch image of every palette")
 
     sub.add_parser("presets", help="List size presets")
+    sub.add_parser("post", help="List post-processing ops usable in `post = {...}` / --post")
+
+    s = sub.add_parser("fork", help="Copy a recipe into an editable TOML with every parameter spelled out")
+    s.add_argument("name", help="Recipe to copy")
+    s.add_argument("new_name", nargs="?", help="Name of the copy (default: NAME_custom)")
+    s.add_argument("-o", "--output", type=Path, help=f"TOML file (default: {CUSTOM_DIR.name}/<new_name>.toml, auto-loaded)")
+    s.add_argument("--stdout", action="store_true", help="Print instead of writing a file")
+    s.add_argument("--force", action="store_true", help="Overwrite an existing file")
 
     s = sub.add_parser("render", help="Render recipes")
     s.add_argument("names", nargs="*", help="Recipe names (default: preset's tag selection, or all)")
@@ -99,7 +113,14 @@ def _parser() -> argparse.ArgumentParser:
     s.add_argument("--strips", type=int, help="Row strips for per-pixel kernels (default by size)")
     s.add_argument("--no-isolate", action="store_true", help="Render in-process (no timeout, easier debugging)")
     s.add_argument("--no-lock", action="store_true", help="Allow concurrent batches")
+    s.add_argument("--sweep", type=_kv, metavar="KEY=V1,V2,...",
+                   help="Render one image per value of a parameter (or post.KEY / view.KEY / palette)")
     _add_override_args(s)
+
+    s = sub.add_parser("gui", help="Open the live-tweaking GUI in your browser")
+    s.add_argument("--port", type=int, default=8765)
+    s.add_argument("--host", default="127.0.0.1")
+    s.add_argument("--no-browser", action="store_true")
 
     s = sub.add_parser("try", help="Render a generator ad hoc (no recipe) and optionally print it as a recipe")
     s.add_argument("generator")
@@ -121,6 +142,9 @@ def main(argv: list[str] | None = None) -> int:
         "generators": _cmd_generators,
         "palettes": _cmd_palettes,
         "presets": _cmd_presets,
+        "post": _cmd_post,
+        "fork": _cmd_fork,
+        "gui": _cmd_gui,
         "render": _cmd_render,
         "try": _cmd_try,
     }[args.cmd](args, loads)
@@ -222,11 +246,12 @@ def _cmd_render(args, loads) -> int:
         return 2
     targets: list[tuple[str, int, int, engine.Preset | None]] = []
     if args.size:
-        targets.append((f"{args.size[0]}x{args.size[1]}", args.size[0], args.size[1], None))
+        targets.append(("", args.size[0], args.size[1], None))
     for name in args.preset or []:
         p = engine.PRESETS.get(name)
         targets.append((p.name, p.width, p.height, p))
     overrides = _overrides(args)
+    sweeps = _sweep_overrides(args.sweep, overrides) if args.sweep else [("", overrides)]
 
     if not args.no_lock:
         engine.acquire_lock()
@@ -240,22 +265,82 @@ def _cmd_render(args, loads) -> int:
                 print(f"{label}: nothing selected", file=sys.stderr)
                 continue
             if args.out:
-                out = args.out if len(targets) == 1 else args.out / label
+                out = args.out if len(targets) == 1 else args.out / (label or f"{w}x{h}")
             else:
                 out = engine.OUT_ROOT / (preset.subdir if preset else "")
             fmt = args.format or (preset.format if preset else engine.default_format(w, h))
             jobs = args.jobs or (preset.jobs if preset else engine.default_jobs(w, h))
             if preset:
                 jobs = min(jobs, preset.max_jobs)
-            failed += engine.render_batch(
-                names, w, h, out, jobs=jobs, fmt=fmt, skip_existing=args.skip_existing,
-                n_strips=args.strips, overrides=overrides, loads=loads, timeout_s=args.timeout,
-                isolate=not args.no_isolate, label=label,
-            )
+            for suffix, ov in sweeps:
+                failed += engine.render_batch(
+                    names, w, h, out, jobs=jobs, fmt=fmt, skip_existing=args.skip_existing,
+                    n_strips=args.strips, overrides=ov, loads=loads, timeout_s=args.timeout,
+                    isolate=not args.no_isolate, label=" ".join(filter(None, [label, suffix])), suffix=suffix,
+                )
     finally:
         if not args.no_lock:
             engine.release_lock()
     return 1 if failed else 0
+
+
+def _sweep_overrides(sweep: tuple[str, Any], base: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:
+    key, values = sweep
+    if isinstance(values, str):
+        values = [parse_literal(v) for v in values.split(",")]
+    elif not isinstance(values, (list, tuple)):
+        values = [values]
+    out = []
+    for v in values:
+        if key == "palette":
+            patch: dict[str, Any] = {"palette": v}
+        elif "." in key:
+            table, sub = key.split(".", 1)
+            patch = {table: {sub: v}}
+        else:
+            patch = {"params": {key: v}}
+        tag = f"{key.split('.')[-1]}={v}".replace("/", "_").replace(" ", "")
+        out.append((tag, deep_merge(base, patch)))
+    return out
+
+
+def _cmd_post(args, _loads) -> int:
+    from .post import POST_OPS
+
+    for name, (_, doc) in POST_OPS.items():
+        print(f"  {name:12s} {doc}")
+    return 0
+
+
+def _cmd_fork(args, _loads) -> int:
+    from .recipe import RECIPES
+    from .tomlout import recipe_to_toml
+
+    src = RECIPES.get(args.name)
+    new = args.new_name or f"{args.name.replace('@', '_')}_custom"
+    if new in RECIPES and not args.force:
+        print(f"Recipe {new!r} already exists ({RECIPES.get(new).source}); pick another name or --force", file=sys.stderr)
+        return 2
+    text = recipe_to_toml(src, new)
+    if args.stdout:
+        print(text)
+        return 0
+    path = args.output or CUSTOM_DIR / f"{new}.toml"
+    if path.exists() and not args.force:
+        print(f"{path} exists (use --force)", file=sys.stderr)
+        return 2
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text)
+    print(f"{args.name} -> {new}  written to {path}")
+    print(f"edit it, then: python -m fractalgen render {new} --size 1920x1080")
+    return 0
+
+
+def _cmd_gui(args, loads) -> int:
+    from .gui.server import serve
+
+    serve(args.host, args.port, open_browser=not args.no_browser, loads=loads)
+    return 0
 
 
 def _cmd_try(args, _loads) -> int:
@@ -272,32 +357,10 @@ def _cmd_try(args, _loads) -> int:
     save_image(args.output, rgb)
     print(f"{args.generator} {w}x{h} -> {args.output} ({time.perf_counter() - t0:.1f}s)", file=sys.stderr)
     if args.emit:
-        print(_to_toml(args.emit, args.generator, ov))
+        from .tomlout import overrides_to_toml
+
+        print(overrides_to_toml(args.emit, args.generator, ov))
     return 0
-
-
-def _toml_value(v: Any) -> str:
-    if isinstance(v, bool):
-        return "true" if v else "false"
-    if isinstance(v, complex):
-        return f"[{v.real!r}, {v.imag!r}]"
-    if isinstance(v, (int, float)):
-        return repr(v)
-    if isinstance(v, (list, tuple)):
-        return "[" + ", ".join(_toml_value(x) for x in v) + "]"
-    if isinstance(v, dict):
-        return "{ " + ", ".join(f"{k} = {_toml_value(x)}" for k, x in v.items()) + " }"
-    return '"' + str(v).replace("\\", "\\\\").replace('"', '\\"') + '"'
-
-
-def _to_toml(name: str, generator: str, ov: dict[str, Any]) -> str:
-    lines = [f"[recipe.{name}]", f'generator = "{generator}"']
-    if "palette" in ov:
-        lines.append(f"palette = {_toml_value(ov['palette'])}")
-    for key in ("view", "params"):
-        if ov.get(key):
-            lines.append(f"{key} = {_toml_value(ov[key])}")
-    return "\n".join(lines)
 
 
 if __name__ == "__main__":

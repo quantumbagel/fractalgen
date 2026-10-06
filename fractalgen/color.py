@@ -70,10 +70,17 @@ def save_image(path: str | Path, rgb: np.ndarray, fmt: str | None = None, jpeg_q
     dest.parent.mkdir(parents=True, exist_ok=True)
     fmt = (fmt or dest.suffix.lstrip(".") or "png").lower()
     img = to_image(rgb)
-    if fmt in ("jpg", "jpeg"):
-        img.save(dest, format="JPEG", quality=jpeg_quality, optimize=False)
-    else:
-        # optimize=True is RAM-heavy on 8K/16K; keep it for smaller frames only.
-        optimize = img.size[0] * img.size[1] < 8_000_000
-        img.save(dest, format="PNG", optimize=optimize, compress_level=6)
+    # Write beside the target and rename, so a killed render never leaves a
+    # truncated file that --skip-existing would then accept.
+    tmp = dest.with_name(f".{dest.name}.partial")
+    try:
+        if fmt in ("jpg", "jpeg"):
+            img.save(tmp, format="JPEG", quality=jpeg_quality, optimize=False)
+        else:
+            # optimize=True is RAM-heavy on 8K/16K; keep it for smaller frames only.
+            optimize = img.size[0] * img.size[1] < 8_000_000
+            img.save(tmp, format="PNG", optimize=optimize, compress_level=6)
+        tmp.replace(dest)
+    finally:
+        tmp.unlink(missing_ok=True)
     return dest

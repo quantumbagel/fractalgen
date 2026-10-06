@@ -13,7 +13,14 @@ Recipes are TOML tables (see ``data/recipes/*.toml``)::
     portrait.view = { center = [-0.18, 0.24], half_width = 0.60, fit = "fill" }
 
 ``extends = "other_recipe"`` inherits everything from another recipe and
-deep-merges this table on top.
+deep-merges this table on top. ``variants`` define small named tweaks of one
+recipe in place; each becomes its own recipe ``NAME@VARIANT``::
+
+    [recipe.julia_dragon.variants.ice]
+    palette = "abyss"
+    post = { saturation = 0.8 }
+
+``post`` applies generator-independent finishing (see post.py).
 """
 
 from __future__ import annotations
@@ -27,10 +34,12 @@ import numpy as np
 from .context import RenderContext
 from .generators.base import GENERATORS, GeneratorSpec
 from .params import deep_merge
+from .post import apply_post
 from .registry import Registry
 from .view import View
 
-_KEYS = {"generator", "palette", "params", "view", "portrait", "tags", "description", "extends"}
+_KEYS = {"generator", "palette", "params", "view", "post", "portrait", "tags", "description", "extends", "variants"}
+_PORTRAIT_KEYS = {"params", "view", "palette", "post"}
 
 
 @dataclass
@@ -41,6 +50,7 @@ class Recipe:
     view: dict[str, Any] = field(default_factory=dict)
     portrait: dict[str, Any] = field(default_factory=dict)
     palette: Any = None
+    post: dict[str, Any] = field(default_factory=dict)
     tags: tuple[str, ...] = ()
     description: str = ""
     source: str = ""
@@ -53,9 +63,9 @@ class Recipe:
         if "generator" not in table:
             raise ValueError(f"Recipe {name!r} needs a 'generator'")
         portrait = dict(table.get("portrait") or {})
-        bad = set(portrait) - {"params", "view", "palette"}
+        bad = set(portrait) - _PORTRAIT_KEYS
         if bad:
-            raise ValueError(f"Recipe {name!r}: portrait may only set params/view/palette, got {sorted(bad)}")
+            raise ValueError(f"Recipe {name!r}: portrait may only set {sorted(_PORTRAIT_KEYS)}, got {sorted(bad)}")
         return cls(
             name=name,
             generator=str(table["generator"]),
@@ -63,6 +73,7 @@ class Recipe:
             view=dict(table.get("view") or {}),
             portrait=portrait,
             palette=table.get("palette"),
+            post=dict(table.get("post") or {}),
             tags=tuple(table.get("tags") or ()),
             description=str(table.get("description") or ""),
             source=source,
@@ -87,7 +98,10 @@ class Recipe:
         if portrait:
             params.update(self.portrait.get("params") or {})
             palette = self.portrait.get("palette", palette)
-            view = {**view, "fit": "cover", **(self.portrait.get("view") or {})}
+            if spec.uses_view:  # portrait default: same zoom as the 16:9 window, cropped
+                view = {**view, "fit": "cover", **(self.portrait.get("view") or {})}
+            elif self.portrait.get("view"):
+                view = {**view, **self.portrait["view"]}
         ov = overrides or {}
         params.update(ov.get("params") or {})
         view.update(ov.get("view") or {})
@@ -99,6 +113,13 @@ class Recipe:
         if view and not spec.uses_view:
             raise TypeError(f"Generator {spec.name!r} does not use a view; remove 'view' from {self.name!r}")
         return spec, spec.bind(params), View.from_dict(view)
+
+    def resolve_post(self, width: int, height: int, overrides: dict[str, Any] | None = None) -> dict[str, Any]:
+        post = dict(self.post)
+        if height > width:
+            post.update(self.portrait.get("post") or {})
+        post.update((overrides or {}).get("post") or {})
+        return post
 
     def render(
         self,
@@ -113,7 +134,7 @@ class Recipe:
         rgb = np.asarray(spec.fn(ctx, **params))
         if rgb.shape != (height, width, 3):
             raise ValueError(f"{self.name}: generator returned shape {rgb.shape}, expected {(height, width, 3)}")
-        return rgb
+        return apply_post(rgb, self.resolve_post(width, height, overrides), ctx)
 
 
 RECIPES: Registry[Recipe] = Registry("recipe")
@@ -137,15 +158,24 @@ def _flatten(name: str, seen: tuple[str, ...] = ()) -> dict[str, Any]:
     if not parent:
         return dict(table)
     base = _flatten(str(parent), seen + (name,))
-    base.pop("tags", None)  # tags and descriptions describe one look, not its children
-    base.pop("description", None)
+    for key in ("tags", "description", "variants"):  # these describe one look, not its children
+        base.pop(key, None)
     merged = deep_merge(base, {k: v for k, v in table.items() if k != "extends"})
     return merged
 
 
+VARIANT_SEP = "@"
+
+
 def finalize_recipes() -> None:
     for name, (_, source) in _RAW.items():
-        RECIPES.register(name, Recipe.from_table(name, _flatten(name), source), replace=True)
+        table = _flatten(name)
+        variants = table.pop("variants", None) or {}
+        RECIPES.register(name, Recipe.from_table(name, table, source), replace=True)
+        base = {k: v for k, v in table.items() if k not in ("tags", "description")}
+        for vname, vtable in variants.items():
+            full = f"{name}{VARIANT_SEP}{vname}"
+            RECIPES.register(full, Recipe.from_table(full, deep_merge(base, vtable), source), replace=True)
 
 
 def register_recipe(recipe: Recipe, *, replace: bool = False) -> Recipe:

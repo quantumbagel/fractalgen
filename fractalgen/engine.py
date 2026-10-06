@@ -145,6 +145,7 @@ def render_batch(
     timeout_s: float = DEFAULT_TIMEOUT_S,
     isolate: bool = True,
     label: str = "",
+    suffix: str = "",
 ) -> int:
     """Render ``names`` to ``out_dir``. Returns the number of failures.
 
@@ -159,7 +160,7 @@ def render_batch(
     total = len(names)
     done = 0
     for n in names:
-        path = out_dir / f"{n}.{ext}"
+        path = out_dir / f"{n}{'@' + suffix if suffix else ''}.{ext}"
         if skip_existing and path.exists():
             done += 1
             print(f"[{done}/{total}] {n}  (skip existing)", flush=True)

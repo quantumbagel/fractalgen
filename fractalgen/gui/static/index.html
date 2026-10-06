@@ -1,0 +1,1750 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fractalgen</title>
+<style>
+:root {
+  --bg: #12141a;
+  --bg2: #1a1d26;
+  --bg3: #232733;
+  --border: #2e3340;
+  --text: #e4e6eb;
+  --muted: #8b919e;
+  --accent: #5b8def;
+  --accent-dim: #3d5a99;
+  --danger: #e85d5d;
+  --danger-bg: #2a1518;
+  --modified: #e6b84d;
+  --radius: 6px;
+  --sidebar-w: 380px;
+  --top-h: 44px;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 13px;
+  color: var(--text);
+  background: var(--bg);
+}
+* { box-sizing: border-box; }
+body { margin: 0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+/* Top bar */
+.topbar {
+  flex: 0 0 var(--top-h);
+  display: flex; align-items: center; gap: 8px; padding: 0 10px;
+  background: var(--bg2); border-bottom: 1px solid var(--border);
+  overflow-x: auto; white-space: nowrap;
+}
+.topbar label { color: var(--muted); font-size: 11px; margin-right: 2px; }
+.topbar select, .topbar input[type="text"], .topbar input[type="number"] {
+  background: var(--bg3); border: 1px solid var(--border); color: var(--text);
+  border-radius: var(--radius); padding: 4px 8px; font-size: 12px;
+}
+.topbar input[type="range"] { width: 80px; vertical-align: middle; }
+.btn {
+  background: var(--bg3); border: 1px solid var(--border); color: var(--text);
+  border-radius: var(--radius); padding: 4px 10px; cursor: pointer; font-size: 12px;
+}
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--accent-dim); border-color: var(--accent); }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.sep { width: 1px; height: 24px; background: var(--border); flex-shrink: 0; }
+.render-ms { color: var(--muted); font-variant-numeric: tabular-nums; min-width: 4em; }
+.recipe-wrap { position: relative; }
+.recipe-wrap input { width: 140px; }
+.recipe-list {
+  position: absolute; top: 100%; left: 0; z-index: 100; max-height: 280px; overflow: auto;
+  background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius);
+  min-width: 220px; display: none; box-shadow: 0 8px 24px rgba(0,0,0,.4);
+}
+.recipe-list.open { display: block; }
+.recipe-list .grp { padding: 4px 8px; font-size: 10px; color: var(--muted); text-transform: uppercase; }
+.recipe-list button {
+  display: block; width: 100%; text-align: left; padding: 5px 10px; border: none;
+  background: transparent; color: var(--text); cursor: pointer; font-size: 12px;
+}
+.recipe-list button:hover, .recipe-list button.active { background: var(--bg3); }
+
+/* Main layout */
+.main { flex: 1; display: flex; min-height: 0; }
+.sidebar {
+  flex: 0 0 var(--sidebar-w); min-width: 200px; max-width: 50vw;
+  resize: horizontal; overflow: auto; background: var(--bg2);
+  border-right: 1px solid var(--border); padding: 8px 10px 24px;
+}
+.sidebar.collapsed { flex: 0 0 0; min-width: 0; width: 0; padding: 0; overflow: hidden; resize: none; }
+.sidebar-toggle { position: absolute; left: 0; top: 50%; z-index: 5; }
+.section { margin-bottom: 14px; }
+.section h3 {
+  margin: 0 0 8px; font-size: 11px; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--muted); font-weight: 600;
+}
+.row {
+  display: grid; grid-template-columns: 1fr auto; gap: 6px; align-items: center;
+  margin-bottom: 6px; padding: 4px 0;
+}
+.row.modified .label-dot::before { content: "●"; color: var(--modified); margin-right: 4px; font-size: 8px; }
+.row label.lbl {
+  cursor: help; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  user-select: none;
+}
+.row .ctrl { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+.row input[type="number"] { width: 72px; }
+.row input[type="range"] { width: 100px; }
+.row input[type="text"] { width: 120px; }
+.row .doc, .group-head .doc, .section .intro {
+  grid-column: 1 / -1; font-size: 11px; line-height: 1.35; color: var(--muted); margin-top: -2px;
+}
+.row .doc .hint, .group-head .doc .hint { opacity: .75; white-space: nowrap; }
+.section .intro { margin: -2px 0 10px; }
+.group { border-left: 2px solid var(--border); padding-left: 8px; margin: 2px 0 8px; }
+.group-head { display: grid; grid-template-columns: 1fr; margin-bottom: 2px; }
+body.no-help .row .doc, body.no-help .group-head .doc { display: none; }
+.help-toggle { float: right; font-size: 11px; color: var(--muted); text-transform: none; letter-spacing: 0; font-weight: 400; }
+.row .reset-row { padding: 0 4px; font-size: 11px; opacity: 0.5; cursor: pointer; border: none; background: none; color: var(--muted); }
+.row .reset-row:hover { opacity: 1; color: var(--text); }
+.filter-inp { width: 100%; margin-bottom: 8px; padding: 6px 8px; background: var(--bg3);
+  border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); }
+
+.preview-wrap { flex: 1; display: flex; flex-direction: column; min-width: 0; position: relative; }
+.preview-stage {
+  flex: 1; display: flex; align-items: center; justify-content: center;
+  background: #0a0b0e; position: relative; overflow: hidden;
+}
+.preview-frame {
+  position: relative; max-width: 100%; max-height: 100%; overflow: hidden;
+  box-shadow: 0 0 0 1px var(--border);
+}
+.preview-frame img {
+  display: block; width: 100%; height: 100%; object-fit: contain;
+  pointer-events: none; user-select: none;
+}
+.preview-overlay {
+  position: absolute; inset: 0; cursor: grab;
+}
+.preview-overlay.dragging { cursor: grabbing; }
+.render-badge {
+  position: absolute; bottom: 12px; right: 12px; padding: 4px 10px;
+  background: rgba(0,0,0,.65); border-radius: var(--radius); font-size: 11px;
+  color: var(--muted); pointer-events: none; opacity: 0; transition: opacity .2s;
+}
+.render-badge.show { opacity: 1; }
+
+.err-panel {
+  margin: 8px; padding: 10px 12px; background: var(--danger-bg); border: 1px solid var(--danger);
+  border-radius: var(--radius); color: #ffb4b4; position: relative;
+}
+.err-panel button.dismiss {
+  position: absolute; top: 6px; right: 8px; background: none; border: none;
+  color: var(--danger); cursor: pointer; font-size: 16px;
+}
+.err-panel pre { margin: 8px 0 0; font-size: 10px; overflow: auto; max-height: 120px;
+  display: none; color: #ccc; }
+.err-panel.expanded pre { display: block; }
+.err-panel .toggle-trace { font-size: 11px; cursor: pointer; text-decoration: underline; }
+
+.pal-swatch {
+  display: inline-block; width: 100%; height: 20px; border-radius: 3px; border: 1px solid var(--border);
+}
+.palette-select { min-width: 140px; }
+details.stops-edit { margin-top: 4px; font-size: 11px; }
+details.stops-edit .stop-row { display: flex; gap: 4px; margin: 4px 0; align-items: center; }
+
+.modal-backdrop {
+  position: fixed; inset: 0; background: rgba(0,0,0,.55); z-index: 200;
+  display: none; align-items: center; justify-content: center;
+}
+.modal-backdrop.open { display: flex; }
+.modal {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 8px;
+  padding: 16px 20px; min-width: 280px; max-width: 90vw;
+}
+.modal h4 { margin: 0 0 12px; }
+.modal .actions { margin-top: 14px; display: flex; gap: 8px; justify-content: flex-end; }
+.modal label { display: block; margin: 8px 0 4px; color: var(--muted); font-size: 11px; }
+.modal input, .modal select { width: 100%; padding: 6px 8px; background: var(--bg3);
+  border: 1px solid var(--border); color: var(--text); border-radius: var(--radius); }
+.export-status { margin-top: 10px; font-size: 12px; color: var(--muted); word-break: break-all; }
+</style>
+</head>
+<body>
+<header class="topbar" id="topbar">
+  <div class="recipe-wrap" id="recipeWrap">
+    <label>Recipe</label>
+    <input type="text" id="recipeSearch" placeholder="Search recipes…" autocomplete="off">
+    <div class="recipe-list" id="recipeList"></div>
+  </div>
+  <select id="genPicker" title="Start from generator"><option value="">From generator…</option></select>
+  <span class="sep"></span>
+  <label>Aspect</label>
+  <select id="aspectSel"></select>
+  <label>Preview</label>
+  <input type="range" id="previewSize" min="240" max="1600" step="10" value="720">
+  <span id="previewSizeLbl">720</span>
+  <span class="render-ms" id="renderMs">—</span>
+  <span class="sep"></span>
+  <button type="button" class="btn" id="btnUndo" title="Undo (⌘Z)">Undo</button>
+  <button type="button" class="btn" id="btnRedo" title="Redo (⇧⌘Z)">Redo</button>
+  <button type="button" class="btn" id="btnReset">Reset</button>
+  <button type="button" class="btn primary" id="btnSave">Save recipe</button>
+  <button type="button" class="btn" id="btnExport">Export</button>
+  <button type="button" class="btn" id="btnSidebar" title="Toggle sidebar">Panel</button>
+</header>
+<div class="main">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="preview-wrap">
+    <div id="errHost"></div>
+    <div class="preview-stage" id="previewStage">
+      <div class="preview-frame" id="previewFrame">
+        <img id="previewImg" alt="Fractal preview">
+        <div class="preview-overlay" id="previewOverlay"></div>
+        <div class="render-badge" id="renderBadge"></div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="modal-backdrop" id="exportModal">
+  <div class="modal">
+    <h4>Export image</h4>
+    <label>Preset size</label>
+    <select id="exportPreset"></select>
+    <label>Width × Height (custom)</label>
+    <div style="display:flex;gap:8px">
+      <input type="number" id="exportW" min="16" max="8192" placeholder="W">
+      <input type="number" id="exportH" min="16" max="8192" placeholder="H">
+    </div>
+    <label>Format</label>
+    <select id="exportFmt"><option value="png">PNG</option><option value="jpg">JPEG</option></select>
+    <label>Name (optional)</label>
+    <input type="text" id="exportName" placeholder="filename stem">
+    <div class="export-status" id="exportStatus"></div>
+    <div class="actions">
+      <button type="button" class="btn" id="exportCancel">Cancel</button>
+      <button type="button" class="btn primary" id="exportGo">Export</button>
+    </div>
+  </div>
+</div>
+<script>
+"use strict";
+
+// --- utilities ---
+const $ = (id) => document.getElementById(id);
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const deepClone = (o) => JSON.parse(JSON.stringify(o));
+const deepEq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+
+function b64UrlEncode(obj) {
+  const s = JSON.stringify(obj);
+  const b64 = btoa(unescape(encodeURIComponent(s)));
+  return b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+function b64UrlDecode(s) {
+  let b64 = s.replace(/-/g, "+").replace(/_/g, "/");
+  while (b64.length % 4) b64 += "=";
+  return JSON.parse(decodeURIComponent(escape(atob(b64))));
+}
+
+async function apiJson(path, opts = {}) {
+  const r = await fetch(path, opts);
+  const ct = r.headers.get("Content-Type") || "";
+  if (!r.ok) {
+    if (ct.includes("json")) {
+      const j = await r.json();
+      throw Object.assign(new Error(j.error || r.statusText), { trace: j.trace, status: r.status });
+    }
+    throw new Error(await r.text() || r.statusText);
+  }
+  return r.json();
+}
+
+async function apiRender(state) {
+  const r = await fetch("/api/render", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(state),
+  });
+  if (r.status === 204) return { stale: true };
+  if (!r.ok) {
+    const ct = r.headers.get("Content-Type") || "";
+    if (ct.includes("json")) {
+      const j = await r.json();
+      throw Object.assign(new Error(j.error || "render failed"), { trace: j.trace });
+    }
+    throw new Error(await r.text());
+  }
+  const blob = await r.blob();
+  return {
+    blob,
+    ms: r.headers.get("X-Render-Ms"),
+    extent: r.headers.get("X-View-Extent"),
+    stale: false,
+  };
+}
+
+// --- app state ---
+let catalog = null;
+let state = null;
+let baseline = null; // recipe original for reset
+let modified = new Set();
+let undoStack = [];
+let redoStack = [];
+let seq = 0;
+const clientId = Math.random().toString(36).slice(2, 10); // the server orders renders per page
+let renderToken = 0;
+let currentObjectUrl = null;
+let viewExtent = null; // plane half-extents of the image on screen (X-View-Extent)
+let shownView = null; // view that image was rendered with
+let debounceTimer = null;
+let dragState = null;
+let renderStart = 0;
+let aspectKey = "desktop";
+let aspects = [];
+
+const FIT_CHOICES = ["fill", "cover", "contain"];
+
+function genSpec() {
+  return catalog?.generators[state?.generator];
+}
+
+function cleanPost(post) {
+  if (!post || !catalog) return undefined;
+  const out = {};
+  for (const op of catalog.post_ops) {
+    const v = post[op.name];
+    if (v === null || v === undefined) continue;
+    if (deepEq(v, op.neutral)) continue;
+    out[op.name] = v;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
+function stateForApi(s) {
+  const o = deepClone(s);
+  o.seq = seq;
+  o.client = clientId;
+  const p = cleanPost(o.post);
+  if (p) o.post = p;
+  else delete o.post;
+  return o;
+}
+
+function syncDimensions() {
+  const asp = aspects.find((a) => a.id === aspectKey) || aspects[0];
+  const longEdge = parseInt($("previewSize").value, 10) || 720;
+  const portrait = asp.h > asp.w;
+  let w, h;
+  if (portrait) {
+    h = longEdge;
+    w = Math.max(16, Math.round(h * asp.w / asp.h));
+  } else {
+    w = longEdge;
+    h = Math.max(16, Math.round(w * asp.h / asp.w));
+  }
+  state.width = w;
+  state.height = h;
+  applyFrameAspect(asp);
+}
+
+function applyFrameAspect(asp) {
+  if (!asp) return;
+  const stage = $("previewStage");
+  const frame = $("previewFrame");
+  const sw = stage.clientWidth - 24;
+  const sh = stage.clientHeight - 24;
+  if (sw < 10 || sh < 10) return;
+  const ar = asp.w / asp.h;
+  let fw, fh;
+  if (sw / sh > ar) {
+    fh = sh;
+    fw = fh * ar;
+  } else {
+    fw = sw;
+    fh = fw / ar;
+  }
+  frame.style.width = `${fw}px`;
+  frame.style.height = `${fh}px`;
+}
+
+// --- history ---
+// Controls mutate `state` freely; checkpoint() diffs it against the last
+// committed snapshot and records the old one. Rapid edits of the same control
+// (slider drags, wheel zooms) merge into one undo step.
+const HISTORY_KEYS = ["recipe", "generator", "palette", "params", "view", "post"];
+let committed = null;
+let lastCommitKey = null;
+let lastCommitTime = 0;
+
+function snapshot() {
+  const o = { baseline };
+  for (const k of HISTORY_KEYS) o[k] = deepClone(state[k] ?? null);
+  return o;
+}
+
+function resetHistoryBase() {
+  committed = snapshot();
+  lastCommitKey = null;
+}
+
+function checkpoint(key = null) {
+  const cur = snapshot();
+  if (committed && !deepEq(cur, committed)) {
+    const now = performance.now();
+    const merge = key !== null && key === lastCommitKey && now - lastCommitTime < 1000;
+    if (!merge) {
+      undoStack.push(committed);
+      if (undoStack.length > 100) undoStack.shift();
+    }
+    redoStack = [];
+    lastCommitKey = key;
+    lastCommitTime = now;
+  }
+  committed = cur;
+  updateHistoryButtons();
+}
+
+function restoreSnapshot(snap) {
+  for (const k of HISTORY_KEYS) state[k] = deepClone(snap[k]);
+  baseline = snap.baseline;
+  committed = snapshot();
+  lastCommitKey = null;
+  $("recipeSearch").value = state.recipe || "";
+  seq++;
+  updateHistoryButtons();
+  rebuildSidebar();
+  persistHash();
+  scheduleRender();
+}
+
+function doUndo() {
+  checkpoint();
+  if (!undoStack.length) return;
+  redoStack.push(committed);
+  restoreSnapshot(undoStack.pop());
+}
+
+function doRedo() {
+  checkpoint();
+  if (!redoStack.length) return;
+  undoStack.push(committed);
+  restoreSnapshot(redoStack.pop());
+}
+
+function updateHistoryButtons() {
+  $("btnUndo").disabled = !undoStack.length;
+  $("btnRedo").disabled = !redoStack.length;
+}
+
+function markModified(path) {
+  modified.add(path);
+}
+
+// Sub-rows (c.re, coeffs.a, vector[1]) light up with the value they belong to.
+function refreshModifiedMarks() {
+  for (const row of document.querySelectorAll("#sidebar .row[data-path]")) {
+    const p = row.dataset.path;
+    const on = [...modified].some((m) => p === m || p.startsWith(`${m}.`)) ||
+      (p.startsWith("coeffs.") && modified.has("params.coeffs"));
+    row.classList.toggle("modified", on);
+  }
+}
+
+function recomputeModified() {
+  modified = new Set();
+  if (!baseline || !state) return;
+  if (!deepEq(state.palette, baseline.palette)) modified.add("palette");
+  if (!deepEq(state.params, baseline.params)) {
+    for (const k of Object.keys(state.params || {})) {
+      if (!deepEq(state.params[k], baseline.params?.[k])) modified.add(`params.${k}`);
+    }
+  }
+  if (state.view && baseline.view) {
+    for (const k of ["center", "half_width", "rotation", "fit"]) {
+      if (!deepEq(state.view[k], baseline.view[k])) modified.add(`view.${k}`);
+    }
+  }
+  const bp = baseline.post || {};
+  const sp = state.post || {};
+  for (const op of catalog.post_ops) {
+    const n = op.name;
+    if (!deepEq(sp[n] ?? op.neutral, bp[n] ?? op.neutral)) modified.add(`post.${n}`);
+  }
+}
+
+function commitChange(path) {
+  checkpoint(path);
+  if (path) markModified(path);
+  updatePreviewTransform();
+  seq++;
+  recomputeModified();
+  refreshModifiedMarks();
+  syncDimensions();
+  persistHash();
+  scheduleRender();
+}
+
+function setAtPath(root, path, value) {
+  const parts = path.split(".");
+  let o = root;
+  for (let i = 0; i < parts.length - 1; i++) {
+    const p = parts[i];
+    if (o[p] === undefined) o[p] = {};
+    o = o[p];
+  }
+  o[parts[parts.length - 1]] = value;
+}
+
+function getAtPath(root, path) {
+  return path.split(".").reduce((o, k) => (o != null ? o[k] : undefined), root);
+}
+
+// --- hash persistence ---
+function persistHash() {
+  try {
+    const payload = {
+      recipe: state.recipe,
+      generator: state.generator,
+      palette: state.palette,
+      params: state.params,
+      view: state.view,
+      post: state.post,
+      aspectKey,
+      previewSize: parseInt($("previewSize").value, 10),
+    };
+    history.replaceState(null, "", "#" + b64UrlEncode(payload));
+  } catch (_) { /* quota */ }
+}
+
+// --- errors ---
+function showError(err) {
+  const host = $("errHost");
+  const div = document.createElement("div");
+  div.className = "err-panel";
+  div.innerHTML = `<button type="button" class="dismiss" aria-label="Dismiss">×</button>
+    <div>${escapeHtml(err.message || String(err))}</div>
+    ${err.trace ? `<span class="toggle-trace">Show trace</span><pre>${escapeHtml(err.trace)}</pre>` : ""}`;
+  div.querySelector(".dismiss").onclick = () => div.remove();
+  const tg = div.querySelector(".toggle-trace");
+  if (tg) tg.onclick = () => div.classList.toggle("expanded");
+  host.appendChild(div);
+  return div;
+}
+function escapeHtml(s) {
+  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+// --- render loop ---
+function scheduleRender() {
+  clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(() => startRenderPass(), 60);
+}
+
+function setRenderingBadge(on, elapsed) {
+  const b = $("renderBadge");
+  if (on) {
+    b.textContent = `rendering… ${elapsed.toFixed(1)}s`;
+    b.classList.add("show");
+  } else {
+    b.classList.remove("show");
+  }
+}
+
+async function startRenderPass() {
+  const token = ++renderToken;
+  syncDimensions();
+  const full = stateForApi(state);
+  // Extents for the full frame: the draft's rounded size has a slightly different aspect.
+  const half = { ...full, width: Math.max(16, Math.round(full.width / 2)), height: Math.max(16, Math.round(full.height / 2)),
+                 extent_size: [full.width, full.height] };
+  renderStart = performance.now();
+  setRenderingBadge(true, 0);
+  const tick = setInterval(() => {
+    if (token !== renderToken) { clearInterval(tick); return; }
+    setRenderingBadge(true, (performance.now() - renderStart) / 1000);
+  }, 100);
+
+  try {
+    // A half-size draft first for quick feedback, then the full preview.
+    const draft = await apiRender(half);
+    if (token !== renderToken || draft.stale) return;
+    applyPreviewBlob(draft, half);
+    const fin = await apiRender(full);
+    if (token !== renderToken || fin.stale) return;
+    applyPreviewBlob(fin, full);
+  } catch (e) {
+    document.querySelectorAll(".err-panel.render").forEach((d) => d.remove());
+    showError(e).classList.add("render");
+  } finally {
+    clearInterval(tick);
+    if (token === renderToken) setRenderingBadge(false, 0);
+  }
+}
+
+function parseExtent(hdr) {
+  const [hw, hh] = hdr.split(",").map(parseFloat);
+  return Number.isFinite(hw) && Number.isFinite(hh) ? { halfW: hw, halfH: hh } : null;
+}
+
+function applyPreviewBlob(res, rendered) {
+  const url = URL.createObjectURL(res.blob);
+  $("previewImg").src = url;
+  if (currentObjectUrl) URL.revokeObjectURL(currentObjectUrl);
+  currentObjectUrl = url;
+  viewExtent = res.extent ? parseExtent(res.extent) : null;
+  shownView = rendered.view ? deepClone(rendered.view) : null;
+  if (res.ms) $("renderMs").textContent = `${res.ms} ms`;
+  document.querySelectorAll(".err-panel.render").forEach((d) => d.remove());
+  updatePreviewTransform();
+}
+
+// --- catalog / load ---
+async function loadCatalog() {
+  catalog = await apiJson("/api/catalog");
+  buildAspects();
+  buildRecipeList();
+  buildGenPicker();
+  buildExportPresets();
+}
+
+function buildAspects() {
+  aspects = [
+    { id: "desktop", label: "Desktop 16:9", w: 16, h: 9 },
+    { id: "phone", label: "Phone 9:19.5", w: 9, h: 19.5 },
+  ];
+  for (const p of catalog.presets || []) {
+    aspects.push({ id: `preset:${p.name}`, label: `${p.name} (${p.width}×${p.height})`, w: p.width, h: p.height, preset: p });
+  }
+  const sel = $("aspectSel");
+  sel.innerHTML = aspects.map((a) => `<option value="${a.id}">${a.label}</option>`).join("");
+  sel.value = aspectKey;
+}
+
+function buildGenPicker() {
+  const sel = $("genPicker");
+  const byCat = {};
+  for (const [name, g] of Object.entries(catalog.generators)) {
+    (byCat[g.category] ||= []).push(name);
+  }
+  let html = '<option value="">From generator…</option>';
+  for (const cat of Object.keys(byCat).sort()) {
+    for (const n of byCat[cat].sort()) {
+      html += `<option value="${n}">${cat}: ${n}</option>`;
+    }
+  }
+  sel.innerHTML = html;
+}
+
+function buildRecipeList() {
+  const list = $("recipeList");
+  const byCat = {};
+  for (const r of catalog.recipes) {
+    const g = catalog.generators[r.generator];
+    const cat = g?.category || "misc";
+    (byCat[cat] ||= []).push(r);
+  }
+  list.innerHTML = "";
+  for (const cat of Object.keys(byCat).sort()) {
+    const gh = document.createElement("div");
+    gh.className = "grp";
+    gh.textContent = cat;
+    list.appendChild(gh);
+    for (const r of byCat[cat].sort((a, b) => a.name.localeCompare(b.name))) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.textContent = r.name;
+      btn.dataset.name = r.name;
+      btn.onclick = () => selectRecipe(r.name);
+      list.appendChild(btn);
+    }
+  }
+}
+
+function filterRecipeList(q) {
+  const ql = q.toLowerCase();
+  $("recipeList").querySelectorAll("button").forEach((b) => {
+    b.style.display = !ql || b.dataset.name.toLowerCase().includes(ql) ? "" : "none";
+  });
+}
+
+async function selectRecipe(name) {
+  $("recipeSearch").value = name;
+  $("recipeList").classList.remove("open");
+  syncDimensions();
+  const st = await apiJson(`/api/state?recipe=${encodeURIComponent(name)}&w=${state.width}&h=${state.height}`);
+  st.seq = seq;
+  state = st;
+  baseline = deepClone(st);
+  checkpoint();
+  modified = new Set();
+  seq++;
+  rebuildSidebar();
+  persistHash();
+  scheduleRender();
+}
+
+function generatorBlankState(genName) {
+  const g = catalog.generators[genName];
+  if (!g) return null;
+  const params = {};
+  let palette = null;
+  for (const p of g.params) {
+    if (p.name === "palette") palette = p.default;
+    else if (!p.required) params[p.name] = deepClone(p.default);
+  }
+  syncDimensions();
+  return {
+    recipe: null,
+    generator: genName,
+    palette,
+    params,
+    view: g.uses_view ? { center: [0, 0], half_width: 2, rotation: 0, fit: "fill" } : null,
+    post: {},
+    width: state.width,
+    height: state.height,
+    seq,
+  };
+}
+
+async function fetchRecipeState(name) {
+  return apiJson(`/api/state?recipe=${encodeURIComponent(name)}&w=${state.width}&h=${state.height}`);
+}
+
+// Restore the page from the URL hash (edits on top of a recipe or a bare generator).
+async function stateFromHash(h) {
+  aspectKey = aspects.some((a) => a.id === h.aspectKey) ? h.aspectKey : "desktop";
+  $("aspectSel").value = aspectKey;
+  if (h.previewSize) {
+    $("previewSize").value = h.previewSize;
+    $("previewSizeLbl").textContent = $("previewSize").value;
+  }
+  syncDimensions();
+  let st;
+  if (h.recipe) {
+    baseline = await fetchRecipeState(h.recipe);
+    st = deepClone(baseline);
+  } else if (catalog.generators[h.generator]) {
+    st = generatorBlankState(h.generator);
+    baseline = deepClone(st);
+  } else {
+    throw new Error(`unknown generator ${h.generator}`);
+  }
+  if ("palette" in h) st.palette = h.palette;
+  st.params = { ...st.params, ...(h.params || {}) };
+  if (h.view && st.view) st.view = h.view;
+  st.post = h.post || {};
+  return st;
+}
+
+async function loadInitial() {
+  state = { width: 640, height: 360, params: {}, post: {} };
+  syncDimensions();
+  let restored = null;
+  if (location.hash.length > 1) {
+    try {
+      restored = await stateFromHash(b64UrlDecode(location.hash.slice(1)));
+    } catch (e) {
+      showError(new Error(`Could not restore the saved view (${e.message}); loading the default recipe.`));
+    }
+  }
+  if (restored) {
+    state = restored;
+  } else {
+    aspectKey = "desktop";
+    $("aspectSel").value = aspectKey;
+    syncDimensions();
+    state = await fetchRecipeState("julia_dragon");
+    baseline = deepClone(state);
+  }
+  $("recipeSearch").value = state.recipe || "";
+  seq = 1;
+  resetHistoryBase();
+  rebuildSidebar();
+  persistHash();
+  scheduleRender();
+}
+
+// --- sidebar builders ---
+let paramFilter = "";
+
+function rebuildSidebar() {
+  const sb = $("sidebar");
+  const scroll = sb.scrollTop;
+  const filterFocused = document.activeElement?.classList.contains("filter-inp");
+  sb.innerHTML = "";
+  if (!state || !catalog) return;
+  recomputeModified();
+
+  if (state.view) {
+    sb.appendChild(buildViewSection());
+  }
+
+  const paramsSec = document.createElement("div");
+  paramsSec.className = "section";
+  paramsSec.innerHTML = `<h3>Parameters <label class="help-toggle"><input type="checkbox" id="helpToggle"> show help</label></h3>`;
+  const ht = paramsSec.querySelector("#helpToggle");
+  ht.checked = !document.body.classList.contains("no-help");
+  ht.onchange = () => {
+    document.body.classList.toggle("no-help", !ht.checked);
+    try { localStorage.setItem("fractalgen.help", ht.checked ? "1" : "0"); } catch (_) {}
+  };
+  const recipeInfo = state.recipe && catalog.recipes.find((r) => r.name === state.recipe);
+  const genInfo = catalog.generators[state.generator];
+  const intro = document.createElement("div");
+  intro.className = "intro";
+  intro.textContent = [recipeInfo?.description, `${state.generator}: ${genInfo?.description || ""}`].filter(Boolean).join(" — ");
+  paramsSec.appendChild(intro);
+  const filt = document.createElement("input");
+  filt.className = "filter-inp";
+  filt.placeholder = "Filter parameters…";
+  filt.value = paramFilter;
+  filt.oninput = () => { paramFilter = filt.value; rebuildSidebar(); };
+  paramsSec.appendChild(filt);
+
+  const g = genSpec();
+  const coeffInfo = catalog.coefficients[state.generator];
+  const skip = new Set(["palette"]);
+  if (coeffInfo) skip.add("coeffs");
+
+  for (const p of g?.params || []) {
+    if (skip.has(p.name)) continue;
+    const q = paramFilter.toLowerCase();
+    if (q && !p.name.toLowerCase().includes(q) && !(p.doc || "").toLowerCase().includes(q)) continue;
+    if (p.name === "palette") continue;
+    paramsSec.appendChild(paramRow(`params.${p.name}`, p, state.params[p.name], (v) => {
+      state.params[p.name] = v;
+      commitChange(`params.${p.name}`);
+    }));
+  }
+
+  if (g?.params?.some((p) => p.name === "palette")) {
+    paramsSec.appendChild(paletteRow("palette", "palette", state.palette, (v) => {
+      state.palette = v;
+      commitChange("palette");
+    }));
+  }
+
+  if (coeffInfo) {
+    paramsSec.appendChild(buildCoeffsSection(coeffInfo));
+  }
+
+  sb.appendChild(paramsSec);
+
+  const postSec = document.createElement("div");
+  postSec.className = "section";
+  postSec.innerHTML = `<h3>Post</h3><div class="intro">Finishing applied after rendering; works the same for every generator.</div>`;
+  if (!state.post) state.post = {};
+  for (const op of catalog.post_ops) {
+    postSec.appendChild(postOpRow(op));
+  }
+  sb.appendChild(postSec);
+  refreshModifiedMarks();
+  sb.scrollTop = scroll;
+  if (filterFocused) {
+    filt.focus();
+    filt.setSelectionRange(filt.value.length, filt.value.length);
+  }
+}
+
+function buildCoeffsSection(coeffInfo) {
+  const wrap = document.createElement("div");
+  wrap.className = "section";
+  wrap.innerHTML = "<h3>Coefficients</h3>";
+  const viaKey = coeffInfo.via;
+  const viaVal = state.params[viaKey];
+  const defaults = coeffInfo.defaults[viaVal] || {};
+  const merged = { ...defaults, ...(state.params.coeffs || {}) };
+  for (const key of Object.keys(defaults).sort()) {
+    const val = merged[key];
+    const row = numSliderRow(`coeffs.${key}`, key, val, defaults[key], (v) => {
+      if (!state.params.coeffs) state.params.coeffs = {};
+      state.params.coeffs[key] = v;
+      commitChange("params.coeffs");
+    });
+    wrap.appendChild(row);
+  }
+  return wrap;
+}
+
+function buildViewSection() {
+  const sec = document.createElement("div");
+  sec.className = "section";
+  sec.innerHTML = "<h3>View</h3>";
+  const v = state.view;
+
+  const intro = document.createElement("div");
+  intro.className = "intro";
+  intro.textContent = "Which part of the complex plane fills the frame. Drag the image to pan, scroll to zoom, " +
+    "Shift+scroll or Alt+drag to rotate, R to reset the view.";
+  sec.appendChild(intro);
+  const cg = groupEl("view.center", "center", "the plane point at the middle of the image");
+  cg.appendChild(complexRow("view.center.re", "real", v.center[0], (x) => {
+    v.center[0] = x; commitChange("view.center");
+  }));
+  cg.appendChild(complexRow("view.center.im", "imaginary", v.center[1], (x) => {
+    v.center[1] = x; commitChange("view.center");
+  }));
+  sec.appendChild(cg);
+
+  const hwRow = document.createElement("div");
+  hwRow.className = "row" + (modified.has("view.half_width") ? " modified" : "");
+  hwRow.dataset.path = "view.half_width";
+  const hwLbl = document.createElement("label");
+  hwLbl.className = "lbl label-dot";
+  hwLbl.textContent = "half_width";
+  hwLbl.title = "view.half_width — double-click to reset";
+  hwLbl.ondblclick = () => resetPath("view.half_width");
+  const hwCtrl = document.createElement("div");
+  hwCtrl.className = "ctrl";
+  const logMin = -14, logMax = 1; // 1e-14 .. 10
+  const logVal = Math.log10(Math.max(v.half_width, 1e-14));
+  const sl = document.createElement("input");
+  sl.type = "range";
+  sl.min = logMin;
+  sl.max = logMax;
+  sl.step = "0.01";
+  sl.value = clamp(logVal, logMin, logMax);
+  const num = document.createElement("input");
+  num.type = "number";
+  num.step = "any";
+  num.value = v.half_width;
+  const syncFromLog = () => {
+    const hv = Math.pow(10, parseFloat(sl.value));
+    v.half_width = hv;
+    num.value = hv;
+    commitChange("view.half_width");
+  };
+  sl.oninput = syncFromLog;
+  sl.onchange = () => commitChange("view.half_width");
+  num.onchange = () => {
+    v.half_width = parseFloat(num.value) || v.half_width;
+    sl.value = clamp(Math.log10(Math.max(v.half_width, 1e-14)), logMin, logMax);
+    commitChange("view.half_width");
+  };
+  hwCtrl.append(sl, num);
+  const z2 = document.createElement("button");
+  z2.type = "button";
+  z2.className = "btn";
+  z2.textContent = "+";
+  z2.title = "zoom in 2×";
+  z2.onclick = () => { v.half_width *= 0.5; commitChange("view.half_width"); rebuildSidebar(); };
+  const zd = document.createElement("button");
+  zd.type = "button";
+  zd.className = "btn";
+  zd.textContent = "−";
+  zd.title = "zoom out 2×";
+  zd.onclick = () => { v.half_width *= 2; commitChange("view.half_width"); rebuildSidebar(); };
+  hwCtrl.append(z2, zd, resetBtn("view.half_width"));
+  hwRow.append(hwLbl, hwCtrl, docEl(["half the visible width, in plane units: smaller = zoomed in (slider is logarithmic)",
+    "+ / − zoom 2×"]));
+  sec.appendChild(hwRow);
+
+  sec.appendChild(floatRow("view.rotation", "rotation", v.rotation, -180, 180, 1, (x) => {
+    v.rotation = x; commitChange("view.rotation");
+  }, false, "turns the view, in degrees counter-clockwise"));
+
+  const fitRow = document.createElement("div");
+  fitRow.className = "row";
+  const fl = document.createElement("label");
+  fl.className = "lbl";
+  fl.textContent = "fit";
+  const fs = document.createElement("select");
+  for (const f of FIT_CHOICES) {
+    const o = document.createElement("option");
+    o.value = f;
+    o.textContent = f;
+    fs.appendChild(o);
+  }
+  fs.value = v.fit || "fill";
+  fs.onchange = () => { v.fit = fs.value; commitChange("view.fit"); rebuildSidebar(); };
+  fitRow.dataset.path = "view.fit";
+  const fitDocs = {
+    fill: "the width always spans ±half_width; taller frames show more above and below",
+    cover: "keeps the 16:9 window's height; phone frames crop the sides",
+    contain: "the whole 16:9 window stays visible; other shapes add space around it",
+  };
+  fitRow.append(fl, fs, docEl(["how the view adapts to the frame shape: " + (fitDocs[fs.value] || ""), ""]));
+  sec.appendChild(fitRow);
+
+  return sec;
+}
+
+function resetBtn(path) {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.className = "reset-row";
+  b.textContent = "↺";
+  b.onclick = () => resetPath(path);
+  return b;
+}
+
+function resetPath(path) {
+  if (!baseline) return;
+  const val = getAtPath(baseline, path);
+  setAtPath(state, path, deepClone(val));
+  commitChange(path);
+  rebuildSidebar();
+}
+
+function paramRow(path, schema, value, onApply) {
+  const kind = schema.kind;
+  const doc = paramDoc(schema);
+  if (kind === "bool") return boolRow(path, schema.name, value, doc, onApply);
+  if (kind === "choice") return choiceRow(path, schema, value, onApply, doc);
+  if (kind === "string") return stringRow(path, schema.name, value, doc, onApply);
+  if (kind === "complex") return complexParamRow(path, schema.name, value, doc, onApply);
+  if (kind === "color") return colorRow(path, schema.name, value, doc, onApply, schema.default == null);
+  if (kind === "vector") return vectorRow(path, schema.name, value, doc, onApply);
+  if (kind === "numdict") return numdictRow(path, schema.name, value, doc, onApply);
+  if (kind === "palette") return paletteRow(path, schema.name, value, onApply, schema.default == null, doc);
+  if (kind === "json") return jsonRow(path, schema.name, value, doc, onApply);
+  if (kind === "int" || kind === "float") {
+    const rng = schema.range || (kind === "int" ? [0, 100, 1] : [-1, 1]);
+    return floatRow(path, schema.name, value, rng[0], rng[1], rng[2] ?? (kind === "int" ? 1 : 0.01), (v) => {
+      onApply(kind === "int" ? Math.round(v) : v);
+    }, kind === "int", doc);
+  }
+  return stringRow(path, schema.name, value, doc, onApply);
+}
+
+// "What it does" line under a control. `doc` may carry a hint (default / range).
+function docEl(doc) {
+  const d = document.createElement("div");
+  d.className = "doc";
+  const [text, hint] = Array.isArray(doc) ? doc : [doc, ""];
+  d.textContent = text || "";
+  if (hint) {
+    const h = document.createElement("span");
+    h.className = "hint";
+    h.textContent = (text ? "  · " : "") + hint;
+    d.appendChild(h);
+  }
+  return d;
+}
+
+const fmtVal = (v) => {
+  if (typeof v === "number") return String(+v.toPrecision(6));
+  if (Array.isArray(v) && v.length === 2 && v.every((x) => typeof x === "number")) {
+    return `${fmtVal(v[0])}${v[1] < 0 ? "−" : "+"}${fmtVal(Math.abs(v[1]))}i`;
+  }
+  return typeof v === "string" ? v : JSON.stringify(v);
+};
+
+// Doc + "default …, range …" for a generator parameter.
+function paramDoc(schema) {
+  const bits = [];
+  if (schema.default !== null && schema.default !== undefined && !["json", "palette"].includes(schema.kind)) {
+    bits.push(`default ${fmtVal(schema.default)}`);
+  }
+  if (schema.range && ["int", "float"].includes(schema.kind)) bits.push(`typical ${fmtVal(schema.range[0])}…${fmtVal(schema.range[1])}`);
+  return [schema.doc || "", bits.join(", ")];
+}
+
+// Label + doc above the sub-rows of a compound value (complex number, vector, dict).
+function groupEl(path, label, doc) {
+  const wrap = document.createElement("div");
+  wrap.className = "group";
+  const head = document.createElement("div");
+  head.className = "group-head row";
+  head.dataset.path = path;
+  const lbl = document.createElement("label");
+  lbl.className = "lbl label-dot";
+  lbl.textContent = label;
+  lbl.ondblclick = () => resetPath(path);
+  head.append(lbl, docEl(doc));
+  wrap.appendChild(head);
+  return wrap;
+}
+
+function rowShell(path, label, doc, ctrlEl) {
+  const row = document.createElement("div");
+  row.className = "row" + (modified.has(path) ? " modified" : "");
+  row.dataset.path = path;
+  const lbl = document.createElement("label");
+  lbl.className = "lbl label-dot";
+  lbl.textContent = label;
+  lbl.title = `${path.replace(/^params\./, "")} — double-click to reset`;
+  lbl.ondblclick = () => resetPath(path);
+  const ctrl = document.createElement("div");
+  ctrl.className = "ctrl";
+  ctrl.appendChild(ctrlEl);
+  ctrl.appendChild(resetBtn(path));
+  row.append(lbl, ctrl);
+  if (doc && (Array.isArray(doc) ? doc.some(Boolean) : true)) row.appendChild(docEl(doc));
+  return row;
+}
+
+function boolRow(path, label, value, doc, onApply) {
+  const cb = document.createElement("input");
+  cb.type = "checkbox";
+  cb.checked = !!value;
+  cb.onchange = () => onApply(cb.checked);
+  return rowShell(path, label, doc, cb);
+}
+
+function choiceRow(path, schema, value, onApply, doc = schema.doc) {
+  const sel = document.createElement("select");
+  for (const c of schema.choices || []) {
+    const o = document.createElement("option");
+    o.value = c;
+    o.textContent = c;
+    sel.appendChild(o);
+  }
+  sel.value = value;
+  sel.onchange = () => {
+    // A different map / flow / field has its own coefficients.
+    const coeffInfo = catalog.coefficients[state.generator];
+    if (coeffInfo && schema.name === coeffInfo.via) state.params.coeffs = null;
+    onApply(sel.value);
+    rebuildSidebar();
+  };
+  return rowShell(path, schema.name, doc, sel);
+}
+
+function stringRow(path, label, value, doc, onApply) {
+  const inp = document.createElement("input");
+  inp.type = "text";
+  inp.value = value ?? "";
+  const apply = () => onApply(inp.value);
+  inp.onblur = apply;
+  inp.onkeydown = (e) => { if (e.key === "Enter") apply(); };
+  return rowShell(path, label, doc, inp);
+}
+
+// Slider + number box; onApply(x) runs on every change (history merges a drag).
+function floatRow(path, label, value, min, max, step, onApply, isInt, doc) {
+  let vmin = min, vmax = max;
+  const v = Number(value);
+  if (v < vmin) vmin = v;
+  if (v > vmax) vmax = v;
+  if (vmin === vmax) { vmin -= 1; vmax += 1; }
+  const sl = document.createElement("input");
+  sl.type = "range";
+  sl.min = vmin;
+  sl.max = vmax;
+  sl.step = step || (isInt ? 1 : 0.01);
+  sl.value = v;
+  const num = document.createElement("input");
+  num.type = "number";
+  num.step = isInt ? 1 : "any";
+  num.value = isInt ? Math.round(v) : v;
+  sl.oninput = () => {
+    const x = isInt ? Math.round(parseFloat(sl.value)) : parseFloat(sl.value);
+    num.value = x;
+    onApply(x);
+  };
+  num.onchange = () => {
+    let x = parseFloat(num.value);
+    if (isNaN(x)) return;
+    if (isInt) x = Math.round(x);
+    if (x < sl.min) sl.min = x;
+    if (x > sl.max) sl.max = x;
+    sl.value = x;
+    onApply(x);
+  };
+  const wrap = document.createElement("span");
+  wrap.append(sl, num);
+  return rowShell(path, label, doc, wrap);
+}
+
+function complexRow(path, label, value, onApply) {
+  const mag = Math.max(2, 2 * Math.abs(value));
+  return floatRow(path, label, value, -mag, mag, 0.001, onApply, false, "");
+}
+
+function complexParamRow(path, label, value, doc, onApply) {
+  const wrap = groupEl(path, `${label} (complex)`, doc);
+  const r1 = complexRow(path + ".re", "real", value[0], (x) => {
+    value[0] = x; onApply(value);
+  });
+  const r2 = complexRow(path + ".im", "imaginary", value[1], (x) => {
+    value[1] = x; onApply(value);
+  });
+  wrap.append(r1, r2);
+  return wrap;
+}
+
+// RGB color as [r, g, b] in 0..1 or a hex string (kept in the value's own form).
+// With allowNone, a checkbox switches the value between null (off) and a color.
+function colorRow(path, label, value, doc, onApply, allowNone = false) {
+  const inp = document.createElement("input");
+  inp.type = "color";
+  const toHex = (v) => {
+    if (typeof v === "string") {
+      const m = /^#?([0-9a-f]{6})$/i.exec(v.trim());
+      return m ? `#${m[1].toLowerCase()}` : "#000000";
+    }
+    if (!Array.isArray(v)) return "#ffffff";
+    return "#" + v.slice(0, 3).map((c) => clamp(Math.round(c * 255), 0, 255).toString(16).padStart(2, "0")).join("");
+  };
+  const fromHex = (h) => {
+    if (typeof value === "string") return h.replace("#", "");
+    const n = parseInt(h.slice(1), 16);
+    return [(n >> 16) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255];
+  };
+  inp.value = toHex(value);
+  inp.oninput = () => onApply(fromHex(inp.value));
+  if (!allowNone) return rowShell(path, label, doc, inp);
+  const on = document.createElement("input");
+  on.type = "checkbox";
+  on.checked = value != null;
+  on.title = "enable";
+  inp.disabled = !on.checked;
+  on.onchange = () => {
+    inp.disabled = !on.checked;
+    onApply(on.checked ? fromHex(inp.value) : null);
+  };
+  const wrap = document.createElement("span");
+  wrap.append(on, inp);
+  return rowShell(path, label, doc, wrap);
+}
+
+function vectorRow(path, label, value, doc, onApply) {
+  const wrap = groupEl(path, label, doc);
+  const arr = value || [];
+  const names = arr.length === 3 && /color|light|dir|cam|pos/i.test(label) ? ["x", "y", "z"] : null;
+  arr.forEach((comp, i) => {
+    const mag = Math.max(1, 3 * Math.abs(comp));
+    const sub = floatRow(`${path}.${i}`, names ? names[i] : `[${i}]`, comp, -mag, mag, 0.01, (x) => {
+      arr[i] = x; onApply(arr);
+    }, false, "");
+    wrap.appendChild(sub);
+  });
+  return wrap;
+}
+
+function numdictRow(path, label, value, doc, onApply) {
+  const wrap = groupEl(path, label, doc);
+  const dict = value || {};
+  for (const key of Object.keys(dict).sort()) {
+    wrap.appendChild(numSliderRow(`${path}.${key}`, key, dict[key], dict[key], (v) => {
+      dict[key] = v; onApply(dict);
+    }));
+  }
+  return wrap;
+}
+
+function numSliderRow(path, label, val, def, onApply) {
+  const mag = Math.max(1, 3 * Math.abs(def ?? val ?? 1));
+  return floatRow(path, label, val, -mag, mag, 0.01, onApply, false, "");
+}
+
+function jsonRow(path, label, value, doc, onApply) {
+  const ta = document.createElement("textarea");
+  ta.rows = 3;
+  ta.style.width = "100%";
+  ta.value = JSON.stringify(value, null, 2);
+  const apply = () => {
+    try {
+      const v = JSON.parse(ta.value);
+      ta.style.borderColor = "";
+      onApply(v);
+    } catch {
+      ta.style.borderColor = "var(--danger)";
+    }
+  };
+  ta.onblur = apply;
+  ta.onkeydown = (e) => {
+    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) apply();
+  };
+  return rowShell(path, label, doc, ta);
+}
+
+function paletteGradient(stops, positions = null) {
+  const cols = stops.map((h, i) => {
+    const c = h.startsWith("#") ? h : `#${h}`;
+    return positions && positions.length === stops.length ? `${c} ${(positions[i] * 100).toFixed(1)}%` : c;
+  }).join(", ");
+  return `linear-gradient(90deg, ${cols})`;
+}
+
+// Palette picker for any palette-valued path (generator palette, post remap, ...).
+// A value is a name ("ember"), a reversed name ("ember_r"), inline hex stops, or
+// {stops, positions}; with allowNone an "off" entry stands for null.
+function paletteRow(path, label, value, onApply, allowNone = false, doc = "") {
+  const row = document.createElement("div");
+  row.className = "row" + (modified.has(path) ? " modified" : "");
+  const lbl = document.createElement("label");
+  lbl.className = "lbl label-dot";
+  lbl.textContent = label;
+  lbl.ondblclick = () => resetPath(path);
+  const ctrl = document.createElement("div");
+  ctrl.className = "ctrl";
+  ctrl.style.flexDirection = "column";
+  ctrl.style.alignItems = "stretch";
+
+  row.dataset.path = path;
+  let cur = deepClone(value ?? null);
+  const known = (n) => catalog.palettes.find((p) => p.name === n);
+  const baseName = (v) => (v.endsWith("_r") && known(v.slice(0, -2)) ? v.slice(0, -2) : v);
+  const stopsOf = (v) => {
+    if (v == null) return null;
+    if (Array.isArray(v)) return v;
+    if (typeof v === "object") return v.stops || null;
+    const p = known(baseName(v));
+    if (!p) return null;
+    return baseName(v) !== v ? [...p.stops].reverse() : p.stops;
+  };
+  const apply = (v, rebuild = true) => {
+    cur = v;
+    onApply(v);
+    if (rebuild) rebuildSidebar();
+    else updateSwatch();
+  };
+
+  const sel = document.createElement("select");
+  sel.className = "palette-select";
+  const addOpt = (v, text) => {
+    const o = document.createElement("option");
+    o.value = v;
+    o.textContent = text;
+    sel.appendChild(o);
+  };
+  if (allowNone) addOpt("", "— off —");
+  for (const p of catalog.palettes) addOpt(p.name, p.name);
+  if (typeof cur === "string" && !known(baseName(cur))) addOpt(cur, cur);
+  addOpt("__custom__", "Custom stops…");
+  sel.value = cur == null ? (allowNone ? "" : catalog.palettes[0]?.name) : typeof cur === "string" ? baseName(cur) : "__custom__";
+  sel.onchange = () => {
+    if (sel.value === "") apply(null);
+    else if (sel.value === "__custom__") apply(deepClone(stopsOf(cur) || ["000000", "ffffff"]));
+    else apply(typeof cur === "string" && baseName(cur) !== cur ? `${sel.value}_r` : sel.value);
+  };
+
+  const sw = document.createElement("div");
+  sw.className = "pal-swatch";
+  function updateSwatch() {
+    const stops = stopsOf(cur);
+    const pos = cur && !Array.isArray(cur) && typeof cur === "object" ? cur.positions : null;
+    sw.style.background = stops ? paletteGradient(stops, pos) : "transparent";
+  }
+
+  const tools = document.createElement("div");
+  tools.style.display = "flex";
+  tools.style.gap = "6px";
+  tools.style.alignItems = "center";
+  const rev = document.createElement("button");
+  rev.type = "button";
+  rev.className = "btn";
+  rev.textContent = "⇄ reverse";
+  rev.disabled = cur == null;
+  rev.onclick = () => {
+    if (typeof cur === "string") apply(baseName(cur) !== cur ? baseName(cur) : `${cur}_r`);
+    else if (Array.isArray(cur)) apply([...cur].reverse());
+    else if (cur && cur.stops) {
+      apply({ ...cur, stops: [...cur.stops].reverse(), ...(cur.positions ? { positions: cur.positions.map((p) => 1 - p).reverse() } : {}) });
+    }
+  };
+  tools.append(rev, resetBtn(path));
+
+  const det = document.createElement("details");
+  det.className = "stops-edit";
+  det.innerHTML = "<summary>Edit stops</summary>";
+  det.open = cur != null && typeof cur === "object";
+  det.ontoggle = () => {
+    if (det.open && (cur == null || typeof cur === "string")) {
+      apply(deepClone(stopsOf(cur) || ["000000", "ffffff"]));
+    }
+  };
+  if (det.open) {
+    const stops = stopsOf(cur);
+    const edit = (fn) => {
+      // Editing turns {stops, positions} into plain stops when the count changes.
+      const next = Array.isArray(cur) ? [...cur] : [...cur.stops];
+      const keepPos = fn(next) !== "resized" && !Array.isArray(cur) && cur.positions;
+      return keepPos ? { ...cur, stops: next } : next;
+    };
+    stops.forEach((hex, i) => {
+      const sr = document.createElement("div");
+      sr.className = "stop-row";
+      const cp = document.createElement("input");
+      cp.type = "color";
+      const h = hex.startsWith("#") ? hex : `#${hex}`;
+      cp.value = /^#[0-9a-f]{6}$/i.test(h) ? h.toLowerCase() : "#000000";
+      cp.oninput = () => apply(edit((s) => { s[i] = cp.value.slice(1); }), false);
+      cp.onchange = () => rebuildSidebar();
+      const del = document.createElement("button");
+      del.type = "button";
+      del.className = "btn";
+      del.textContent = "−";
+      del.title = "remove stop";
+      del.disabled = stops.length <= 2;
+      del.onclick = () => apply(edit((s) => { s.splice(i, 1); return "resized"; }));
+      const add = document.createElement("button");
+      add.type = "button";
+      add.className = "btn";
+      add.textContent = "+";
+      add.title = "insert a stop after this one";
+      add.onclick = () => apply(edit((s) => { s.splice(i + 1, 0, s[i]); return "resized"; }));
+      sr.append(cp, del, add);
+      det.appendChild(sr);
+    });
+  }
+
+  ctrl.append(sel, sw, tools, det);
+  row.append(lbl, ctrl);
+  if (doc) row.appendChild(docEl(doc));
+  updateSwatch();
+  return row;
+}
+
+function postOpRow(op) {
+  const path = `post.${op.name}`;
+  const cur = state.post?.[op.name];
+  const val = cur !== undefined && cur !== null ? cur : op.neutral;
+  const onSet = (v) => {
+    if (!state.post) state.post = {};
+    if (deepEq(v, op.neutral)) delete state.post[op.name];
+    else state.post[op.name] = v;
+    commitChange(path);
+  };
+  if (op.kind === "bool") return boolRow(path, op.name, val, op.doc, onSet);
+  if (op.kind === "palette") return paletteRow(path, op.name, val, onSet, true, op.doc);
+  if (op.kind === "color") return colorRow(path, op.name, val, op.doc, onSet, op.neutral == null);
+  const rng = op.range || [-1, 1];
+  return floatRow(path, op.name, val, rng[0], rng[1], 0.01, onSet, false, [op.doc, `off at ${fmtVal(op.neutral)}`]);
+}
+
+// --- view interaction ---
+// Frame axes in plane coordinates: x runs along (cos θ, sin θ), "up" along
+// (-sin θ, cos θ), θ = view rotation (counter-clockwise). Screen y points down.
+// `viewExtent` holds the plane half-extents of the image on screen, rendered
+// for `shownView`; the current view's extents scale with its half_width.
+function frameExtents() {
+  const hw = state.view?.half_width ?? 1;
+  if (viewExtent && shownView?.half_width) {
+    const k = hw / shownView.half_width;
+    return { halfW: viewExtent.halfW * k, halfH: viewExtent.halfH * k };
+  }
+  return { halfW: hw, halfH: hw * (state.height / state.width) };
+}
+
+function frameAxes(view = state.view) {
+  const th = (view.rotation || 0) * Math.PI / 180;
+  return { cos: Math.cos(th), sin: Math.sin(th) };
+}
+
+function frameRect() {
+  return $("previewFrame").getBoundingClientRect();
+}
+
+function unitsPerPx() {
+  return (2 * frameExtents().halfW) / (frameRect().width || state.width);
+}
+
+// Plane point under a mouse event, in the current view.
+function planeFromEvent(e) {
+  const rect = frameRect();
+  const u = (e.clientX - rect.left) / rect.width;
+  const v = (e.clientY - rect.top) / rect.height;
+  const { halfW, halfH } = frameExtents();
+  const x = (2 * u - 1) * halfW;
+  const y = (1 - 2 * v) * halfH;
+  const { cos, sin } = frameAxes();
+  const [cx, cy] = state.view.center;
+  return { re: cx + x * cos - y * sin, im: cy + x * sin + y * cos };
+}
+
+// Move / rotate / scale the image on screen so it matches the current view
+// until a fresh render arrives.
+function updatePreviewTransform() {
+  const img = $("previewImg");
+  const s = shownView, c = state.view;
+  if (!s || !c || !viewExtent || !s.half_width || !c.half_width) { img.style.transform = ""; return; }
+  const k = s.half_width / c.half_width;
+  const upp = unitsPerPx();
+  const { cos, sin } = frameAxes(c);
+  const dx = s.center[0] - c.center[0], dy = s.center[1] - c.center[1];
+  const tx = (dx * cos + dy * sin) / upp;    // along the current frame's x axis
+  const ty = (-dx * sin + dy * cos) / upp;   // along its up axis
+  const rot = (c.rotation || 0) - (s.rotation || 0);
+  img.style.transform = `translate(${tx}px, ${-ty}px) rotate(${rot}deg) scale(${k})`;
+}
+
+function setupPreviewInteraction() {
+  const overlay = $("previewOverlay");
+  let throttleTimer = null;
+
+  const requestDragRender = () => {
+    clearTimeout(throttleTimer);
+    throttleTimer = setTimeout(() => scheduleRender(), 150);
+  };
+
+  overlay.addEventListener("pointerdown", (e) => {
+    if (!state.view || e.button !== 0) return;
+    overlay.setPointerCapture(e.pointerId);
+    dragState = {
+      x: e.clientX,
+      y: e.clientY,
+      mode: e.altKey ? "rotate" : "pan",
+      center: [...state.view.center],
+      rotation: state.view.rotation || 0,
+      upp: unitsPerPx(),
+    };
+    overlay.classList.add("dragging");
+  });
+
+  overlay.addEventListener("pointermove", (e) => {
+    if (!dragState) return;
+    const dx = e.clientX - dragState.x;
+    const dy = e.clientY - dragState.y;
+    if (dragState.mode === "rotate") {
+      state.view.rotation = dragState.rotation + dx * 0.4;
+    } else {
+      // Content follows the mouse: the center moves opposite to the drag.
+      const { cos, sin } = frameAxes();
+      const fx = -dx * dragState.upp; // along the frame's x axis
+      const fy = dy * dragState.upp;  // along the frame's up axis (screen y is down)
+      state.view.center = [
+        dragState.center[0] + fx * cos - fy * sin,
+        dragState.center[1] + fx * sin + fy * cos,
+      ];
+    }
+    updatePreviewTransform();
+    requestDragRender();
+  });
+
+  const endDrag = () => {
+    if (!dragState) return;
+    const mode = dragState.mode;
+    dragState = null;
+    overlay.classList.remove("dragging");
+    clearTimeout(throttleTimer);
+    commitChange(mode === "rotate" ? "view.rotation" : "view.center");
+    rebuildSidebar();
+  };
+  overlay.addEventListener("pointerup", endDrag);
+  overlay.addEventListener("pointercancel", endDrag);
+
+  overlay.addEventListener("wheel", (e) => {
+    if (!state.view) return;
+    e.preventDefault();
+    if (e.shiftKey) {
+      state.view.rotation = (state.view.rotation || 0) + e.deltaY * 0.1;
+      commitChange("view.rotation");
+      rebuildSidebar();
+      return;
+    }
+    // Zoom about the point under the cursor: it stays fixed on screen.
+    const p = planeFromEvent(e);
+    const factor = Math.pow(1.15, e.deltaY / 100);
+    const [cx, cy] = state.view.center;
+    state.view.half_width *= factor;
+    state.view.center = [p.re + (cx - p.re) * factor, p.im + (cy - p.im) * factor];
+    commitChange("view.half_width");
+    rebuildSidebar();
+  }, { passive: false });
+}
+
+// --- save / export ---
+async function saveRecipe() {
+  const name = prompt("Recipe name (letters, digits, _ -):");
+  if (!name) return;
+  try {
+    await apiJson("/api/save", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, state: stateForApi(state) }),
+    });
+    await loadCatalog();
+    alert(`Saved as ${name}`);
+  } catch (e) {
+    if (e.message && e.message.includes("FileExistsError")) {
+      if (confirm("Recipe exists. Overwrite?")) {
+        await apiJson("/api/save", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name, state: stateForApi(state), overwrite: true }),
+        });
+        await loadCatalog();
+        alert(`Saved as ${name}`);
+      }
+    } else showError(e);
+  }
+}
+
+function buildExportPresets() {
+  const sel = $("exportPreset");
+  sel.innerHTML = '<option value="">— Custom —</option>';
+  for (const p of catalog.presets || []) {
+    sel.innerHTML += `<option value="${p.width}x${p.height}">${p.name} (${p.width}×${p.height})</option>`;
+  }
+  sel.innerHTML += '<option value="3840x2160">4K (3840×2160)</option>';
+  sel.innerHTML += '<option value="1920x1080">1080p</option>';
+}
+
+async function runExport() {
+  const preset = $("exportPreset").value;
+  let w = parseInt($("exportW").value, 10);
+  let h = parseInt($("exportH").value, 10);
+  if (preset) {
+    [w, h] = preset.split("x").map(Number);
+  }
+  if (!w || !h) {
+    $("exportStatus").textContent = "Set width and height.";
+    return;
+  }
+  const fmt = $("exportFmt").value;
+  const name = $("exportName").value.trim();
+  $("exportStatus").textContent = "Starting…";
+  try {
+    const { job } = await apiJson("/api/export", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        state: stateForApi(state),
+        width: w,
+        height: h,
+        format: fmt,
+        name: name || undefined,
+      }),
+    });
+    $("exportStatus").textContent = `Job ${job}…`;
+    const poll = async () => {
+      const st = await apiJson(`/api/export/${job}`);
+      if (st.status === "running") {
+        $("exportStatus").textContent = `Rendering… ${(st.seconds || 0).toFixed(1)}s`;
+        setTimeout(poll, 400);
+      } else if (st.status === "done") {
+        $("exportStatus").textContent = `Done: ${st.path}`;
+      } else if (st.status === "error") {
+        $("exportStatus").textContent = `Error: ${st.error}`;
+      } else {
+        $("exportStatus").textContent = "Unknown job status";
+      }
+    };
+    poll();
+  } catch (e) {
+    $("exportStatus").textContent = e.message;
+  }
+}
+
+// --- aspect change with optional state refetch ---
+async function onAspectChange() {
+  const prev = aspectKey;
+  aspectKey = $("aspectSel").value;
+  const asp = aspects.find((a) => a.id === aspectKey);
+  if (asp?.preset) {
+    $("previewSize").value = Math.max(asp.preset.width, asp.preset.height);
+    $("previewSizeLbl").textContent = $("previewSize").value;
+  }
+  syncDimensions();
+  if (state.recipe && baseline) {
+    const fresh = await apiJson(`/api/state?recipe=${encodeURIComponent(state.recipe)}&w=${state.width}&h=${state.height}`);
+    if (state.view && fresh.view) {
+      for (const k of ["center", "half_width", "rotation", "fit"]) {
+        if (!modified.has(`view.${k}`)) state.view[k] = deepClone(fresh.view[k]);
+      }
+    }
+    for (const key of Object.keys(fresh.params)) {
+      if (!modified.has(`params.${key}`)) state.params[key] = deepClone(fresh.params[key]);
+    }
+    if (!modified.has("palette")) state.palette = deepClone(fresh.palette);
+    const post = {};
+    for (const op of catalog.post_ops) {
+      const v = modified.has(`post.${op.name}`) ? state.post?.[op.name] : fresh.post?.[op.name];
+      if (v !== undefined && v !== null) post[op.name] = deepClone(v);
+    }
+    state.post = post;
+    // Portrait overrides change the recipe's own values: reset targets them now.
+    baseline = fresh;
+    recomputeModified();
+    resetHistoryBase();
+    rebuildSidebar();
+  }
+  applyFrameAspect(asp);
+  persistHash();
+  scheduleRender();
+}
+
+// --- wire UI ---
+function initUi() {
+  $("recipeSearch").onfocus = () => $("recipeList").classList.add("open");
+  $("recipeSearch").oninput = (e) => {
+    $("recipeList").classList.add("open");
+    filterRecipeList(e.target.value);
+  };
+  document.addEventListener("click", (e) => {
+    if (!$("recipeWrap").contains(e.target)) $("recipeList").classList.remove("open");
+  });
+
+  $("genPicker").onchange = () => {
+    const g = $("genPicker").value;
+    if (!g) return;
+    state = generatorBlankState(g);
+    baseline = deepClone(state);
+    checkpoint();
+    modified = new Set();
+    $("recipeSearch").value = "";
+    seq++;
+    rebuildSidebar();
+    persistHash();
+    scheduleRender();
+    $("genPicker").value = "";
+  };
+
+  $("aspectSel").onchange = () => onAspectChange();
+  $("previewSize").oninput = () => {
+    $("previewSizeLbl").textContent = $("previewSize").value;
+    commitChange(null);
+    applyFrameAspect(aspects.find((a) => a.id === aspectKey));
+  };
+
+  $("btnUndo").onclick = () => doUndo();
+  $("btnRedo").onclick = () => doRedo();
+  $("btnReset").onclick = () => {
+    if (!baseline) return;
+    const { width, height } = state;
+    state = deepClone(baseline);
+    Object.assign(state, { width, height });
+    checkpoint();
+    syncDimensions();
+    modified = new Set();
+    seq++;
+    rebuildSidebar();
+    persistHash();
+    scheduleRender();
+  };
+  $("btnSave").onclick = () => saveRecipe();
+  $("btnExport").onclick = () => { $("exportModal").classList.add("open"); $("exportStatus").textContent = ""; };
+  $("btnSidebar").onclick = () => $("sidebar").classList.toggle("collapsed");
+  // The frame follows the stage size (window resize, sidebar toggle / drag-resize).
+  new ResizeObserver(() => applyFrameAspect(aspects.find((a) => a.id === aspectKey))).observe($("previewStage"));
+  $("exportCancel").onclick = () => $("exportModal").classList.remove("open");
+  $("exportGo").onclick = () => runExport();
+  $("exportPreset").onchange = () => {
+    const v = $("exportPreset").value;
+    if (v) {
+      const [w, h] = v.split("x");
+      $("exportW").value = w;
+      $("exportH").value = h;
+    }
+  };
+
+  window.addEventListener("keydown", (e) => {
+    const mod = e.metaKey || e.ctrlKey;
+    if (mod && e.key === "z" && !e.shiftKey) { e.preventDefault(); doUndo(); }
+    if (mod && e.key === "z" && e.shiftKey) { e.preventDefault(); doRedo(); }
+    if (e.key === "r" && !mod && document.activeElement?.tagName !== "INPUT" && document.activeElement?.tagName !== "TEXTAREA") {
+      if (baseline?.view && state.view) {
+        Object.assign(state.view, deepClone(baseline.view));
+        commitChange("view");
+        rebuildSidebar();
+      }
+    }
+  });
+
+  window.addEventListener("resize", () => applyFrameAspect(aspects.find((a) => a.id === aspectKey)));
+  setupPreviewInteraction();
+}
+
+async function boot() {
+  try { if (localStorage.getItem("fractalgen.help") === "0") document.body.classList.add("no-help"); } catch (_) {}
+  initUi();
+  await loadCatalog();
+  await loadInitial();
+  applyFrameAspect(aspects.find((a) => a.id === aspectKey));
+}
+
+boot().catch((e) => showError(e));
+</script>
+</body>
+</html>
