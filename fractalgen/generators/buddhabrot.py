@@ -27,16 +27,16 @@ FORMULAS = ("mandelbrot", "burning_ship", "buffalo", "tricorn", "celtic", "multi
     uses_view=True,
     default_view={"center": [-0.4, 0.0], "half_width": 2.1, "fit": "cover"},
     param_docs={
-        "formula": "orbit formula (Mandelbrot family without a Julia constant)",
-        "channels": "[[min_iter, max_iter], ...] escape windows; one image channel each",
-        "colors": "[[r, g, b], ...] 0..1 tint per channel, added together",
-        "samples": "random c per output pixel; higher = smoother, slower",
-        "sample_window": "[re0, re1, im0, im1] region c is drawn from",
-        "bailout": "escape radius",
-        "seed": "random seed for the c samples; change to vary the grain",
-        "gamma": "tone curve per channel; lower = brighter faint orbits",
-        "hi": "per-channel density percentile mapped to full brightness; lower = more blown-out cores",
-        "blur": "density blur, in pixels at 4K; softens grain",
+        "formula": "Which member of the Mandelbrot family to trace.",
+        "channels": "Escape-time windows, one per color channel. Points that escape slowly make the fine inner structure.",
+        "colors": "The color of each channel, as RGB from 0 to 1. They add together.",
+        "samples": "How many random points to trace per pixel. More gives a smoother image but takes longer.",
+        "sample_window": "The region the random points are drawn from.",
+        "bailout": "How far a point travels before it counts as escaped.",
+        "seed": "Change it for a different pattern of grain.",
+        "gamma": "Lower values bring out the faint paths.",
+        "hi": "How bright the busiest areas get. Lower it to blow out the cores.",
+        "blur": "Softens the grain.",
     },
     ranges={
         "samples": (1, 200, 1),
@@ -62,7 +62,7 @@ def buddhabrot(
     hi: float = 99.9,
     blur: float = 0.6,
 ):
-    """Buddhabrot / Nebulabrot: density of escaping orbits, one tinted channel per iteration window."""
+    """The ghostly Buddhabrot: the paths that escaping points trace, built up into a glowing cloud."""
     from scipy.ndimage import gaussian_filter
 
     from .. import kernels

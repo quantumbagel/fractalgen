@@ -17,11 +17,11 @@ import { clamp, formFocused } from "./util.js";
 window.fg = { ...store, planeFromClient }; // for tools/gui_check.py and the browser console
 
 const TABS = [
-  { id: "look", label: "Look", icon: "✦" },
-  { id: "frame", label: "Frame", icon: "⌖" },
-  { id: "color", label: "Color", icon: "◐" },
-  { id: "layers", label: "Layers", icon: "❏" },
-  { id: "effects", label: "Effects", icon: "✧" },
+  { id: "look", label: "Look" },
+  { id: "frame", label: "Frame" },
+  { id: "color", label: "Color" },
+  { id: "layers", label: "Layers" },
+  { id: "effects", label: "Effects" },
 ];
 
 const PANELS = { look: LookPanel, frame: FramePanel, color: ColorPanel, layers: LayersPanel, effects: EffectsPanel };
@@ -39,7 +39,7 @@ function TopBar() {
   const changed = S.modified.size > 0;
   return html`
     <header class="topbar">
-      <div class="brand" title="fractalgen">◈</div>
+      <div class="brand">fractalgen</div>
       <button type="button" class="look-btn" title="Browse looks (B)" onClick=${() => { S.ui.overlay = "browse"; emit(); }}>
         ${st?.recipe ? html`<${Thumb} recipe=${st.recipe} orient="land" key=${st.recipe} />` : html`<span class="thumb land"></span>`}
         <span class="look-btn-text"><span class="look-btn-name">${st?.recipe?.replace(/_/g, " ") || st?.generator || "…"}</span>
@@ -81,7 +81,7 @@ function Sidebar() {
       <nav class="tabs" role="tablist">
         ${TABS.map((t) => html`<button type="button" role="tab" aria-selected=${S.ui.tab === t.id}
           class=${`tab${S.ui.tab === t.id ? " on" : ""}`} onClick=${() => setTab(t.id)}>
-          <span class="tab-icon">${t.icon}</span><span class="tab-label">${t.label}</span>
+          <span class="tab-label">${t.label}</span>
           ${counts[t.id] ? html`<span class="badge">${counts[t.id]}</span>` : null}
         </button>`)}
         <button type="button" class="tab sheet-close" onClick=${() => { S.ui.sheet = false; emit(); }}>✕</button>
@@ -137,8 +137,8 @@ function App() {
   }, []);
 
   if (!S.catalog || !S.state) {
-    return html`<div class="splash"><div class="brand big">◈</div><div>Loading fractalgen…</div>
-      <div class="muted small">The first picture compiles its kernels (a few seconds).</div><${Toasts} /></div>`;
+    return html`<div class="splash"><div class="brand big">fractalgen</div>
+      <div class="muted">Warming up. The first picture takes a few seconds.</div><${Toasts} /></div>`;
   }
   const o = S.ui.overlay;
   return html`

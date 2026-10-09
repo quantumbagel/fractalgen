@@ -194,24 +194,24 @@ def iterate_map(
     choices={"map": MAPS.names},
     category="attractor",
     param_docs={
-        "map": "which 2D iterated map (clifford, dejong, ikeda, …); changes the shape",
-        "coeffs": "{name: value} merged over the map's defaults; retunes folds and arms",
-        "palette": "color gradient for the density cloud",
-        "n": "base particle count at ~720p; higher = denser cloud, slower (scaled with size)",
-        "warmup": "discarded iterations to reach the attractor; higher = fewer stray dots",
-        "steps": "drawn iterations per particle; higher = longer traces, denser image",
-        "seed": "random seed for the starting cloud; change to vary the grain",
-        "blur": "blur of the density cloud, in output pixels; higher = softer",
-        "gamma": "tone curve on density; lower = brighter, more filled-in midtones",
-        "percentiles": "[lo, hi] percentile crop for auto-framing; tighter = zoom into the core",
-        "tight": "if true, crop to the dense core (drops thin tails, e.g. Ikeda)",
-        "init": "[x, y] center of the starting Gaussian cloud, in plane units",
-        "init_sigma": "starting cloud spread in plane units; rarely needs a change",
-        "explode": "respawn if |x| or |y| exceeds this (plane units); raise for huge maps",
-        "xlim": "optional [xmin, xmax] framing in plane units (also set ylim)",
-        "ylim": "optional [ymin, ymax] framing in plane units (also set xlim)",
-        "pad": "extra fraction of the auto window; higher = more margin around the shape",
-        "particle_cap": "max particles after resolution scaling; raise only if a 4K render looks thin",
+        "map": "Which attractor. Each has its own shape.",
+        "coeffs": "Fine-tunes the shape: its folds and arms.",
+        "palette": "Colors for the cloud.",
+        "n": "Number of particles. More gives a denser cloud but is slower.",
+        "warmup": "Early steps left undrawn so stray dots don't show.",
+        "steps": "How long each particle is drawn. More gives a denser picture.",
+        "seed": "Change it for a different pattern of grain.",
+        "blur": "Softens the cloud.",
+        "gamma": "Lower values brighten and fill in the cloud.",
+        "percentiles": "How tightly the frame crops around the shape.",
+        "tight": "Crop to the dense core, leaving out thin tails.",
+        "init": "Where the particles start.",
+        "init_sigma": "How spread out the particles start. Rarely needs changing.",
+        "explode": "Particles that fly further than this start over.",
+        "xlim": "Set the horizontal range shown yourself (set both ranges).",
+        "ylim": "Set the vertical range shown yourself (set both ranges).",
+        "pad": "Space around the shape.",
+        "particle_cap": "Limits how many particles larger pictures add. Raise it only if a 4K render looks thin.",
     },
     ranges={
         "n": (10_000, 500_000, 10_000),
@@ -248,7 +248,7 @@ def map_attractor(
     pad: float = 0.06,
     particle_cap: int = 420_000,
 ):
-    """Point-cloud painting of a 2D iterated strange attractor (Clifford, De Jong, Ikeda, …)."""
+    """A strange attractor: one simple rule, repeated millions of times, painting a cloud of light."""
     from ..view import fit_window
 
     step = _make_step(map, coeffs)

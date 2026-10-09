@@ -834,11 +834,16 @@ let varToken = 0;
 
 function rand(a, b) { return a + Math.random() * (b - a); }
 
+// Parameters that move the camera rather than change the look: variations leave them alone.
+const FRAMING = /^(zoom|span|framing|pad|frame_pad|tight|window_fill|xlim|ylim|xmin|xmax|ymin|ymax|percentiles|x_percentile|trim_percentile|rotation|rotate_angle|angle_deg|yaw_deg|pitch_deg|tilt|disk_scale|sim_scale|ref_short|sample_window|z_scale)$/;
+
+/** A random tweak of the look that keeps your framing (view, zoom, camera) exactly as it is. */
 function mutate(src, strength) {
   const st = deepClone(src);
   const g = genSpec(st);
   for (const p of g.params) {
     const cur = st.params[p.name];
+    if (FRAMING.test(p.name)) continue;
     if (p.advanced && Math.random() < 0.7) continue;
     if (["int", "float"].includes(p.kind) && p.range && typeof cur === "number") {
       const [lo, hi] = p.range;
@@ -850,10 +855,6 @@ function mutate(src, strength) {
       const m = Math.max(0.02, Math.hypot(cur[0], cur[1]) * 0.08) * strength * 4;
       st.params[p.name] = [cur[0] + rand(-m, m), cur[1] + rand(-m, m)];
     }
-  }
-  if (st.view) {
-    st.view.half_width *= Math.exp(rand(-0.5, 0.5) * strength * 2);
-    st.view.rotation = (st.view.rotation || 0) + rand(-25, 25) * strength * 2;
   }
   if (Math.random() < 0.45 && st.palette !== null && st.palette !== undefined) {
     const pals = S.catalog.palettes.map((p) => p.name);
@@ -886,7 +887,7 @@ export async function makeVariations(n = 8, strength = 0.12) {
 export function pickVariation(i) {
   const v = S.variations[i];
   if (!v) return;
-  for (const k of ["palette", "params", "view"]) S.state[k] = deepClone(v.state[k]);
+  for (const k of ["palette", "params"]) S.state[k] = deepClone(v.state[k]);
   S.ui.overlay = null;
   commit("variation");
 }

@@ -25,21 +25,21 @@ _DEFAULT_RATIOS: tuple[tuple[float, float], ...] = (
     "harmonograph",
     category="curves",
     param_docs={
-        "n_curves": "number of superposed damped pendulum traces",
-        "samples": "minimum time samples per curve",
-        "seed": "RNG seed for frequency and phase draws",
-        "palette": "palette for hue and tone blend",
-        "t_max": "time span of each trace",
-        "ratios": "frequency ratio pairs (fx, fy) cycled per curve",
-        "samples_per_width": "minimum samples ≈ 4K width × this for smooth traces",
-        "pad": "fractional padding around bounding box",
-        "density_blur": "Gaussian blur sigma on deposited density (pixels at 4K)",
-        "tone_lo": "log-tone percentile low for density",
-        "tone_hi": "log-tone percentile high for density",
-        "tone_gamma": "gamma on log tone for RGB multiplier",
-        "hue_mix": "weight of curve index hue vs tone",
-        "tone_mix": "weight of tone in palette coordinate",
-        "rgb_floor": "minimum RGB multiplier from tone",
+        "n_curves": "Number of pendulum drawings laid on top of each other.",
+        "samples": "Points along each curve. More gives smoother lines.",
+        "seed": "Change it for different swings.",
+        "palette": "Colors for the curves.",
+        "t_max": "How long each pendulum swings.",
+        "ratios": "The rhythm of each pendulum pair, which sets the shape of its loops.",
+        "samples_per_width": "Keeps lines smooth on large pictures.",
+        "pad": "Space around the drawing.",
+        "density_blur": "Softens the lines.",
+        "tone_lo": "Faintest part of the lines.",
+        "tone_hi": "Brightest part of the lines.",
+        "tone_gamma": "Lower values brighten the faint lines.",
+        "hue_mix": "How much each curve gets its own color.",
+        "tone_mix": "How much brightness picks the color.",
+        "rgb_floor": "Keeps the faintest lines from going fully dark.",
     },
     ranges={
         "n_curves": (1, 24, 1),
@@ -76,7 +76,7 @@ def harmonograph(
     tone_mix: float = 0.45,
     rgb_floor: float = 0.05,
 ):
-    """Multi-pendulum harmonograph traces with log tone mapping."""
+    """Swinging pendulums drawing looping, fading curves."""
     if n_curves < 1:
         raise ValueError("n_curves must be at least 1")
     if not ratios:

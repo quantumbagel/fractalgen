@@ -266,7 +266,7 @@ function StageTools() {
         <button type="button" class="tool" title="Zoom in" onClick=${() => zoom(0.5)}>+</button>
         <button type="button" class="tool" title="Zoom out" onClick=${() => zoom(2)}>−</button>
         <button type="button" class="tool" title="Reset framing (R)" onClick=${resetView}>⟲</button>` : null}
-      <button type="button" class="tool wide" title="Hold to see the look as it was loaded (\\)"
+      <button type="button" class="tool wide" title="Hold to see the look as it was before your changes (\\)"
         onPointerDown=${startCompare} onPointerUp=${stopCompare} onPointerLeave=${() => S.ui.compare && stopCompare()}>
         Compare
       </button>
@@ -278,20 +278,20 @@ function StatusPill() {
   const secs = (performance.now() - v.started) / 1000;
   if (v.busy && secs > 0.25) {
     const lbl = v.waiting ? "Waiting for another render" : v.label;
-    const pct = v.pct != null && !v.waiting ? `${Math.round(v.pct * 100)}% · ` : "";
-    return html`<div class="status busy" style=${{ "--p": v.pct || 0 }}>${lbl}… ${pct}${secs.toFixed(1)}s</div>`;
+    const pct = v.pct != null && !v.waiting ? ` ${Math.round(v.pct * 100)}%` : "";
+    return html`<div class="status busy" style=${{ "--p": v.pct || 0 }}>${lbl}${pct}</div>`;
   }
   const hint = !S.state.view ? "" : layerMode() && S.state.layers.length
-    ? "Drag a layer to move it · scroll to resize · Shift+scroll to turn"
-    : "Drag to pan · scroll to zoom · Shift+scroll or Alt+drag to turn";
-  return html`<div class="status">${v.ms ? `${Math.round(v.ms)} ms` : ""}${hint ? html`<span class="hint">${hint}</span>` : null}</div>`;
+    ? "Drag a layer to move it. Scroll over it to resize, or hold Shift to turn it."
+    : "Drag to move around and scroll to zoom. Hold Shift while scrolling to turn.";
+  return html`<div class="status">${hint ? html`<span class="hint">${hint}</span>` : null}</div>`;
 }
 
 function RenderError({ err }) {
   const [open, setOpen] = useState(false);
   return html`
     <div class="render-error">
-      <strong>Couldn't render this.</strong> ${err.message}
+      <strong>This didn't render.</strong> ${err.message}
       ${err.trace ? html`<button type="button" class="link" onClick=${() => setOpen(!open)}>${open ? "Hide" : "Details"}</button>` : null}
       ${open ? html`<pre>${err.trace}</pre>` : null}
     </div>`;

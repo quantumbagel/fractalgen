@@ -97,26 +97,26 @@ def _vectorfield_section(name: str, table: dict[str, Any], source: str, replace:
     choices={"field": VECTOR_FIELDS.names},
     category="fields",
     param_docs={
-        "field": "registered vector field name",
-        "coeffs": "override the field's own params (merged over its defaults)",
-        "particles": "base particle count before ctx.scale_particles",
-        "particles_cap": "upper cap for scale_particles",
-        "steps": "integration steps per particle",
-        "seed": "RNG seed for initial positions and respawns",
-        "palette": "palette for blended hue and tone",
-        "wrap": "toroidal wrap at plane edges instead of respawn",
-        "dt": "integration time step multiplier",
-        "speed": "scalar speed applied to unit field vectors",
-        "respawn_divisor": "every step cycle, respawn n_particles // this many particles",
-        "respawn_period": "respawn every this many steps (when step % period == period-1)",
-        "density_blur": "Gaussian blur sigma on deposited density (pixels at 4K)",
-        "tone_lo": "log-tone percentile low for density",
-        "tone_hi": "log-tone percentile high for density",
-        "tone_gamma": "gamma on log tone before palette mix",
-        "hue_mix": "weight of flow-angle hue vs tone index",
-        "tone_mix": "weight of tone index in palette coordinate",
-        "rgb_floor": "minimum RGB multiplier from tone",
-        "rgb_ceil": "tone-scaled RGB ceiling multiplier",
+        "field": "The current the particles follow.",
+        "coeffs": "Fine-tunes the current.",
+        "particles": "Number of particles.",
+        "particles_cap": "Limits how many particles larger pictures add.",
+        "steps": "How far each particle travels.",
+        "seed": "Change it for different starting points.",
+        "palette": "Colors for the trails.",
+        "wrap": "Particles leaving one edge come back on the opposite edge.",
+        "dt": "How far a particle moves each step.",
+        "speed": "How fast the particles move.",
+        "respawn_divisor": "Controls how many particles restart at a time.",
+        "respawn_period": "How often some particles restart somewhere new.",
+        "density_blur": "Softens the trails.",
+        "tone_lo": "Faintest part of the trails.",
+        "tone_hi": "Brightest part of the trails.",
+        "tone_gamma": "Lower values brighten the faint trails.",
+        "hue_mix": "How much the direction of travel picks the color.",
+        "tone_mix": "How much brightness picks the color.",
+        "rgb_floor": "Keeps the faintest trails from going fully dark.",
+        "rgb_ceil": "Caps how bright the busiest trails get.",
     },
     ranges={
         "particles": (10_000, 300_000, 10_000),
@@ -161,7 +161,7 @@ def flow_field(
     rgb_floor: float = 0.08,
     rgb_ceil: float = 0.92,
 ):
-    """Particle traces through a normalized 2D vector field."""
+    """Particles drifting along an invisible current, leaving trails."""
     vf = VECTOR_FIELDS.get(field)
     unknown = set(coeffs or {}) - set(vf.defaults)
     if unknown:
@@ -231,19 +231,19 @@ def flow_field(
     "cymatics",
     category="fields",
     param_docs={
-        "n_sources": "number of interfering point sources",
-        "freq": "base radial wave number",
-        "seed": "RNG seed for source placement and phase",
-        "palette": "base palette from amplitude histogram",
-        "highlight_palette": "palette for amplitude highlight mix (old code used abyss)",
-        "source_span": "uniform range for source positions as fraction of plane",
-        "freq_jitter": "per-source frequency multiplier range",
-        "falloff": "inverse-distance damping on each source",
-        "node_sharpness": "exponential sharpness emphasizing nodal lines",
-        "rgb_floor": "minimum RGB away from nodes",
-        "node_mix": "how strongly nodes darken the base color",
-        "highlight_mix": "blend toward highlight palette by local amplitude",
-        "hist_gamma": "gamma on amplitude histogram index",
+        "n_sources": "Number of ripple sources.",
+        "freq": "How tightly packed the ripples are.",
+        "seed": "Change it to move the sources.",
+        "palette": "Main colors.",
+        "highlight_palette": "Colors for the brightest ripples.",
+        "source_span": "How spread out the sources are.",
+        "freq_jitter": "How much the ripple spacing varies between sources.",
+        "falloff": "How quickly ripples fade away from their source.",
+        "node_sharpness": "How crisp the still lines are.",
+        "rgb_floor": "Brightness away from the still lines.",
+        "node_mix": "How dark the still lines are.",
+        "highlight_mix": "How much the highlight colors show on the strongest ripples.",
+        "hist_gamma": "Lower values brighten the midtones.",
     },
     ranges={
         "n_sources": (2, 20, 1),
@@ -275,7 +275,7 @@ def cymatics(
     highlight_mix: float = 0.35,
     hist_gamma: float = 0.8,
 ):
-    """Superposed radial waves with nodal-line emphasis."""
+    """Ripples from several sources meeting, with the still lines drawn in."""
     width, height = ctx.width, ctx.height
     rng = np.random.default_rng(seed)
     aspect = ctx.aspect
@@ -305,14 +305,14 @@ def cymatics(
     "chladni",
     category="fields",
     param_docs={
-        "n": "Chladni mode n",
-        "m": "Chladni mode m",
-        "palette": "palette from field histogram",
-        "node_sharpness": "exponential sharpness on nodal lines",
-        "rgb_floor": "minimum RGB away from nodes",
-        "node_mix": "how strongly nodes darken the base color",
-        "highlight_gain": "additive cool highlight on nodes",
-        "hist_gamma": "gamma on field histogram index",
+        "n": "One of the two numbers that pick the pattern.",
+        "m": "The other number that picks the pattern.",
+        "palette": "Colors for the plate.",
+        "node_sharpness": "How crisp the lines are.",
+        "rgb_floor": "Brightness away from the still lines.",
+        "node_mix": "How dark the still lines are.",
+        "highlight_gain": "A cool glow along the lines.",
+        "hist_gamma": "Lower values brighten the midtones.",
     },
     ranges={
         "n": (1, 12, 1),
@@ -336,7 +336,7 @@ def chladni(
     highlight_gain: float = 0.35,
     hist_gamma: float = 0.85,
 ):
-    """Chladni plate nodal pattern on the unit square."""
+    """The patterns sand makes on a vibrating plate."""
     width, height = ctx.width, ctx.height
     aspect = ctx.aspect
     xs = np.linspace(-aspect, aspect, width)
@@ -360,12 +360,12 @@ def chladni(
     choices={"mode": ["F1", "F2-F1"]},
     category="fields",
     param_docs={
-        "n_points": "number of random feature points",
-        "seed": "RNG seed for feature positions",
-        "palette": "palette from distance histogram",
-        "mode": "F2-F1 (cell walls) or F1 (distance to nearest point)",
-        "tone_floor": "minimum RGB multiplier from field",
-        "hist_gamma": "gamma on distance histogram index",
+        "n_points": "Number of cells.",
+        "seed": "Change it to rearrange the cells.",
+        "palette": "Colors for the cells.",
+        "mode": "F2-F1 draws the cell walls. F1 shades each cell from its center outward.",
+        "tone_floor": "Keeps the darkest areas from going fully black.",
+        "hist_gamma": "Lower values brighten the midtones.",
     },
     ranges={
         "n_points": (8, 120, 1),
@@ -384,7 +384,7 @@ def worley(
     tone_floor: float = 0.15,
     hist_gamma: float = 0.9,
 ):
-    """Worley (cellular) noise from scattered feature points."""
+    """Cells like soap bubbles or cracked earth, grown around scattered points."""
     if mode not in ("F1", "F2-F1"):
         raise ValueError(f"worley mode must be 'F1' or 'F2-F1', got {mode!r}")
     width, height = ctx.width, ctx.height

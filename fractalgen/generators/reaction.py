@@ -17,21 +17,21 @@ from .base import generator
     "gray_scott",
     category="simulation",
     param_docs={
-        "F": "feed rate",
-        "k": "kill rate",
-        "steps": "Gray–Scott time steps on the simulation grid",
-        "seed": "RNG seed for initial v blobs",
-        "palette": "palette for v-field histogram coloring",
-        "sim_scale": "simulation grid as fraction of the 4K reference frame",
-        "n_seeds": "number of random seed blobs",
-        "Du": "diffusion coefficient for u",
-        "Dv": "diffusion coefficient for v",
-        "dt": "simulation time step per kernel iteration",
-        "blur_sigma": "Gaussian blur sigma on v before upsample (pixels on sim grid)",
-        "hist_gamma": "gamma on histogram index before palette",
-        "mask_threshold": "minimum v for histogram masking",
-        "substrate_t": "palette index for dark substrate mix",
-        "mix_gain": "field strength mixed over substrate",
+        "F": "How fast fresh chemical is fed in. Small changes switch between mazes, spots and worms.",
+        "k": "How fast the second chemical dies off. Works together with feed rate to pick the pattern.",
+        "steps": "How long the pattern grows.",
+        "seed": "Change it for a different starting pattern.",
+        "palette": "Colors for the pattern.",
+        "sim_scale": "Resolution of the simulation.",
+        "n_seeds": "Number of starting spots the pattern grows from.",
+        "Du": "How fast the first chemical spreads.",
+        "Dv": "How fast the second chemical spreads.",
+        "dt": "Simulation time step.",
+        "blur_sigma": "Softens the pattern.",
+        "hist_gamma": "Lower values brighten the midtones.",
+        "mask_threshold": "Faint parts of the pattern below this are left out.",
+        "substrate_t": "Color of the background, picked from the palette.",
+        "mix_gain": "How strongly the pattern shows over the background.",
     },
     ranges={
         "F": (0.01, 0.08),
@@ -69,7 +69,7 @@ def gray_scott(
     substrate_t: float = 0.02,
     mix_gain: float = 1.4,
 ):
-    """Gray-Scott reaction-diffusion, upsampled with histogram palette coloring."""
+    """Two chemicals reacting and spreading: the patterns behind coral, fingerprints and animal spots."""
     from .. import kernels
 
     width, height = ctx.width, ctx.height
@@ -118,14 +118,14 @@ def gray_scott(
     "sandpile",
     category="simulation",
     param_docs={
-        "palette": "palette indexed by pile height",
-        "grid_n": "topple grid side length (None = resolution-scaled default)",
-        "grains": "initial grain count at center (None = 2× grid²)",
-        "max_iter": "maximum topple iterations",
-        "n_ref": "reference short side for default grid_n at 4K portrait height",
-        "ref_short": "reference short side in pixels for grid_n scaling",
-        "tone_floor": "minimum RGB multiplier from height",
-        "tone_gamma": "gamma on height before tone floor mix",
+        "palette": "Colors for each height of the pile.",
+        "grid_n": "Size of the grid. Leave empty to size it from the picture.",
+        "grains": "Grains dropped at the center. Leave empty for the default.",
+        "max_iter": "Most toppling rounds before stopping.",
+        "n_ref": "Grid size used for a 4K picture.",
+        "ref_short": "Picture size the grid is scaled from.",
+        "tone_floor": "Keeps the lowest parts from going fully dark.",
+        "tone_gamma": "Shifts how bright the different heights look.",
     },
     ranges={
         "max_iter": (10_000, 1_000_000, 10_000),
@@ -147,7 +147,7 @@ def sandpile(
     tone_floor: float = 0.12,
     tone_gamma: float = 0.7,
 ):
-    """Abelian sandpile relaxation, nearest-neighbor upsampled."""
+    """A pile of sand grains toppling outward from the center into a crystal-like pattern."""
     from .. import kernels
 
     width, height = ctx.width, ctx.height

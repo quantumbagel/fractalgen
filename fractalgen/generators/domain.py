@@ -169,20 +169,20 @@ def _color_domain(
     category="domain",
     uses_view=True,
     param_docs={
-        "kind": "preset complex function (rational, sin, exp_inv, poly); ignored if expr is set",
-        "expr": "custom formula in z (and named params); if set, overrides kind",
-        "expr_params": "{name: value} for symbols in expr, or overrides of the preset's params",
-        "contour_lo": "base brightness of magnitude rings; higher = brighter overall",
-        "contour_hi": "ring contrast on log|w|; higher = stronger concentric contours",
-        "contour_period": "log|w| spacing of magnitude rings; lower = more tightly packed rings",
-        "checker_scale": "checker frequency on Re(w), Im(w); higher = more grid squares",
-        "checker_lo": "checker brightness baseline; higher = brighter grid",
-        "checker_hi": "checker contrast (± this from baseline); higher = stronger squares",
-        "mag_pow": "how fast brightness rolls off with |w|; lower = flatter, less contrast",
-        "mag_scale": "overall brightness from |w|; higher = brighter image",
-        "sat_lo": "minimum color intensity 0..1; higher = richer even near zeros",
-        "sat_hi": "extra saturation toward large |w|; higher = richer near poles",
-        "sat_mag_scale": "how quickly saturation rises with |w|; higher = saturates sooner",
+        "kind": "Which built-in function to paint. Ignored when you write your own formula.",
+        "expr": "Your own formula in z. Overrides the built-in function.",
+        "expr_params": "Values for the names used in your formula.",
+        "contour_lo": "Base brightness of the rings.",
+        "contour_hi": "How strong the rings are.",
+        "contour_period": "Spacing of the rings. Lower packs them tighter.",
+        "checker_scale": "How many grid squares to draw.",
+        "checker_lo": "Base brightness of the grid.",
+        "checker_hi": "How strong the grid squares are.",
+        "mag_pow": "How quickly brightness changes with size. Lower is flatter.",
+        "mag_scale": "Overall brightness.",
+        "sat_lo": "Color strength near the zeros.",
+        "sat_hi": "Extra color strength near the poles.",
+        "sat_mag_scale": "How quickly the color strengthens toward the poles.",
     },
     ranges={
         "contour_lo": (0.2, 0.9),
@@ -216,7 +216,7 @@ def domain_color(
     sat_hi: float = 0.4,
     sat_mag_scale: float = 1.0,
 ):
-    """Paints a complex function by hue = phase and brightness = magnitude."""
+    """A complex function painted as color: hue shows direction and brightness shows size."""
     if not np.isfinite(float(contour_period)) or float(contour_period) <= 0.0:
         raise ValueError(f"contour_period must be > 0, got {contour_period!r}")
     zr, zi = ctx.plane()
@@ -243,12 +243,12 @@ def domain_color(
     category="domain",
     uses_view=True,
     param_docs={
-        "steps": "popcorn iterations per pixel; higher = more warped, intricate waves, slower",
-        "hstep": "step size of the popcorn map; higher = stronger warping (can blow up)",
-        "saturation": "color intensity 0..1; higher = richer, lower = greyer",
-        "val_lo": "minimum brightness after histogram; higher = lifted shadows",
-        "val_hi": "brightness range from the histogram; higher = brighter highlights",
-        "val_gamma": "gamma on histogram brightness; lower = brighter midtones",
+        "steps": "How many times each point is warped. More gives more intricate waves but is slower.",
+        "hstep": "Strength of each warp. Too high and it breaks up.",
+        "saturation": "Color strength.",
+        "val_lo": "Lifts the darkest areas.",
+        "val_hi": "How bright the highlights get.",
+        "val_gamma": "Lower values brighten the midtones.",
     },
     ranges={
         "steps": (5, 120, 1),
@@ -269,7 +269,7 @@ def popcorn(
     val_hi: float = 0.82,
     val_gamma: float = 0.75,
 ):
-    """Warped wave field from Pickover's popcorn map; hue from drift direction."""
+    """Pickover's popcorn: rippling waves warped into each other."""
     from .. import kernels, progress
 
     zr, zi = ctx.plane()

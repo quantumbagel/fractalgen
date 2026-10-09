@@ -25,7 +25,7 @@ name their parameters. Add your own with::
     def posterize2(rgb, levels, ctx):
         return np.round(rgb * levels) / levels if levels else rgb
 
-    @fractalgen.post_op("glow2", params={"amount": Key("How much", 0.5), "radius": Key("Size", 20.0, unit="px")})
+    @fractalgen.post_op("glow2", params={"amount": Key("How strong.", 0.5), "radius": Key("Size", 20.0, unit="px")})
     def glow2(rgb, p, ctx):  # p = {"amount": ..., "radius": ...}
         ...
 
@@ -150,48 +150,48 @@ def _scale(ctx: Any) -> float:
     return float(getattr(ctx, "res_scale", 1.0) or 1.0)
 
 
-@post_op("palette", "Re-color by brightness through a palette", kind="palette", start="ember", label="Recolor")
+@post_op("palette", "Repaints the picture with new colors, matched by brightness.", kind="palette", start="ember", label="Recolor")
 def _palette(rgb, spec, ctx):
     return get_palette(spec).sample(np.clip(_luma(rgb), 0.0, 1.0))
 
 
-@post_op("palette_mix", "Blend amount for `palette` (0 = original, 1 = fully remapped)", neutral=1.0, range=(0.0, 1.0),
+@post_op("palette_mix", "How much of the recolor to use (0 keeps the original).", neutral=1.0, range=(0.0, 1.0),
          hidden=True)
 def _palette_mix(rgb, amount, ctx):
     return rgb  # consumed by apply_post
 
 
-@post_op("invert", "Invert colors (true/false)", neutral=False, start=True)
+@post_op("invert", "Turns the colors into their opposites, like a film negative.", neutral=False, start=True)
 def _invert(rgb, on, ctx):
     return 1.0 - rgb if on else rgb
 
 
-@post_op("hue_shift", "Rotate hue by this many degrees", neutral=0.0, range=(-180.0, 180.0), start=30.0)
+@post_op("hue_shift", "Shifts every color around the color wheel.", neutral=0.0, range=(-180.0, 180.0), start=30.0)
 def _hue_shift(rgb, deg, ctx):
     h, s, v = _rgb_to_hsv(rgb)
     return hsv_to_rgb(h + float(deg) / 360.0, s, v)
 
 
-@post_op("saturation", "Saturation multiplier (0 = grayscale, 1 = unchanged)", neutral=1.0, range=(0.0, 3.0),
+@post_op("saturation", "Makes colors richer, or fades them toward gray at 0.", neutral=1.0, range=(0.0, 3.0),
          start=1.3)
 def _saturation(rgb, amount, ctx):
     y = _luma(rgb)[..., None]
     return y + (rgb - y) * float(amount)
 
 
-@post_op("exposure", "Brightness in stops (+1 doubles, -1 halves)", neutral=0.0, range=(-3.0, 3.0), start=0.3,
+@post_op("exposure", "Brightens or darkens the whole picture. Each stop doubles or halves it.", neutral=0.0, range=(-3.0, 3.0), start=0.3,
          category="light", label="Brightness")
 def _exposure(rgb, stops, ctx):
     return rgb * (2.0 ** float(stops))
 
 
-@post_op("contrast", "Contrast around mid-gray (1 = unchanged)", neutral=1.0, range=(0.0, 3.0), start=1.2,
+@post_op("contrast", "Pushes darks and lights further apart, or pulls them together below 1.", neutral=1.0, range=(0.0, 3.0), start=1.2,
          category="light")
 def _contrast(rgb, amount, ctx):
     return (rgb - 0.5) * float(amount) + 0.5
 
 
-@post_op("gamma", "Gamma (>1 brightens shadows, <1 deepens them)", neutral=1.0, range=(0.2, 3.0), start=1.2,
+@post_op("gamma", "Above 1 opens up the shadows, and below 1 deepens them.", neutral=1.0, range=(0.2, 3.0), start=1.2,
          category="light")
 def _gamma(rgb, g, ctx):
     gv = float(g)
@@ -200,7 +200,7 @@ def _gamma(rgb, g, ctx):
     return np.power(np.clip(rgb, 0.0, 1.0), 1.0 / gv)
 
 
-@post_op("tint", "Multiply by an RGB color: hex string or [r, g, b] in 0..1", kind="color", start="ffd9a0")
+@post_op("tint", "Washes the picture with a color, like a photo filter.", kind="color", start="ffd9a0")
 def _tint(rgb, color, ctx):
     from .palette import hex_to_rgb
 
@@ -208,7 +208,7 @@ def _tint(rgb, color, ctx):
     return rgb * np.asarray(c)
 
 
-@post_op("vignette", "Darken corners (0 = off, ~0.3 subtle, 1 strong)", neutral=0.0, range=(0.0, 1.0), start=0.35,
+@post_op("vignette", "Darkens the corners to draw the eye inward. Around 0.3 is subtle.", neutral=0.0, range=(0.0, 1.0), start=0.35,
          category="light")
 def _vignette(rgb, amount, ctx):
     h, w = rgb.shape[:2]
@@ -218,12 +218,12 @@ def _vignette(rgb, amount, ctx):
     return rgb * (1.0 - float(amount) * r2)[..., None]
 
 
-@post_op("flip_x", "Mirror left-right", neutral=False, start=True, category="transform")
+@post_op("flip_x", "Flips the picture left to right.", neutral=False, start=True, category="transform")
 def _flip_x(rgb, on, ctx):
     return rgb[:, ::-1] if on else rgb
 
 
-@post_op("flip_y", "Mirror top-bottom", neutral=False, start=True, category="transform")
+@post_op("flip_y", "Flips the picture upside down.", neutral=False, start=True, category="transform")
 def _flip_y(rgb, on, ctx):
     return rgb[::-1] if on else rgb
 
@@ -232,10 +232,10 @@ def _flip_y(rgb, on, ctx):
 
 # ---------------------------------------------------------------- multi-parameter effects ----
 
-@post_op("bloom", "Soft glow spilling out of the bright areas", category="light", params={
-    "amount": Key("How strong the glow is", 0.6, range=(0.0, 3.0)),
-    "threshold": Key("Brightness where the glow starts (0..1)", 0.55, range=(0.0, 0.95)),
-    "radius": Key("Size of the glow", 60.0, range=(2.0, 300.0), unit="px"),
+@post_op("bloom", "A soft glow spilling out of the bright areas.", category="light", params={
+    "amount": Key("How strong the glow is.", 0.6, range=(0.0, 3.0)),
+    "threshold": Key("Only areas brighter than this glow.", 0.55, range=(0.0, 0.95)),
+    "radius": Key("How far the glow spreads.", 60.0, range=(2.0, 300.0), unit="px"),
 })
 def _bloom(rgb, p, ctx):
     from .mask import blur
@@ -245,8 +245,8 @@ def _bloom(rgb, p, ctx):
     return rgb + float(p["amount"]) * blur(rgb * w[..., None], float(p["radius"]) * _scale(ctx))
 
 
-@post_op("blur", "Soften the whole image", category="texture", params={
-    "radius": Key("Blur size", 8.0, range=(0.5, 200.0), unit="px"),
+@post_op("blur", "Softens the whole picture.", category="texture", params={
+    "radius": Key("How soft.", 8.0, range=(0.5, 200.0), unit="px"),
 })
 def _blur(rgb, p, ctx):
     from .mask import blur
@@ -254,9 +254,9 @@ def _blur(rgb, p, ctx):
     return blur(rgb, float(p["radius"]) * _scale(ctx)).astype(np.float64)
 
 
-@post_op("sharpen", "Crisper detail (unsharp mask)", category="texture", params={
-    "amount": Key("How much", 0.6, range=(0.0, 3.0)),
-    "radius": Key("Detail size", 4.0, range=(0.5, 40.0), unit="px"),
+@post_op("sharpen", "Makes fine detail crisper.", category="texture", params={
+    "amount": Key("How strong.", 0.6, range=(0.0, 3.0)),
+    "radius": Key("Size of the detail it sharpens.", 4.0, range=(0.5, 40.0), unit="px"),
 })
 def _sharpen(rgb, p, ctx):
     from .mask import blur
@@ -264,11 +264,11 @@ def _sharpen(rgb, p, ctx):
     return rgb + float(p["amount"]) * (rgb - blur(rgb, float(p["radius"]) * _scale(ctx)))
 
 
-@post_op("grain", "Film grain", category="texture", params={
-    "amount": Key("How visible the grain is", 0.06, range=(0.0, 0.4)),
-    "size": Key("Grain size", 2.0, range=(1.0, 12.0), unit="px"),
-    "color": Key("Colored grain instead of gray", False, "bool"),
-    "seed": Key("Random seed", 0, "int", (0, 999, 1), advanced=True),
+@post_op("grain", "Adds film grain.", category="texture", params={
+    "amount": Key("How visible the grain is.", 0.06, range=(0.0, 0.4)),
+    "size": Key("Size of each grain.", 2.0, range=(1.0, 12.0), unit="px"),
+    "color": Key("Colored grain instead of gray.", False, "bool"),
+    "seed": Key("Change it for a different grain pattern.", 0, "int", (0, 999, 1), advanced=True),
 })
 def _grain(rgb, p, ctx):
     from scipy.ndimage import zoom
@@ -286,8 +286,8 @@ def _grain(rgb, p, ctx):
     return rgb + float(p["amount"]) * noise * weight[..., None]
 
 
-@post_op("chromatic_aberration", "Color fringes toward the edges, like a cheap lens", category="texture", params={
-    "amount": Key("Fringe width at the corners", 8.0, range=(0.0, 60.0), unit="px"),
+@post_op("chromatic_aberration", "Red and blue fringes toward the edges, like an old lens.", category="texture", params={
+    "amount": Key("How wide the fringes get in the corners.", 8.0, range=(0.0, 60.0), unit="px"),
 })
 def _chromatic_aberration(rgb, p, ctx):
     from scipy.ndimage import map_coordinates
@@ -306,10 +306,10 @@ def _chromatic_aberration(rgb, p, ctx):
     return out
 
 
-@post_op("gradient", "Lay a palette gradient over the image", category="color", params={
-    "palette": Key("Gradient colors", "twilight", "palette"),
-    "angle": Key("Direction: 90 = top to bottom, 0 = left to right", 90.0, range=(-180.0, 180.0), unit="deg"),
-    "blend": Key("How the gradient mixes with the image", "soft_light", "choice",
+@post_op("gradient", "Lays a color gradient over the picture.", category="color", params={
+    "palette": Key("Colors of the gradient.", "twilight", "palette"),
+    "angle": Key("Direction of the gradient. 90 runs top to bottom, 0 left to right.", 90.0, range=(-180.0, 180.0), unit="deg"),
+    "blend": Key("How the gradient mixes with the picture.", "soft_light", "choice",
                  choices=lambda: __import__("fractalgen.blend", fromlist=["BLEND_MODES"]).BLEND_MODES.keys()),
 })
 def _gradient(rgb, p, ctx):
@@ -326,7 +326,7 @@ def _gradient(rgb, p, ctx):
     return blend(rgb, grad, 1.0, str(p["blend"]))
 
 
-@post_op("posterize", "Flatten colors into a few bands", neutral=0, range=(0, 32, 1), kind="int", start=6)
+@post_op("posterize", "Flattens the colors into a few bands, like a screen print.", neutral=0, range=(0, 32, 1), kind="int", start=6)
 def _posterize(rgb, levels, ctx):
     n = int(levels)
     if n < 2:

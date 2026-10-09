@@ -53,18 +53,18 @@ def _tile_range(aff, w, h, period):
     uses_view=True,
     default_view={"center": [math.pi, math.pi], "half_width": 2 * math.pi * 16 / 9 / 2, "fit": "cover"},
     param_docs={
-        "map": "standard (Chirikov, periodic) or henon (quadratic, island chains around the origin)",
-        "k": "map strength: standard K (~0.6 calm .. 1.5 mostly chaos), henon rotation angle a in radians",
-        "orbits": "number of traced orbits (initial conditions)",
-        "steps": "iterations per orbit at 4K (scaled with resolution so curves stay solid)",
-        "seed": "random seed for initial conditions and orbit colors",
-        "palette": "orbit colors",
-        "color_by": "random = each orbit its own color; start = by starting position (smooth bands)",
-        "chaos_threshold": "grid coverage above which an orbit counts as chaotic sea",
-        "sea_color": "[r, g, b] color of the chaotic sea",
-        "sea_strength": "brightness of the chaotic sea; 0 hides it",
-        "gamma": "tone curve on orbit density; lower = brighter faint curves",
-        "blur": "density blur, in pixels at 4K",
+        "map": "Standard gives repeating islands. Hénon gives chains of islands around the center.",
+        "k": "How strong the map is. Higher brings more chaos (standard map) or turns the pattern (Hénon).",
+        "orbits": "Number of paths drawn.",
+        "steps": "How long each path is.",
+        "seed": "Change it for different starting points and colors.",
+        "palette": "Colors for the paths.",
+        "color_by": "Random gives each path its own color. Start colors paths by where they began, which makes smooth bands.",
+        "chaos_threshold": "How much a path wanders before it counts as part of the chaotic sea.",
+        "sea_color": "Color of the chaotic sea.",
+        "sea_strength": "How bright the chaotic sea is. Zero hides it.",
+        "gamma": "Lower values brighten the faint paths.",
+        "blur": "Softens the paths.",
     },
     ranges={
         "k": (0.0, 3.0),
@@ -94,7 +94,7 @@ def symplectic(
     gamma: float = 0.55,
     blur: float = 0.6,
 ):
-    """Area-preserving map phase portrait: colored KAM islands in a dim chaotic sea."""
+    """Islands of calm orbits in a chaotic sea, from a map that never loses energy."""
     from .. import kernels
 
     if map not in _MAPS:

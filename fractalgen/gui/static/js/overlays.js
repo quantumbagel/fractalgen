@@ -28,7 +28,10 @@ export function Modal({ title, children, onClose, wide = false, tall = false, fo
     </div>`;
 }
 
-export const pretty = (name) => name.replace(/@/g, " · ").replace(/_/g, " ");
+export const pretty = (name) => {
+  const [base, variant] = name.split("@");
+  return base.replace(/_/g, " ") + (variant ? ` (${variant.replace(/_/g, " ")})` : "");
+};
 
 // ---------------------------------------------------------------- browse ----
 
@@ -50,7 +53,7 @@ export function BrowseOverlay() {
   };
   return html`<${Modal} title=${target?.title || "Choose a look"} wide=${true} tall=${true} onClose=${closeOverlay}>
     <div class="browse-bar">
-      <input type="search" class="filter big" placeholder="Search looks: julia, attractor, ice, neon…" value=${q} autofocus
+      <input type="search" class="filter big" placeholder="Search looks, like julia or neon" value=${q} autofocus
         onInput=${(e) => setQ(e.currentTarget.value)}
         onKeyDown=${(e) => { if (e.key === "Enter" && rows[0]) pick(rows[0].name); }} />
       <div class="chips">
@@ -64,7 +67,7 @@ export function BrowseOverlay() {
         title=${r.description || r.name} onClick=${() => pick(r.name)}>
         <${Thumb} recipe=${r.name} orient=${o} />
         <span class="card-name">${pretty(r.name)}${isSlowLook(r.name)
-          ? html` <span class="chip slow" title="A simulation: takes several seconds to compute">slow</span>` : null}</span>
+          ? html` <span class="chip slow" title="This one is a simulation and takes several seconds to draw">slow</span>` : null}</span>
         <span class="card-desc">${r.description || r.generator}</span>
       </button>`)}
       ${rows.length ? null : html`<div class="empty">No looks match “${q}”.</div>`}
@@ -103,9 +106,9 @@ export function ExportDialog() {
                                  supersample: quality, jpeg_quality: jq, destination: dest });
   const mp = chosen ? (chosen.w * chosen.h / 1e6).toFixed(1) : 0;
   const QUALITY = [
-    { value: 1, label: "Standard", title: "One sample per pixel" },
-    { value: 2, label: "Smooth 2×", title: "Renders 4× the pixels and averages them: smoother edges and fine detail" },
-    { value: 3, label: "Ultra 3×", title: "Renders 9× the pixels: the cleanest edges, much slower" },
+    { value: 1, label: "Standard", title: "Renders at exactly the size you picked." },
+    { value: 2, label: "Smooth", title: "Renders at twice the size and scales it down, for smoother edges and finer detail." },
+    { value: 3, label: "Finest", title: "Renders at three times the size. The cleanest result, but much slower." },
   ].filter((q) => q.value <= maxSs);
 
   return html`<${Modal} title="Save wallpaper" onClose=${closeOverlay} footer=${html`
@@ -138,12 +141,12 @@ export function ExportDialog() {
       ${fmt === "jpg" ? html`<label class="jpeg-q">JPEG quality <${Slider} value=${jq} min=${60} max=${100} step=${1} int=${true}
         onInput=${setJq} /></label>` : null}
       <label>Save to <${Segmented} value=${dest} onChange=${setExportDestination} options=${[
-        { value: "download", label: "Download", title: "Your browser downloads it (usually to Downloads)" },
-        { value: "folder", label: "Wallpapers folder", title: "Kept in backgrounds/gui/ inside the project" }]} /></label>
+        { value: "download", label: "Download", title: "Your browser saves it, usually to your Downloads folder." },
+        { value: "folder", label: "Wallpapers folder", title: "Saved in the backgrounds/gui folder of this project." }]} /></label>
       <label class="grow">File name <input type="text" value=${name} onInput=${(e) => setName(e.currentTarget.value)} /></label>
     </div>
-    <div class="muted small">${mp} megapixels${quality > 1 ? `, rendered at ${chosen.w * quality}×${chosen.h * quality} and averaged down`
-      : ""}. Big sizes, higher quality and simulations take longer; you can keep editing meanwhile.</div>
+    <div class="muted small">${quality > 1 ? `Rendered at ${chosen.w * quality}×${chosen.h * quality} and scaled down for smoother edges. ` : ""}
+      Large sizes, higher quality and simulations take a while, but you can keep editing in the meantime.</div>
     ${job ? html`<${ExportStatus} job=${job} />` : null}
   </${Modal}>`;
 }
@@ -159,7 +162,7 @@ function ExportStatus({ job }) {
     const eta = job.progress > 0.05 ? Math.max(0, secs / job.progress - secs) : null;
     return html`<div class="export-progress">
       <div class="bar"><div class="fill" style=${{ width: `${pct}%` }}></div></div>
-      <div class="muted small">${stage}… ${pct}% · ${secs.toFixed(0)}s${eta != null ? ` · about ${Math.ceil(eta)}s left` : ""}</div>
+      <div class="muted small">${stage}, ${pct}% done${eta != null ? `, about ${Math.ceil(eta)} seconds left` : ""}</div>
     </div>`;
   }
   const name = downloadName(job.path);
@@ -199,7 +202,7 @@ export function SaveDialog() {
       <span class="grow"></span>
       <button type="button" class="btn" onClick=${closeOverlay}>Close</button>
       <button type="button" class="btn primary" disabled=${!name || (exists && !overwrite)} onClick=${save}>Save</button>`}>
-    <p class="muted">Saves this look as a recipe in <code>custom/</code> so it shows up under “My looks” and on the command line.</p>
+    <p class="muted">Keeps this look as a recipe file in <code>custom/</code>. It will show up under My looks, and on the command line.</p>
     <label>Name <input type="text" value=${name} autofocus onInput=${(e) => setName(e.currentTarget.value.replace(/[^A-Za-z0-9_-]/g, "_"))}
       onKeyDown=${(e) => { if (e.key === "Enter") save(); }} /></label>
     ${exists ? html`<label class="check"><input type="checkbox" checked=${overwrite} onChange=${(e) => setOverwrite(e.currentTarget.checked)} />
@@ -217,7 +220,7 @@ export function VariationsOverlay() {
       <label class="inline-slider">Subtle <${Slider} value=${strength} min=${0.03} max=${0.4} step=${0.01} onInput=${setStrength} /> Wild</label>
       <span class="grow"></span>
       <button type="button" class="btn primary" onClick=${() => makeVariations(8, strength)}>Shuffle again</button>`}>
-    <p class="muted small">Random tweaks of this look. Pick one to keep editing from it (undo goes back).</p>
+    <p class="muted small">Eight random takes on this look, with your framing kept as it is. Pick one to carry on from it. Undo takes you back.</p>
     <div class=${`gallery variations ${o}`}>
       ${S.variations.map((v, i) => html`<button type="button" class="card" key=${i} disabled=${!v.url} onClick=${() => pickVariation(i)}>
         <div class=${`thumb ${o}`}>${v.url ? html`<img src=${v.url} alt="" />` : v.error ? html`<span class="muted small">${v.error}</span>` : html`<span class="spinner"></span>`}</div>
@@ -255,7 +258,7 @@ export function Menu({ anchor }) {
 const KEYS = [
   ["⌘Z / ⇧⌘Z", "Undo / redo"], ["B", "Browse looks"], ["S", "Save wallpaper"], ["V", "Variations"],
   [". (period)", "Surprise me"], ["[ / ]", "Previous / next look"], ["R", "Reset framing"], ["\\ (hold)", "Compare with the original"],
-  ["1 – 5", "Look · Frame · Color · Layers · Effects"], ["Arrows", "Nudge the selected layer (Shift: more)"],
+  ["1 to 5", "Switch between the tabs"], ["Arrows", "Nudge the selected layer (Shift: more)"],
   ["Delete", "Delete the selected layer"], ["Esc", "Close dialogs / deselect"], ["?", "This list"],
   ["Drag / scroll", "Pan / zoom the picture (or move / resize a layer on the Layers tab)"],
 ];

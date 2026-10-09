@@ -14,7 +14,7 @@ export function Field({ label, doc, modified, onReset, children, inline = false,
         <span class="field-label" title=${doc || ""}>${label}</span>
         ${extra}
         ${modified && onReset
-          ? html`<button type="button" class="icon-btn reset" title="Back to the look's value" onClick=${onReset}>↺</button>`
+          ? html`<button type="button" class="link reset" title="Go back to the look's own value" onClick=${onReset}>Reset</button>`
           : null}
       </div>
       <div class="field-body">${children}</div>

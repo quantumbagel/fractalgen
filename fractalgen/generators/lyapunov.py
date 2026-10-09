@@ -59,10 +59,10 @@ def _color_lyapunov(exponents: np.ndarray, palette: Any) -> np.ndarray:
     # The plane is (a, b) = (re, im). cover keeps b spanning 3.4..4.0 at every aspect.
     default_view={"center": [3.7, 3.7], "half_width": 0.3 * REF_ASPECT, "fit": "cover"},
     param_docs={
-        "sequence": "string of A's and B's picking a vs b each step; the pattern changes the image",
-        "warmup": "settling iterations before measuring; higher = cleaner, slower",
-        "samples": "iterations averaged into the exponent; higher = sharper, slower",
-        "palette": "first half of the gradient colors stable pixels, second half chaotic",
+        "sequence": "A pattern of A's and B's. Each pattern draws a different picture.",
+        "warmup": "Settling time before measuring. More is cleaner but slower.",
+        "samples": "How long each point is measured. More is sharper but slower.",
+        "palette": "The first half of the colors shows stable areas, the second half chaotic ones.",
     },
     ranges={
         "warmup": (10, 500, 10),
@@ -77,7 +77,7 @@ def lyapunov(
     samples: int = 220,
     palette: Any = "icefire",
 ):
-    """Stable vs chaotic bands of a two-parameter logistic map driven by an A/B sequence.
+    """Lyapunov space: bands where a simple population model is stable, against swirls where it turns chaotic.
 
     The view's horizontal axis is the logistic r for letter A, the vertical axis r for B.
     """

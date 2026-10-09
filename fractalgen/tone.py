@@ -51,10 +51,10 @@ class ToneKey:
 
 
 TONE_KEYS: dict[str, ToneKey] = {
-    "black": ToneKey("Black point of the auto stretch (0..1); higher = deeper shadows", 0.0, (0.0, 0.9)),
-    "white": ToneKey("White point of the auto stretch (0..1); lower = brighter, blown-out highlights", 1.0, (0.1, 1.0)),
-    "curve": ToneKey("Midtone curve on the stretch; >1 brightens midtones, <1 darkens them", 1.0, (0.2, 4.0)),
-    "per_frame": ToneKey("Re-measure the auto stretch on every frame (pans and zooms re-expose)", False),
+    "black": ToneKey("Raise it to sink more of the picture into shadow.", 0.0, (0.0, 0.9)),
+    "white": ToneKey("Lower it to brighten everything and blow out the highlights.", 1.0, (0.1, 1.0)),
+    "curve": ToneKey("Above 1 brightens the midtones, and below 1 darkens them.", 1.0, (0.2, 4.0)),
+    "per_frame": ToneKey("Re-measure the exposure whenever you pan or zoom, instead of keeping the look's own.", False),
 }
 
 

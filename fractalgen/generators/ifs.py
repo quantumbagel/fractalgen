@@ -26,19 +26,19 @@ BARNSLEY_FERN = (
     "ifs",
     category="attractor",
     param_docs={
-        "maps": "[[a,b,c,d,e,f,p], ...] affine maps + probability; defines the exact shape",
-        "palette": "color gradient for the density cloud",
-        "n": "point count at 4K (scales up at larger sizes); higher = denser, slower",
-        "seed": "random seed for which map is picked each step; change to vary the grain",
-        "batch": "points advanced per inner loop; higher = more memory, usually faster; rarely change",
-        "xmin": "left edge of the data window, in plane units",
-        "xmax": "right edge of the data window, in plane units",
-        "ymin": "bottom edge of the data window, in plane units",
-        "ymax": "top edge of the data window, in plane units",
-        "window_fill": "aspect fit: contain (whole shape) or cover (fill the frame, crop)",
-        "blur": "blur of the density cloud, in output pixels; higher = softer",
-        "gamma": "tone curve on density; lower = brighter, more filled-in midtones",
-        "warmup_steps": "chaos-game steps skipped before drawing; higher = fewer stray dots",
+        "maps": "The shrink-and-move rules, each with how often it's used. They set the exact shape.",
+        "palette": "Colors for the shape.",
+        "n": "Number of points. More gives a denser shape but is slower.",
+        "seed": "Change it for a different pattern of grain.",
+        "batch": "Internal setting. Rarely needs changing.",
+        "xmin": "Left edge of the area shown.",
+        "xmax": "Right edge of the area shown.",
+        "ymin": "Bottom edge of the area shown.",
+        "ymax": "Top edge of the area shown.",
+        "window_fill": "Show the whole shape, or fill the frame and crop the edges.",
+        "blur": "Softens the shape.",
+        "gamma": "Lower values brighten and fill in the shape.",
+        "warmup_steps": "Early points left undrawn so stray dots don't show.",
     },
     ranges={
         "n": (500_000, 12_000_000, 100_000),
@@ -70,7 +70,7 @@ def ifs(
     gamma: float = 0.62,
     warmup_steps: int = 8,
 ):
-    """Chaos-game iterated function system from affine maps (Barnsley fern, etc.)."""
+    """Shapes like Barnsley's fern, built by repeatedly shrinking and moving a single point."""
     p = int(batch)
     if p <= 0:
         raise ValueError("batch must be positive")

@@ -175,16 +175,16 @@ def escape_field(
     category="escape-time",
     uses_view=True,
     param_docs={
-        "formula": "which fractal to draw (mandelbrot, julia, burning_ship, … or a custom name)",
-        "max_iter": "iterations per pixel; higher = more filament detail, slower",
-        "c": "complex constant [re, im] for Julia formulas; ignored by Mandelbrot-style",
-        "k": "extra formula weight (phoenix: mix of previous z); ignored by most formulas",
-        "palette": "color gradient for the exterior (name, name_r to reverse, or hex list)",
-        "coloring": "histogram = even color spread; smooth = repeating bands from iteration count",
-        "density": "palette cycles per iteration in smooth mode; higher = thinner color bands",
-        "gamma": "tone curve on the color index; lower = brighter midtones",
-        "cyclic": "wrap the palette when the index exceeds 1 (smooth always wraps; rarely change)",
-        "interior": "interior color [r, g, b] in 0..1 for points that never escape (the 'set')",
+        "formula": "Which fractal to draw.",
+        "max_iter": "More shows finer detail at the edges, but takes longer.",
+        "c": "The constant that shapes a Julia set. Small changes make very different shapes. Mandelbrot-style formulas ignore it.",
+        "k": "An extra ingredient some formulas use, like the Phoenix fractal. Most ignore it.",
+        "palette": "Colors outside the set.",
+        "coloring": "Histogram spreads the colors evenly, while smooth draws repeating bands.",
+        "density": "In smooth mode, how tightly the color bands repeat.",
+        "gamma": "Lower values brighten the midtones.",
+        "cyclic": "Wrap the colors around instead of stopping at the end. Rarely needed.",
+        "interior": "Color of the set itself, as RGB from 0 to 1.",
     },
     ranges={"max_iter": (10, 5000, 10), "k": (-1.5, 1.5), "density": (0.005, 0.5), "gamma": (0.2, 3.0)},
     choices={"formula": FORMULAS.names, "coloring": ["histogram", "smooth"]},
@@ -203,7 +203,7 @@ def escape_time(
     cyclic: bool = False,
     interior: tuple = (0.0, 0.0, 0.0),
 ):
-    """Mandelbrot / Julia family: each pixel colored by how fast its orbit escapes."""
+    """The Mandelbrot and Julia family. Each point is colored by how quickly it flies off to infinity."""
     if int(max_iter) < 1:
         raise ValueError(f"max_iter must be >= 1, got {max_iter!r}")
     fkey = field_ctx_key(ctx, "escape_field", formula=formula, max_iter=max_iter, c=c, k=k)
@@ -234,12 +234,12 @@ TRAPS = {"rings": 0, "cross": 1, "circle": 2, "point": 3}
     category="escape-time",
     uses_view=True,
     param_docs={
-        "max_iter": "orbit steps per pixel; higher = richer trap hits, slower",
-        "trap": "shape each orbit is measured against (rings, cross, circle, or point)",
-        "palette": "color gradient mapped to closeness to the trap",
-        "gamma": "tone curve on trap-distance colors; lower = brighter midtones",
-        "shade_gamma": "darkening from trap distance; higher = punchier contrast, darker far pixels",
-        "floor": "minimum brightness mix 0..1; higher = less dark shading overall",
+        "max_iter": "More gives richer detail, but takes longer.",
+        "trap": "The shape the paths are measured against.",
+        "palette": "Colors from touching the shape to far away.",
+        "gamma": "Lower values brighten the midtones.",
+        "shade_gamma": "How much points far from the shape darken.",
+        "floor": "Keeps the darkest areas from going fully black.",
     },
     ranges={"max_iter": (10, 2000, 10), "gamma": (0.2, 3.0), "shade_gamma": (0.2, 3.0), "floor": (0.0, 1.0)},
     choices={"trap": list(TRAPS)},
@@ -254,7 +254,7 @@ def orbit_trap(
     shade_gamma: float = 0.7,
     floor: float = 0.12,
 ):
-    """Mandelbrot colored by how close each orbit comes to a trap shape."""
+    """The Mandelbrot set colored by how close each point's path comes to a shape."""
     from .. import kernels, progress
 
     if trap not in TRAPS:

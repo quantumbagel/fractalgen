@@ -42,7 +42,7 @@ export function LookPanel() {
         <div class="look-text">
           <div class="look-name">${(st.recipe || `New ${st.generator}`).replace(/_/g, " ")}</div>
           <div class="look-desc">${info?.description || g?.description || ""}</div>
-          <div class="look-meta">${st.generator} · ${g?.category}</div>
+          <div class="look-meta">Made with ${st.generator.replace(/_/g, " ")}</div>
         </div>
       </div>
       <div class="btn-row">
@@ -53,7 +53,7 @@ export function LookPanel() {
         </button>
       </div>
       <${Section} title="Main settings" count=${basic.length || null}>
-        ${basic.length ? basic.map(row) : html`<div class="muted">This look has no main settings; see More settings.</div>`}
+        ${basic.length ? basic.map(row) : html`<div class="muted">Everything for this look is under More settings.</div>`}
       </${Section}>
       ${nAdv ? html`<${Section} title="More settings" count=${nAdv} open=${false}>
         <input type="search" class="filter" placeholder="Filter settings…" value=${S.ui.filter}
@@ -62,7 +62,7 @@ export function LookPanel() {
         ${coeffInfo ? html`<${Coefficients} info=${coeffInfo} />` : null}
       </${Section}>` : null}
       <${Section} title="Start from scratch" open=${false}>
-        <p class="muted">Every look is made by a generator. Start one with its default settings:</p>
+        <p class="muted">Every look starts from a generator. Pick one to start fresh from its defaults.</p>
         <${GeneratorPicker} />
       </${Section}>
     </div>`;
@@ -95,22 +95,22 @@ function GeneratorPicker() {
 // ---------------------------------------------------------------- Frame ----
 
 const FIT = [
-  { value: "fill", label: "Fill width", title: "The width always shows the same span; taller screens see more above and below" },
-  { value: "cover", label: "Cover", title: "Keeps the 16:9 window's height; phones crop the sides" },
-  { value: "contain", label: "Fit all", title: "The whole 16:9 window stays visible; other shapes add space around it" },
+  { value: "fill", label: "Fill width", title: "Keeps the same width on every screen. Taller screens show more above and below." },
+  { value: "cover", label: "Cover", title: "Keeps the same height as a 16:9 screen. Phones crop off the sides." },
+  { value: "contain", label: "Fit all", title: "Always shows everything a 16:9 screen would, with extra space around it on other shapes." },
 ];
 
 export function FramePanel() {
   const v = S.state.view;
   if (!v) {
     return html`<div class="panel"><div class="empty">
-      <p>This look has no camera: it always fills the screen the same way.</p>
-      <p class="muted">Use <b>Layers</b> to add text or shapes, or <b>Effects</b> to finish it.</p></div></div>`;
+      <p>This look has no camera, so it always fills the screen the same way.</p>
+      <p class="muted">You can still add text and shapes in Layers, or finish it in Effects.</p></div></div>`;
   }
   return html`
     <div class="panel">
-      <p class="lead">Drag the picture to move around, scroll to zoom, Shift+scroll to turn.</p>
-      <${Field} label="Zoom" doc="Smaller = deeper zoom. The slider is logarithmic." modified=${isModified("view.half_width")}
+      <p class="lead">Drag the picture to move around and scroll to zoom. Hold Shift while scrolling to turn it.</p>
+      <${Field} label="Zoom" doc="Smaller numbers zoom in further." modified=${isModified("view.half_width")}
         onReset=${() => resetPath("view.half_width")}
         extra=${html`<span class="grow"></span>
           <button type="button" class="icon-btn" title="Zoom in 2×" onClick=${() => setPath("view.half_width", v.half_width / 2)}>+</button>
@@ -124,7 +124,7 @@ export function FramePanel() {
         <${Slider} value=${v.rotation || 0} min=${-180} max=${180} step=${0.5} unit="°"
           onInput=${(x) => setPath("view.rotation", x)} />
       </${Field}>
-      <${Field} label="Other screen shapes" doc=${FIT.find((f) => f.value === (v.fit || "fill"))?.title}
+      <${Field} label="On other screen shapes" doc=${FIT.find((f) => f.value === (v.fit || "fill"))?.title}
         modified=${isModified("view.fit")} onReset=${() => resetPath("view.fit")}>
         <${Segmented} value=${v.fit || "fill"} options=${FIT} onChange=${(x) => setPath("view.fit", x)} />
       </${Field}>
@@ -163,7 +163,7 @@ export function ColorPanel() {
         <${PaletteGrid} value=${st.palette} onChange=${setPalette} />
         ${isModified("palette") ? html`<button type="button" class="link" onClick=${() => resetPath("palette")}>
           Back to the look's colors</button>` : null}
-      </${Section}>` : html`<p class="muted">This look picks its own colors. Recolor it with the Recolor effect.</p>`}
+      </${Section}>` : html`<p class="muted">This look picks its own colors. To change them, add the Recolor effect.</p>`}
       <${Section} title="Adjust">
         ${QUICK.filter((q) => effectSpec(q.op)).map((q) => {
           const val = quickValue(q.op);
@@ -173,10 +173,10 @@ export function ColorPanel() {
             <${Slider} value=${val} min=${q.min} max=${q.max} step=${q.step} onInput=${(v) => setQuick(q.op, v)} />
           </${Field}>`;
         })}
-        <div class="muted small">These are effects too; the Effects tab shows them in order.</div>
+        <div class="muted small">These are added as effects, so you'll also see them in the Effects tab.</div>
       </${Section}>
       <${Section} title="Exposure" open=${Object.keys(st.tone || {}).length > 0}>
-        <p class="muted small">How the look's own brightness range maps onto the colors, before they are applied.</p>
+        <p class="muted small">Adjusts how the look spreads its brightness across its colors.</p>
         ${S.catalog.tone_ops.map((op) => html`<${Control} key=${op.name} spec=${op}
           value=${st.tone?.[op.name] ?? op.neutral} modified=${isModified(`tone.${op.name}`)}
           onReset=${() => resetPath(`tone.${op.name}`)}
@@ -187,7 +187,7 @@ export function ColorPanel() {
 
 // ---------------------------------------------------------------- Layers ----
 
-const ICON = { text: "T", shape: "◆", image: "▣" };
+const KIND = { text: "Text", shape: "Shape", image: "Image" };
 
 export function LayersPanel() {
   const layers = S.state.layers;
@@ -206,18 +206,18 @@ export function LayersPanel() {
   return html`
     <div class="panel">
       <div class="add-row">
-        <button type="button" class="btn add" onClick=${() => addLayer("text")}><b>T</b> Text</button>
-        <button type="button" class="btn add" onClick=${() => addLayer("shape")}><b>◆</b> Shape</button>
-        <button type="button" class="btn add" onClick=${() => fileRef.current.click()}><b>▣</b> Image</button>
+        <button type="button" class="btn add" onClick=${() => addLayer("text")}>Add text</button>
+        <button type="button" class="btn add" onClick=${() => addLayer("shape")}>Add shape</button>
+        <button type="button" class="btn add" onClick=${() => fileRef.current.click()}>Add image</button>
         <input ref=${fileRef} type="file" accept="image/*" hidden onChange=${(e) => addImage(e.currentTarget.files?.[0])} />
       </div>
       ${layers.length ? html`<${LayerList} layers=${layers} />` : html`
         <div class="empty">
-          <p>Add words, shapes or a logo on top of the look, or cut the look out of them.</p>
-          <p class="muted small">Each layer can be filled with the fractal itself (a cut-out), a color or a gradient.</p>
+          <p>Put words, shapes or a logo on top of the look, or cut the look out of them.</p>
+          <p class="muted small">A layer can show the fractal through it, or be filled with a color or a gradient.</p>
         </div>`}
       ${sel ? html`<${LayerEditor} layer=${sel} key=${sel.id} />` : layers.length
-        ? html`<p class="muted small">Select a layer here or click it on the picture to edit it.</p>` : null}
+        ? html`<p class="muted small">Pick a layer here, or click it on the picture, to edit it.</p>` : null}
       ${anyCut ? html`<${BackgroundEditor} />` : null}
     </div>`;
 }
@@ -235,13 +235,12 @@ function LayerList({ layers }) {
           onDragOver=${(e) => e.preventDefault()}
           onDrop=${(e) => { e.preventDefault(); if (dragId && dragId !== l.id) reorderLayer(dragId, i); setDragId(null); }}
           onClick=${() => selectLayer(l.id === S.ui.selected ? null : l.id)}>
-          <span class="grip" title="Drag to reorder">⋮⋮</span>
-          <button type="button" class="icon-btn eye" title=${l.enabled === false ? "Show" : "Hide"}
-            onClick=${(e) => { e.stopPropagation(); setLayer(l.id, "enabled", l.enabled === false ? null : false, `layer.${l.id}.eye`); }}>
-            ${l.enabled === false ? "◌" : "●"}</button>
-          <span class="kind">${ICON[l.type] || "•"}</span>
+          <span class="grip" title="Drag to reorder"></span>
+          <input type="checkbox" class="eye" title=${l.enabled === false ? "Show this layer" : "Hide this layer"}
+            checked=${l.enabled !== false} onClick=${(e) => e.stopPropagation()}
+            onChange=${() => setLayer(l.id, "enabled", l.enabled === false ? null : false, `layer.${l.id}.eye`)} />
           <span class="item-name">${layerLabel(l)}</span>
-          <span class="chip">${isCutout(l) ? "cut-out" : String(layerValue(l, "fill")).split(":")[0]}</span>
+          <span class="kind">${KIND[l.type] || l.type}${isCutout(l) ? ", cut-out" : ""}</span>
           <span class="item-actions" onClick=${(e) => e.stopPropagation()}>
             <button type="button" class="icon-btn" title="Bring forward" disabled=${i === layers.length - 1} onClick=${() => moveLayer(l.id, 1)}>↑</button>
             <button type="button" class="icon-btn" title="Send backward" disabled=${i === 0} onClick=${() => moveLayer(l.id, -1)}>↓</button>
@@ -271,7 +270,7 @@ function LayerEditor({ layer }) {
   const x = Number(layerValue(layer, "x")), y = Number(layerValue(layer, "y"));
   return html`
     <div class="editor">
-      <div class="editor-title">${ICON[layer.type]} ${layerLabel(layer)}</div>
+      <div class="editor-title">${layerLabel(layer)}</div>
       ${CONTENT_KEYS.map((n) => ctl(n))}
       ${extraKeys.map((n) => ctl(n))}
       <${Field} label="Fill" doc=${layerKey(layer, "fill")?.doc}>
@@ -284,7 +283,7 @@ function LayerEditor({ layer }) {
             ${ALIGN.map(([ax, ay]) => html`<button type="button" class=${Math.abs(ax - x) < 0.01 && Math.abs(ay - y) < 0.01 ? "on" : ""}
               onClick=${() => { layer.x = ax; layer.y = ay; commit(`layer.${layer.id}.align`); }}></button>`)}
           </div>
-          <div class="muted small">Or drag the layer on the picture. Scroll over it to resize.</div>
+          <div class="muted small">Click a spot, or drag the layer on the picture. Scroll over it to resize.</div>
         </div>
         ${PLACE_KEYS.map((n) => ctl(n))}
       </${Section}>
@@ -344,13 +343,13 @@ export function EffectsPanel() {
         </div>
         ${post.length ? html`<button type="button" class="btn" onClick=${clearEffects}>Clear all</button>` : null}
       </div>
-      <div class="chips"><span class="muted small">Presets:</span>
+      <div class="chips"><span class="muted small">Start from a preset</span>
         ${Object.keys(EFFECT_PRESETS).map((p) => html`<button type="button" class="chip-btn" onClick=${() => applyEffectPreset(p)}>${p}</button>`)}
       </div>
-      ${post.length ? html`<p class="muted small">Applied top to bottom. Drag to reorder; the same effect can appear twice.</p>
+      ${post.length ? html`<p class="muted small">Effects apply from top to bottom. Drag them to change the order.</p>
         <${EffectList} post=${post} />` : html`<div class="empty">
-          <p>Finish the look: glow, film grain, color grading, lens fringes…</p>
-          <p class="muted small">Pick a preset above or add effects one by one.</p></div>`}
+          <p>Finish the look with glow, film grain, color grading and more.</p>
+          <p class="muted small">Start from a preset above, or add effects one at a time.</p></div>`}
     </div>`;
 }
 
@@ -364,9 +363,9 @@ function EffectList({ post }) {
         onDragEnd=${() => setDragId(null)} onDragOver=${(e) => e.preventDefault()}
         onDrop=${(e) => { e.preventDefault(); if (dragId && dragId !== it.id) reorderEffect(dragId, i); setDragId(null); }}>
         <div class="card-head">
-          <span class="grip" title="Drag to reorder">⋮⋮</span>
-          <button type="button" class="icon-btn eye" title=${it.enabled === false ? "Turn on" : "Turn off"}
-            onClick=${() => setEffect(it.id, "enabled", it.enabled === false)}>${it.enabled === false ? "◌" : "●"}</button>
+          <span class="grip" title="Drag to reorder"></span>
+          <input type="checkbox" class="eye" title=${it.enabled === false ? "Turn this effect on" : "Turn this effect off"}
+            checked=${it.enabled !== false} onChange=${() => setEffect(it.id, "enabled", it.enabled === false)} />
           <span class="item-name" title=${spec?.doc}>${spec?.label || it.op}</span>
           <span class="item-actions">
             <button type="button" class="icon-btn" title="Earlier" disabled=${i === 0} onClick=${() => moveEffect(it.id, -1)}>↑</button>
@@ -379,7 +378,7 @@ function EffectList({ post }) {
           ${spec.params.map((p) => html`<${Control} key=${p.name} spec=${p}
             label=${spec.params.length === 1 ? spec.label : p.label}
             value=${it[p.name] ?? p.neutral} onChange=${(v) => setEffect(it.id, p.name, v)} />`)}
-          <${Field} label="Strength" doc="Blend the effect's result with what came before it">
+          <${Field} label="Strength" doc="Lower it to blend the effect with the picture underneath.">
             <${Slider} value=${it.mix ?? 1} min=${0} max=${1} step=${0.01} onInput=${(v) => setEffect(it.id, "mix", v)} />
           </${Field}>
         </div>` : null}

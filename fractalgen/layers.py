@@ -54,32 +54,30 @@ from .schema import Key, check_table
 # ---------------------------------------------------------------- schema ----
 
 COMMON_KEYS: dict[str, Key] = {
-    "enabled": Key("Show this layer", True, "bool"),
-    "name": Key("Layer name (shown in the GUI; portrait overrides can address a layer by it)", "", "string",
+    "enabled": Key("Show this layer.", True, "bool"),
+    "name": Key("A name for the layer, so you can find it in the list.", "", "string",
                 advanced=True),
-    "fill": Key('What fills the layer: "fractal" (the render shows through), a hex color, "palette:NAME", '
-                '"recipe:NAME", or "image" (an image layer\'s own pixels)', "fractal", "fill"),
-    "x": Key("Horizontal center, 0 = left edge, 1 = right edge", 0.5, "float", (0.0, 1.0)),
-    "y": Key("Vertical center, 0 = top edge, 1 = bottom edge", 0.5, "float", (0.0, 1.0)),
-    "size": Key("Fraction of the frame the layer fits inside", 0.8, "float", (0.02, 1.5)),
-    "rotate": Key("Rotation, degrees counter-clockwise", 0.0, "float", (-180.0, 180.0), unit="deg"),
-    "opacity": Key("How opaque the layer is", 1.0, "float", (0.0, 1.0)),
-    "blend": Key("How the layer mixes with what is under it", "normal", "choice", choices=lambda: BLEND_MODES.keys()),
-    "invert": Key("Fill everything except the layer's shape", False, "bool"),
-    "feather": Key("Soften the edge", 0.0, "float", (0.0, 60.0), unit="px"),
-    "outline": Key("Outline width (0 = none)", 0.0, "float", (0.0, 40.0), unit="px"),
-    "outline_color": Key("Outline color", "ffffff", "color"),
-    "glow": Key("The layer's colors glowing out past its edge (0 = off)", 0.0, "float", (0.0, 2.0)),
-    "glow_radius": Key("Size of the glow", 40.0, "float", (2.0, 200.0), unit="px"),
-    "shadow": Key("Drop shadow under the layer (0 = off, 1 = black)", 0.0, "float", (0.0, 1.0)),
-    "bevel": Key("Raised, lit edges (0 = flat)", 0.0, "float", (0.0, 2.0)),
+    "fill": Key("What fills the layer: the fractal itself (a cut-out), a color, a gradient, another look, or a picture's own colors.", "fractal", "fill"),
+    "x": Key("Left to right, from 0 at the left edge to 1 at the right.", 0.5, "float", (0.0, 1.0)),
+    "y": Key("Top to bottom, from 0 at the top to 1 at the bottom.", 0.5, "float", (0.0, 1.0)),
+    "size": Key("How much of the frame the layer fills.", 0.8, "float", (0.02, 1.5)),
+    "rotate": Key("Turns the layer, in degrees.", 0.0, "float", (-180.0, 180.0), unit="deg"),
+    "opacity": Key("How solid the layer is. Lower lets what is underneath show through.", 1.0, "float", (0.0, 1.0)),
+    "blend": Key("How the layer mixes with what is underneath.", "normal", "choice", choices=lambda: BLEND_MODES.keys()),
+    "invert": Key("Fill everything except the shape.", False, "bool"),
+    "feather": Key("Softens the edge.", 0.0, "float", (0.0, 60.0), unit="px"),
+    "outline": Key("Width of the outline.", 0.0, "float", (0.0, 40.0), unit="px"),
+    "outline_color": Key("Color of the outline.", "ffffff", "color"),
+    "glow": Key("Lets the layer's colors glow past its edge.", 0.0, "float", (0.0, 2.0)),
+    "glow_radius": Key("How far the glow spreads.", 40.0, "float", (2.0, 200.0), unit="px"),
+    "shadow": Key("A drop shadow underneath.", 0.0, "float", (0.0, 1.0)),
+    "bevel": Key("Raised, lit edges, as if embossed.", 0.0, "float", (0.0, 2.0)),
 }
 
 BACKGROUND_KEYS: dict[str, Key] = {
-    "fill": Key('Behind cut-out layers: hex color, "transparent", "self" (the render, dimmed), '
-                '"recipe:NAME" or "palette:NAME"', "000000", "fill"),
-    "dim": Key("Brightness of an image background (self / recipe), 0..1", 0.15, "float", (0.0, 1.0)),
-    "blur": Key("Blur of an image background", 0.0, "float", (0.0, 120.0), unit="px"),
+    "fill": Key("What shows around cut-out layers: a color, the look itself dimmed, a gradient, another look, or transparency.", "000000", "fill"),
+    "dim": Key("How bright the look behind the cut-outs is.", 0.15, "float", (0.0, 1.0)),
+    "blur": Key("How blurred the look behind the cut-outs is.", 0.0, "float", (0.0, 120.0), unit="px"),
 }
 
 Geometry = tuple[int, int, tuple[float, float], tuple[float, float], float]  # w, h, box, center, rotate
@@ -138,10 +136,9 @@ def layer_type(name: str, keys: dict[str, Key], doc: str = "", *, label: str = "
 # ---------------------------------------------------------------- built-in kinds ----
 
 @layer_type("text", {
-    "text": Key('The words ("\\n" breaks lines)', "", "string"),
-    "font": Key('Font family (e.g. "Arial Black", "Avenir Next Heavy") or a .ttf/.otf/.ttc path; '
-                "empty = a heavy system font", "", "font"),
-}, "Words cut from the render or painted over it", label="Text", start={"text": "Hello", "size": 0.6})
+    "text": Key("The words. Press Enter for a new line.", "", "string"),
+    "font": Key("Any installed font, like Arial Black or Avenir Next Heavy. Leave empty for a bold default.", "", "font"),
+}, "Words, cut from the look or painted over it.", label="Text", start={"text": "Hello", "size": 0.6})
 def _text_coverage(layer, g):
     w, h, box, center, rotate = g
     m = _text_mask(str(layer.get("text", "")), str(layer.get("font", "")), w, h, box, center)
@@ -149,8 +146,8 @@ def _text_coverage(layer, g):
 
 
 @layer_type("shape", {
-    "shape": Key("Which shape", "circle", "choice", choices=lambda: SHAPES.names()),
-}, "A circle, heart, star, ...", label="Shape", start={"shape": "circle", "size": 0.6})
+    "shape": Key("Which shape.", "circle", "choice", choices=lambda: SHAPES.names()),
+}, "A circle, heart, star and more.", label="Shape", start={"shape": "circle", "size": 0.6})
 def _shape_coverage(layer, g):
     w, h, box, center, rotate = g
     return _shape_mask(str(layer.get("shape") or "circle"), w, h, box, center, rotate)
@@ -180,10 +177,9 @@ def _image_pixels(layer, g):
 
 
 @layer_type("image", {
-    "image": Key("Image file (PNG with transparency works best); relative paths may sit in custom/", "", "path"),
-    "image_channel": Key("For cut-outs: which part of the image is the shape (auto: alpha if it has any, "
-                         "else brightness)", "auto", "choice", choices=("auto", "alpha", "luma"), advanced=True),
-}, "A picture: painted as-is, or used as a cut-out shape", label="Image", defaults={"fill": "image"},
+    "image": Key("A picture to place. PNGs with a transparent background work best.", "", "path"),
+    "image_channel": Key("For cut-outs: use the picture's transparency or its brightness as the shape.", "auto", "choice", choices=("auto", "alpha", "luma"), advanced=True),
+}, "A picture, placed as it is or used as a cut-out shape.", label="Image", defaults={"fill": "image"},
     start={"size": 0.4}, pixels=_image_pixels)
 def _image_coverage(layer, g):
     w, h, box, center, rotate = g

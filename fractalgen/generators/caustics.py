@@ -25,20 +25,20 @@ from .base import generator
     uses_view=True,
     default_view={"center": [0.0, 0.0], "half_width": 16 / 9, "fit": "cover"},
     param_docs={
-        "waves": "number of plane waves making up the surface",
-        "drops": "number of circular ripple sources (raindrops); 0 = none",
-        "k_lo": "smallest wave number (longest swell), radians per plane unit",
-        "k_hi": "largest wave number (finest ripple)",
-        "spectrum": "amplitude falloff with wave number; higher = smoother, swell-dominated surface",
-        "drop_k": "wave number of drop ripples",
-        "focus": "depth in units of the surface's focal length; ~1 starts folding, higher = sharper, busier webs",
-        "dispersion": "relative depth spread between red and blue; > 0 adds rainbow fringes",
-        "seed": "random seed for wave directions, phases and drops",
-        "palette": "light intensity -> color (dark water to bright caustic)",
-        "rays": "rays per pixel along each axis (rays^2 per pixel); higher = smoother, slower",
-        "exposure": "brightness multiplier on ray density before tone mapping",
-        "gamma": "tone curve; lower = brighter dim water",
-        "blur": "soften the floor, in pixels at 4K",
+        "waves": "How many swells make up the water surface.",
+        "drops": "Raindrop ripples on the surface. Zero for none.",
+        "k_lo": "Size of the longest swell.",
+        "k_hi": "Size of the finest ripple.",
+        "spectrum": "How much the big swells dominate the small ripples. Higher gives a calmer, smoother surface.",
+        "drop_k": "Ripple size around each raindrop.",
+        "focus": "How deep the pool is. Around 1 the light starts to fold into bright lines, and deeper water gives sharper, busier webs.",
+        "dispersion": "Splits the light into rainbow fringes.",
+        "seed": "Change it for a different water surface.",
+        "palette": "Colors from dark water to the brightest light.",
+        "rays": "Light rays per pixel. More is smoother but slower.",
+        "exposure": "Overall brightness of the light.",
+        "gamma": "Lower values brighten the dim water between the lines.",
+        "blur": "Softens the light on the floor.",
     },
     ranges={
         "waves": (1, 120, 1),
@@ -74,7 +74,7 @@ def caustics(
     gamma: float = 0.8,
     blur: float = 1.2,
 ):
-    """Pool-floor caustics: light rays bent by a wavy surface, density as brightness."""
+    """Rippling light on the floor of a pool, made by rays bending through a wavy surface."""
     from .. import kernels
 
     if k_lo <= 0.0 or k_hi <= 0.0:

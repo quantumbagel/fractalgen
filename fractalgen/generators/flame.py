@@ -96,23 +96,23 @@ def _run(coefs, varw, cum, color, color_speed, symmetry, seed, walkers, steps, o
     "flame",
     category="attractor",
     param_docs={
-        "xforms": "list of {affine=[a,b,c,d,e,f], weight, color, variations={name=w}}; empty = random from seed",
-        "seed": "random seed: draws the transforms when xforms is empty, and the chaos-game path",
-        "n_xforms": "how many random transforms to draw when xforms is empty",
-        "pool": "variations random transforms may use (see VARIATIONS in flame.py)",
-        "symmetry": "n-fold rotational symmetry added on top of the transforms; 1 = none",
-        "color_speed": "how fast a point's color moves toward each transform's color; lower = smoother blends",
-        "palette": "color gradient indexed by the running color coordinate",
-        "quality": "samples per output pixel; higher = smoother, slower",
-        "walkers": "parallel chaos-game walkers; rarely change",
-        "gamma": "tone curve on log density; lower = brighter faint wisps",
-        "vibrancy": "1 = keep palette color in highlights, lower = push dense areas toward white",
-        "blur": "density blur, in pixels at 4K; softens grain",
-        "percentiles": "[lo, hi] percentile crop for auto-framing; tighter = zoom into the core",
-        "pad": "extra fraction of the auto window; higher = more margin",
-        "zoom": "zoom about the auto-framed center; > 1 crops in",
-        "rotation": "rotate the picture, degrees counter-clockwise",
-        "offset": "[x, y] shift of the framed center, as a fraction of the frame height",
+        "xforms": "The transforms that make the shape. Leave empty to have the seed invent some.",
+        "seed": "Change it for a different flame.",
+        "n_xforms": "How many transforms to invent when none are given.",
+        "pool": "The kinds of twists invented transforms may use.",
+        "symmetry": "Repeats the flame around the center this many times. 1 means no symmetry.",
+        "color_speed": "How quickly colors change across the flame. Lower blends them more smoothly.",
+        "palette": "Colors for the flame.",
+        "quality": "Samples per pixel. More is smoother but slower.",
+        "walkers": "Internal setting. Rarely needs changing.",
+        "gamma": "Lower values brighten the faint wisps.",
+        "vibrancy": "At 1 the bright areas keep their color. Lower values turn them toward white.",
+        "blur": "Softens the grain.",
+        "percentiles": "How tightly the frame crops around the flame.",
+        "pad": "Space around the flame.",
+        "zoom": "Zooms in on the middle. Above 1 crops in.",
+        "rotation": "Turns the picture, in degrees.",
+        "offset": "Moves the flame within the frame.",
     },
     ranges={
         "seed": (0, 99999, 1),
@@ -153,7 +153,7 @@ def flame(
     rotation: float = 0.0,
     offset: tuple = (0.0, 0.0),
 ):
-    """Fractal flame: nonlinear IFS with log-density tone mapping and palette color."""
+    """A fractal flame: soft, silky shapes made by repeating a few twisting transforms."""
     from .. import kernels
 
     n_walk = int(walkers)

@@ -19,23 +19,23 @@ _FRAMING: dict[str, dict[str, float]] = {
     choices={"framing": ["wide", "close"]},
     category="dynamics",
     param_docs={
-        "n_magnets": "magnets on a ring; sets how many colored basins (n-fold symmetry)",
-        "steps": "physics steps from each pixel; higher = more settled basins, slower",
-        "dt": "time step of the pendulum; higher = faster motion, less accurate",
-        "seed": "unused (kept for recipe compatibility); safe to ignore",
-        "framing": "wide = more of the plane, close = zoomed into the chaotic edges",
-        "mag_r": "magnet ring radius in plane units; None uses the framing preset",
-        "strength": "pull of each magnet; higher = larger basins, snappier capture",
-        "friction": "velocity damping; higher = slower, more settled, less chaotic swirl",
-        "g": "spring back toward the origin; higher = magnets compete with center pull",
-        "span": "half-width of the starting-position grid; higher = more zoomed out",
-        "softening": "added to r² in the force law; higher = gentler near magnets, smoother basins",
-        "settled_dist": "max distance to a magnet to count as caught; higher = more settled pixels",
-        "settled_speed": "max speed to count as caught; higher = more pixels treated as settled",
-        "chaos_v_scale": "brightness mix 0..1 for uncaught pixels; lower = darker chaotic regions",
-        "chaos_s_scale": "saturation mix 0..1 for uncaught pixels; lower = greyer chaos",
-        "falloff_k": "edge vignette strength vs start radius; higher = darker corners",
-        "falloff_r0_scale": "vignette starts at this × magnet radius; higher = more of the image stays bright",
+        "n_magnets": "Number of magnets, and so the number of colors.",
+        "steps": "How long each pendulum swings. More gives cleaner regions but is slower.",
+        "dt": "Simulation time step.",
+        "seed": "Not used. Kept so older recipes still load.",
+        "framing": "Wide shows more of the board, while close zooms into the tangled edges.",
+        "mag_r": "How far the magnets sit from the center. Leave empty to use the framing's value.",
+        "strength": "How hard the magnets pull.",
+        "friction": "How quickly the pendulum slows down. More gives calmer regions.",
+        "g": "How hard the pendulum is pulled back to the middle.",
+        "span": "How much of the board is shown.",
+        "softening": "Smooths the pull close to each magnet.",
+        "settled_dist": "How close to a magnet the pendulum must end to count as caught.",
+        "settled_speed": "How slow the pendulum must be moving to count as caught.",
+        "chaos_v_scale": "Brightness of points that never settle.",
+        "chaos_s_scale": "Color strength of points that never settle.",
+        "falloff_k": "How much the corners darken.",
+        "falloff_r0_scale": "Where the corner darkening begins.",
     },
     ranges={
         "n_magnets": (2, 12, 1),
@@ -72,7 +72,7 @@ def magnetic_pendulum(
     falloff_k: float = 1.15,
     falloff_r0_scale: float = 0.72,
 ):
-    """Which magnet a damped pendulum settles on, colored as basins from every start point."""
+    """A pendulum swinging over magnets. Each point is colored by the magnet it ends up on."""
     if n_magnets < 1:
         raise ValueError("n_magnets must be at least 1")
     preset = _FRAMING.get(framing, _FRAMING["wide"])
