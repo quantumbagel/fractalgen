@@ -25,6 +25,7 @@ export const S = {
     compare: false,
     toasts: [],
     sheet: false, // phone layout: panel open
+    pick: null, // {title, onPick}: the Browse gallery is choosing a look for something else
   },
   view: {
     img: null, extent: null, shownView: null, boxes: null, transparent: false, ms: null,
@@ -890,7 +891,17 @@ export function pickVariation(i) {
   commit("variation");
 }
 
+/** Open the look gallery to choose a look for something (a layer / background fill) instead of loading it. */
+export function pickLook(title, onPick) {
+  S.ui.pick = { title, onPick };
+  S.ui.overlay = "browse";
+  emit();
+}
+
+export const isSlowLook = (name) => recipeInfo(name)?.category === "simulation";
+
 export function closeOverlay() {
+  S.ui.pick = null;
   if (S.ui.overlay === "variations") {
     varToken++;
     for (const v of S.variations) if (v.url) URL.revokeObjectURL(v.url);

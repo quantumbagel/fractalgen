@@ -1,7 +1,8 @@
 // Form controls. `Control` renders any schema'd value (generator params, layer / effect / background keys).
 
 import { html, useEffect, useRef, useState } from "../vendor/preact-htm.js";
-import { S, showError } from "./store.js";
+import { S, isSlowLook, pickLook, showError } from "./store.js";
+import { Thumb } from "./thumbs.js";
 import { apiUpload, fmtNum, hexOf, paletteGradient } from "./util.js";
 
 // ---------------------------------------------------------------- layout ----
@@ -239,18 +240,28 @@ export function FillPicker({ value, onChange, mode = "layer" }) {
     else if (k === "image") onChange("image");
     else if (k === "transparent") onChange("transparent");
     else if (k === "palette") onChange(`palette:${S.catalog.palettes[0].name}`);
-    else if (k === "recipe") onChange(`recipe:${S.catalog.recipes.find((r) => r.name !== S.state.recipe)?.name}`);
+    else if (k === "recipe") chooseLook();
     else onChange(mode === "background" ? "000000" : "ffffff");
   };
   const spec = String(value ?? "");
+  const chooseLook = () => pickLook(mode === "background" ? "Background: choose a look" : "Fill the layer with which look?",
+    (name) => onChange(`recipe:${name}`));
   return html`
     <div class="fill-picker">
       <${Segmented} value=${kind} options=${opts} onChange=${switchTo} />
       ${kind === "color" ? html`<${ColorInput} value=${spec || "000000"} onChange=${onChange} />` : null}
       ${kind === "palette" ? html`<${PaletteField} value=${spec.slice(8)} onChange=${(p) => onChange(`palette:${p}`)} />` : null}
-      ${kind === "recipe" ? html`<${Select} value=${spec.slice(7)}
-          options=${S.catalog.recipes.map((r) => r.name)} onChange=${(r) => onChange(`recipe:${r}`)} />` : null}
+      ${kind === "recipe" ? html`<${LookChoice} name=${spec.slice(7)} onClick=${chooseLook} />` : null}
     </div>`;
+}
+
+/** The look a fill uses: its thumbnail and name; click to pick another from the gallery. */
+function LookChoice({ name, onClick }) {
+  return html`<button type="button" class="look-choice" title="Choose another look" onClick=${onClick}>
+    <${Thumb} recipe=${name} orient="land" key=${name} />
+    <span class="look-choice-name">${name.replace(/_/g, " ")}${isSlowLook(name) ? html` <span class="chip slow">slow</span>` : null}</span>
+    <span class="muted small">Change…</span>
+  </button>`;
 }
 
 // ---------------------------------------------------------------- image upload ----
