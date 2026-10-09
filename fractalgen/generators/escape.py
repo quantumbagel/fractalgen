@@ -214,6 +214,7 @@ def escape_time(
 
     n, esc = field_cached(fkey, _field)
     esc = np.asarray(esc, dtype=bool)
+    _suggest_detail(n, esc, int(max_iter))
     if coloring == "smooth":
         t = np.where(esc, n * density, 0.0)
         cyclic = True
@@ -224,6 +225,19 @@ def escape_time(
     rgb = sample_palette(palette, np.power(t, gamma), cyclic=cyclic)
     rgb[~esc] = np.array(interior, dtype=np.float64)
     return rgb
+
+
+def _suggest_detail(n: np.ndarray, esc: np.ndarray, max_iter: int) -> None:
+    """Deep zooms need more iterations: when most escaping points only just escape, the
+    edges of the set are being cut off, so suggest doubling (no built-in look comes close)."""
+    if not esc.any():
+        return
+    late = float(np.mean(n[esc] > 0.5 * max_iter))
+    if late > 0.15:
+        from .. import hints
+
+        hints.suggest("more_detail", "This close in, the picture needs more detail to show its shape.",
+                      param="max_iter", value=max_iter * 2, label="Add detail")
 
 
 TRAPS = {"rings": 0, "cross": 1, "circle": 2, "point": 3}

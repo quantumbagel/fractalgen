@@ -35,7 +35,7 @@ from typing import Any
 
 import numpy as np
 
-from . import fieldcache, layers as layering, progress, simcache, tone
+from . import fieldcache, hints, layers as layering, progress, simcache, tone
 from . import mask as masking
 from .context import RenderContext
 from .generators.base import GENERATORS, GeneratorSpec
@@ -319,7 +319,13 @@ class Recipe:
             with progress.span(0.0, 0.1, "measuring exposure"):
                 stats = tone.anchored(key, lambda: spec.fn(ref, **params))
             ctx.tone_view = anchor
-            with progress.span(0.1, 0.98, "rendering"), tone.replaying(stats), tone.adjusting(adjust):
+            with progress.span(0.1, 0.98, "rendering"), tone.replaying(stats) as session, tone.adjusting(adjust):
+                rgb = np.asarray(spec.fn(ctx, **params))
+            if session.clipped <= _REEXPOSE_CLIPPED:
+                return rgb
+            # This view is so far from the look's own (a deep zoom) that its exposure flattens
+            # most of the picture to one color: measure this view instead.
+            with progress.span(0.98, 0.99, "re-measuring exposure"), tone.adjusting(adjust):
                 return np.asarray(spec.fn(ctx, **params))
 
         cache_key = fieldcache.ctx_key(
@@ -332,8 +338,18 @@ class Recipe:
             per_frame=bool(adjust.get("per_frame")),
         )
         end = 0.9 if has_layers else 0.98
+
+        def _render_and_note() -> np.ndarray:
+            with hints.capturing() as found:
+                out = _render_rgb()
+            _HINTS[cache_key] = list(found)
+            while len(_HINTS) > 64:
+                _HINTS.pop(next(iter(_HINTS)))
+            return out
+
         with progress.span(0.0, end, "rendering"):
-            rgb = fieldcache.cached(cache_key, _render_rgb)
+            rgb = fieldcache.cached(cache_key, _render_and_note)
+        hints.replay(_HINTS.get(cache_key, []))  # a cached render still makes its suggestions
         if rgb.shape != (height, width, 3):
             raise ValueError(f"{self.name}: generator returned shape {rgb.shape}, expected {(height, width, 3)}")
         if has_layers:
@@ -384,7 +400,9 @@ def _normalize_portrait(portrait: dict[str, Any], layers: list[dict[str, Any]]) 
     return portrait
 
 
+_HINTS: dict[Any, list[dict[str, Any]]] = {}  # suggestions per cached render
 _TONE_PIXELS = 640 * 360
+_REEXPOSE_CLIPPED = 0.5  # share of the picture a replayed exposure may clip before re-measuring
 
 
 def _tone_frame(width: int, height: int) -> tuple[int, int]:

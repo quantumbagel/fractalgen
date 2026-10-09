@@ -75,13 +75,15 @@ export async function apiRender(state) {
   });
   if (r.status === 204) return { stale: true };
   if (!r.ok) throw await failure(r);
-  let boxes = null;
+  let boxes = null, hints = [];
   try { boxes = JSON.parse(r.headers.get("X-Layer-Boxes") || "null"); } catch (_) { /* ignore */ }
+  try { hints = JSON.parse(decodeURIComponent(r.headers.get("X-Hints") || "%5B%5D")); } catch (_) { /* ignore */ }
   return {
     blob: await r.blob(),
     ms: Number(r.headers.get("X-Render-Ms")),
     extent: r.headers.get("X-View-Extent"),
     boxes,
+    hints,
     stale: false,
   };
 }

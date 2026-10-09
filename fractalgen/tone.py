@@ -100,6 +100,18 @@ class _Session:
         self.recording = recorded is None
         self.stats: dict[str, list[Any]] = {} if recorded is None else recorded
         self.used: dict[str, int] = {}
+        self.clipped = 0.0  # largest share of a replayed stretch's input that fell outside its range
+
+
+def clipped(fraction: float) -> None:
+    """Report the share of values a replayed stretch had to clip (tone mappers call this).
+
+    A view far from the anchor (a deep zoom) can fall almost entirely outside the
+    anchor's range, which flattens the picture; the renderer then re-measures.
+    """
+    s = _session.get()
+    if s is not None and not s.recording:
+        s.clipped = max(s.clipped, float(fraction))
 
 
 def stat(key: str, compute: Callable[[], Any]) -> Any:
@@ -133,10 +145,11 @@ def record(render: Callable[[], Any]) -> dict[str, list[Any]]:
 
 
 @contextmanager
-def replaying(stats: dict[str, list[Any]]) -> Iterator[None]:
-    token = _session.set(_Session(stats))
+def replaying(stats: dict[str, list[Any]]) -> Iterator["_Session"]:
+    s = _Session(stats)
+    token = _session.set(s)
     try:
-        yield
+        yield s
     finally:
         _session.reset(token)
 

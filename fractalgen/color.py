@@ -44,6 +44,7 @@ def histogram_index(
         out[mask] = tone.levels(np.ones(v.shape))
         return out
     vmin, vmax, cdf = curve
+    tone.clipped(float(np.mean((v < vmin) | (v > vmax))))
     scaled = np.clip((v - vmin) / (vmax - vmin), 0.0, 1.0)
     ix = np.clip((scaled * (len(cdf) - 1)).astype(np.int32), 0, len(cdf) - 1)
     out[mask] = tone.levels(cdf[ix])
@@ -75,6 +76,9 @@ def log_tone(density: np.ndarray, lo: float = 1.0, hi: float = 99.5, key: str = 
     if ab is None:
         return np.zeros_like(d)
     a, b = ab
+    hit = d > 0
+    if np.any(hit):
+        tone.clipped(float(np.mean((d[hit] < a) | (d[hit] > b))))
     return tone.levels(np.clip((d - a) / (b - a), 0.0, 1.0))
 
 

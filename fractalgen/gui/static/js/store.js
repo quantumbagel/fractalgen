@@ -538,6 +538,7 @@ function applyImage(res, rendered) {
   v.extent = parseExtent(res.extent);
   v.shownView = rendered.view ? deepClone(rendered.view) : null;
   v.boxes = res.boxes;
+  v.hints = res.hints || [];
   v.boxPos = (rendered.layers || []).map((l) => [l.x ?? 0.5, l.y ?? 0.5]);
   v.ms = res.ms;
   v.size = [rendered.width, rendered.height];

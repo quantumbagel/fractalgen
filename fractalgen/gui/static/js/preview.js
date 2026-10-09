@@ -3,7 +3,7 @@
 
 import { html, useEffect, useRef, useState } from "../vendor/preact-htm.js";
 import {
-  S, commit, currentAspect, emit, layerLabel, layerValue, resetView, scheduleRender, selectLayer, setPreviewSize,
+  S, commit, currentAspect, emit, layerLabel, layerValue, resetView, scheduleRender, selectLayer, setPath, setPreviewSize,
   startCompare, stopCompare, useStore,
 } from "./store.js";
 import { clamp } from "./util.js";
@@ -231,6 +231,7 @@ export function Stage() {
         </div>
         ${S.ui.compare ? html`<div class="compare-badge">Original look</div>` : null}
       </div>
+      ${S.view.hints?.length && !S.view.busy ? html`<${Hints} hints=${S.view.hints} />` : null}
       <${StageTools} />
       <${StatusPill} />
       ${S.view.error ? html`<${RenderError} err=${S.view.error} />` : null}
@@ -271,6 +272,16 @@ function StageTools() {
         Compare
       </button>
     </div>`;
+}
+
+/** Suggestions the last render made about its own settings (e.g. more detail on a deep zoom). */
+function Hints({ hints }) {
+  return html`<div class="hints">${hints.map((h) => html`
+    <div class="hint-card" key=${h.key}>
+      <span>${h.text}</span>
+      ${h.param ? html`<button type="button" class="btn small accent"
+        onClick=${() => setPath(`params.${h.param}`, h.value)}>${h.label || "Apply"}</button>` : null}
+    </div>`)}</div>`;
 }
 
 function StatusPill() {

@@ -58,7 +58,7 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, quote, urlparse
 
 import numpy as np
 
@@ -748,6 +748,7 @@ class Renderer:
         self.seq_lock = threading.Lock()
         self.active: dict[str, progress.Tracker] = {}  # client -> its render in flight
         self._waiting: dict[str, int] = {}  # client -> queued preview count
+        self.hints: dict[str, list[dict[str, Any]]] = {}  # client -> suggestions from its last render
 
     def progress(self, client: str) -> dict[str, Any]:
         tracker = self.active.get(client)
@@ -786,8 +787,10 @@ class Renderer:
             t0 = time.perf_counter()
             recipe = state_recipe(state)
             tracker = self.active[client] = progress.Tracker()
+            from .. import hints
+
             try:
-                with progress.tracking(tracker):
+                with progress.tracking(tracker), hints.collecting() as found:
                     rgb = recipe.render(w, h)
             finally:
                 self.active.pop(client, None)
@@ -800,6 +803,7 @@ class Renderer:
                 extent = f"{hw!r},{hh!r}"
             layers, _ = recipe.resolve_layers(w, h)
             boxes = json.dumps(layering.layer_boxes(layers, w, h)) if layers else ""
+            self.hints[client] = found
             return buf.getvalue(), (time.perf_counter() - t0) * 1000.0, extent, boxes
 
 
@@ -1094,6 +1098,9 @@ def make_handler(renderer: Renderer, exports: Exports, thumbs: ThumbQueue | None
                             hdr["X-View-Extent"] = extent
                         if boxes:
                             hdr["X-Layer-Boxes"] = boxes
+                        found = renderer.hints.get(str(body.get("client", "")))
+                        if found:
+                            hdr["X-Hints"] = quote(json.dumps(found))
                         self._send(200, png, "image/png", hdr)
                 elif url.path == "/api/save":
                     path = save_state(body["name"], body["state"], body.get("overwrite") is True)

@@ -70,5 +70,37 @@ class FastKernelTests(unittest.TestCase):
         self.assertTrue((esc[far] == 1).all())
 
 
+
+class DeepZoomTests(unittest.TestCase):
+    """A view far deeper than the look's own keeps working: exposure re-measured, detail suggested."""
+
+    DEEP = {"view": {"center": [-0.1641237370039237, 1.0355917367675078], "half_width": 1.5416143552603562e-06}}
+
+    def test_deep_zoom_is_not_flattened(self):
+        import fractalgen as fg
+        from fractalgen.recipe import RECIPES
+
+        fg.bootstrap([])
+        rgb = RECIPES.get("mandelbrot_antenna").render(240, 135, overrides=self.DEEP)
+        outside = rgb[rgb.max(axis=-1) > 0.02]  # skip the black interior
+        self.assertGreater(outside.std(axis=0).mean(), 0.1, "deep zoom collapsed to one color")
+
+    def test_detail_hint(self):
+        import fractalgen as fg
+        from fractalgen import hints
+        from fractalgen.recipe import RECIPES
+
+        fg.bootstrap([])
+        r = RECIPES.get("mandelbrot_antenna")
+        for _ in range(2):  # the second render is a cache hit and must still suggest
+            with hints.collecting() as found:
+                r.render(240, 135, overrides=self.DEEP)
+            self.assertEqual([h["key"] for h in found], ["more_detail"])
+            self.assertEqual(found[0]["value"], 2 * r.params["max_iter"])
+        with hints.collecting() as found:
+            r.render(240, 135)  # the look's own view needs nothing
+        self.assertEqual(found, [])
+
+
 if __name__ == "__main__":
     unittest.main()
