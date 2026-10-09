@@ -359,15 +359,26 @@ try:
         dims.nth(0).fill("160")
         dims.nth(1).fill("90")
         page.locator(".form-row input[type=text]").fill("_e2e")
+        page.locator(".segmented button:text-is('Wallpapers folder')").click()
         page.locator(".modal-foot .btn.primary").click()
         page.wait_for_function("['done', 'error'].includes(fg.S.exportJob?.status)", timeout=60000)
         job = js(page, "fg.S.exportJob")
-        check(job["status"] == "done", f"export: {job.get('error') or job['status']}")
+        check(job["status"] == "done", f"export to folder: {job.get('error') or job['status']}")
         if job["status"] == "done":
             out = Path(job["path"])
-            check(out.exists() and Image.open(out).size == (160, 90), "export file is 160x90")
-            check(page.locator("button:text('Set as desktop wallpaper')").count() == 1, "offers set-as-wallpaper")
+            check(out.parent.name == "gui" and Image.open(out).size == (160, 90), "folder export is 160x90 in backgrounds/gui")
+            check(page.locator("button:text('Set as desktop wallpaper')").count() == 0, "no set-as-wallpaper button")
             out.unlink(missing_ok=True)
+        page.locator(".segmented button:text-is('Download')").click()
+        with page.expect_download(timeout=60000) as dl:
+            page.locator(".modal-foot .btn.primary").click()
+        d = dl.value
+        tmp_png = Path(tempfile.mkdtemp()) / d.suggested_filename
+        d.save_as(tmp_png)
+        check(d.suggested_filename == "_e2e_160x90.png" and Image.open(tmp_png).size == (160, 90),
+              f"download export arrives in the browser ({d.suggested_filename})")
+        job = js(page, "fg.S.exportJob")
+        check(not str(job.get("path", "")).startswith(str(ROOT)), "download export is not kept in the project")
         page.keyboard.press("Escape")
 
         print("variations")

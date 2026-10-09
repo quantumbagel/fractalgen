@@ -267,8 +267,10 @@ Complex numbers: `[re, im]` or `"-0.8+0.156j"`.
   like Film or Dreamy).
 - **Compare** (or hold `\`) shows the look as it was loaded; undo / redo cover every edit,
   including switching screen shapes; the URL keeps your edits.
-- **Save wallpaper** renders at full size (this screen, 4K, 8K, phone and more), then
-  **Set as desktop wallpaper**, **Show in Finder** or **Download**. **Save as recipe**
+- **Save wallpaper** renders at full size (this screen, 4K, 8K, phone and more), with
+  optional 2× / 3× supersampling for smoother edges. It either downloads straight to your
+  browser (nothing kept in the project) or saves to `backgrounds/gui/` with **Show in
+  Finder**; the choice is remembered. **Save as recipe**
   writes `custom/NAME.toml`. `?` lists the keyboard shortcuts.
 
 ### Same picture at every size

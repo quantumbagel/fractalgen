@@ -915,12 +915,34 @@ export function closeOverlay() {
 
 let pollTimer = null;
 
-export async function startExport({ width, height, format, name }) {
+/** Where Save wallpaper puts the file: "download" (the browser's downloads) or "folder" (backgrounds/gui/). */
+export function exportDestination() {
+  try { return localStorage.getItem("fractalgen.destination") === "folder" ? "folder" : "download"; } catch (_) { return "download"; }
+}
+
+export function setExportDestination(d) {
+  try { localStorage.setItem("fractalgen.destination", d); } catch (_) { /* private mode */ }
+  emit();
+}
+
+/** Hand a finished export to the browser as a download. */
+export function downloadExport(job = S.exportJob) {
+  const a = document.createElement("a");
+  a.href = `/api/export/${job.id}/file`;
+  a.download = String(job.path || "").split(/[\\/]/).pop();
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
+export async function startExport({ width, height, format, name, supersample = 1, jpeg_quality = 95,
+                                    destination = exportDestination() }) {
   clearTimeout(pollTimer);
-  S.exportJob = { status: "starting", progress: 0, width, height, format };
+  S.exportJob = { status: "starting", progress: 0, width, height, format, destination };
   emit();
   try {
-    const { job } = await apiJson("/api/export", { state: stateForApi(), width, height, format, name: name || undefined });
+    const { job } = await apiJson("/api/export", { state: stateForApi(), width, height, format, name: name || undefined,
+                                                   supersample, jpeg_quality, destination });
     S.exportJob = { ...S.exportJob, id: job, status: "running" };
     poll();
   } catch (e) {
@@ -937,21 +959,13 @@ function poll() {
     S.exportJob = { ...job, ...st };
     emit();
     if (st.status === "running") pollTimer = setTimeout(poll, 400);
-    else if (st.status === "done" && S.ui.overlay !== "export") toast("Wallpaper saved", "ok");
+    else if (st.status === "done" && st.download) downloadExport(S.exportJob);
+    else if (st.status === "done" && S.ui.overlay !== "export") toast("Wallpaper saved to backgrounds/gui/", "ok");
   }).catch(() => { pollTimer = setTimeout(poll, 900); });
 }
 
 export async function revealExport() {
   try { await apiJson("/api/reveal", { path: S.exportJob.path }); } catch (e) { showError(e); }
-}
-
-export async function setAsWallpaper() {
-  try {
-    await apiJson("/api/wallpaper", { path: S.exportJob.path });
-    toast("Desktop wallpaper set", "ok");
-  } catch (e) {
-    showError(e, "Could not set the wallpaper: ");
-  }
 }
 
 export async function saveRecipe(name, overwrite) {

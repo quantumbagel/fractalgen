@@ -15,13 +15,15 @@ POST /api/render   {state}            -> image/png (204 if the same client asked
                                       headers: X-Render-Ms, X-View-Extent "half_w,half_h" (view generators;
                                       for the frame size `extent_size` [w, h] if given), X-Layer-Boxes (JSON)
 POST /api/save     {name, state, overwrite}  -> writes custom/NAME.toml and registers it
-POST /api/export   {state, width, height, format, name} -> {job}; full-size render in the background
+POST /api/export   {state, width, height, format, name, supersample, jpeg_quality, destination}
+                                      -> {job}; full-size render in the background. destination "folder"
+                                      keeps it in backgrounds/gui/, "download" in a temporary folder
+                                      (removed when the server stops) for the page to download
 GET  /api/export/JOB                  -> {status, path, error, seconds, progress, stage}
 GET  /api/export/JOB/file             -> the exported image
 GET  /api/progress?client=ID          -> {progress, stage} of that client's running preview render
 POST /api/upload   (raw bytes; X-Filename header) -> {path}: saved under custom/uploads/ for image layers
 POST /api/reveal   {path}             -> shows an exported file in Finder / Explorer / the file manager
-POST /api/wallpaper {path}            -> sets an exported file as the desktop wallpaper
 POST /api/cli      {state, width, height} -> {command}
 
 A *state* is::
@@ -44,7 +46,9 @@ import json
 import math
 import os
 import shlex
+import shutil
 import string
+import tempfile
 import threading
 import time
 import traceback
@@ -516,6 +520,8 @@ def _validate_export_body(body: dict[str, Any]) -> tuple[dict[str, Any], int, in
     q = body.get("jpeg_quality", 95)
     if not isinstance(q, int) or isinstance(q, bool) or not 50 <= q <= 100:
         raise ValueError("jpeg_quality must be 50..100")
+    if body.get("destination", "folder") not in ("folder", "download"):
+        raise ValueError('destination must be "folder" or "download"')
     return state, w, h, fmt
 
 
@@ -798,8 +804,30 @@ class Renderer:
 
 
 class Exports:
+    _KEEP_DOWNLOADS = 4  # finished "download" exports kept for Download again
+
     def __init__(self) -> None:
         self.jobs: dict[str, dict[str, Any]] = {}
+        self._tmp: tempfile.TemporaryDirectory | None = None
+
+    def _download_dir(self) -> Path:
+        if self._tmp is None:
+            self._tmp = tempfile.TemporaryDirectory(prefix="fractalgen-downloads-")
+        return Path(self._tmp.name)
+
+    def _prune_downloads(self, keep: str) -> None:
+        """Delete all but the newest few download-only exports."""
+        root = self._download_dir()
+        dirs = sorted((d for d in root.iterdir() if d.is_dir() and d.name != keep), key=lambda d: d.stat().st_mtime)
+        for d in dirs[: max(0, len(dirs) - (self._KEEP_DOWNLOADS - 1))]:
+            shutil.rmtree(d, ignore_errors=True)
+            info = self.jobs.get(d.name)
+            if info:
+                info["path"] = None
+
+    def close(self) -> None:
+        if self._tmp is not None:
+            self._tmp.cleanup()
 
     def any_running(self) -> bool:
         return any(j.get("status") == "running" for j in self.jobs.values())
@@ -809,6 +837,7 @@ class Exports:
         job = uuid.uuid4().hex[:10]
         self.jobs[job] = {
             "status": "running", "path": None, "error": None, "seconds": 0.0,
+            "download": body.get("destination") == "download",
             "_t0": time.perf_counter(), "_tracker": progress.Tracker(),
         }
         threading.Thread(target=self._run, args=(job, state, w, h, fmt, body), daemon=True).start()
@@ -844,7 +873,12 @@ class Exports:
         t0 = self.jobs[job]["_t0"]
         try:
             stem = "".join(c if c.isalnum() or c in "-_@" else "_" for c in (body.get("name") or state.get("recipe") or "gui"))
-            path = OUT_ROOT / "gui" / f"{stem}_{w}x{h}.{fmt}"
+            if body.get("destination") == "download":  # only kept until the page downloads it / the server stops
+                path = self._download_dir() / job / f"{stem}_{w}x{h}.{fmt}"
+                path.parent.mkdir(parents=True)
+                self._prune_downloads(keep=job)
+            else:
+                path = OUT_ROOT / "gui" / f"{stem}_{w}x{h}.{fmt}"
             with progress.tracking(self.jobs[job]["_tracker"]):
                 ss = int(body.get("supersample", 1))
                 with progress.span(0.0, RENDER_SHARE):
@@ -911,7 +945,7 @@ def save_upload(filename: str, data: bytes) -> str:
 
 
 def _exported(path: str, exports: "Exports") -> Path:
-    """Only files this server exported may be revealed / set as wallpaper."""
+    """Only files this server exported may be revealed."""
     p = Path(path).resolve()
     known = {Path(j["path"]).resolve() for j in exports.jobs.values() if j.get("path")}
     if p not in known or not p.is_file():
@@ -929,24 +963,6 @@ def reveal(path: Path) -> None:
         subprocess.run(["explorer", "/select,", str(path)], check=False)
     else:
         subprocess.run(["xdg-open", str(path.parent)], check=True)
-
-
-def set_wallpaper(path: Path) -> None:
-    import subprocess
-    import sys
-
-    if sys.platform == "darwin":
-        script = f'tell application "System Events" to tell every desktop to set picture to {json.dumps(str(path))}'
-        subprocess.run(["osascript", "-e", script], check=True, capture_output=True)
-    elif sys.platform.startswith("win"):
-        import ctypes
-
-        if not ctypes.windll.user32.SystemParametersInfoW(20, 0, str(path), 3):  # SPI_SETDESKWALLPAPER
-            raise OSError("Windows refused the wallpaper")
-    else:
-        uri = path.as_uri()
-        for key in ("picture-uri", "picture-uri-dark"):
-            subprocess.run(["gsettings", "set", "org.gnome.desktop.background", key, uri], check=True)
 
 
 _CTYPES = {".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8",
@@ -1087,9 +1103,6 @@ def make_handler(renderer: Renderer, exports: Exports, thumbs: ThumbQueue | None
                 elif url.path == "/api/reveal":
                     reveal(_exported(str(body.get("path", "")), exports))
                     self._json({"ok": True})
-                elif url.path == "/api/wallpaper":
-                    set_wallpaper(_exported(str(body.get("path", "")), exports))
-                    self._json({"ok": True})
                 elif url.path == "/api/cli":
                     st = body.get("state") or body
                     w = int(body.get("width", st.get("width", 640)))
@@ -1133,3 +1146,4 @@ def serve(host: str = "127.0.0.1", port: int = 8765, open_browser: bool = True, 
         pass
     finally:
         httpd.server_close()
+        exports.close()

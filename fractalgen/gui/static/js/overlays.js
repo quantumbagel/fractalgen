@@ -3,8 +3,8 @@
 import { html, useEffect, useRef, useState } from "../vendor/preact-htm.js";
 import { Segmented, Slider, Toggle } from "./controls.js";
 import {
-  S, closeOverlay, commit, isSlowLook, copyCli, currentAspect, dismissToast, emit, loadRecipe, makeVariations, orient,
-  pickVariation, revealExport, saveRecipe, setAsWallpaper, setAspect, setHelp, setPreviewSize, startExport,
+  S, closeOverlay, commit, downloadExport, exportDestination, isSlowLook, setExportDestination, copyCli, currentAspect, dismissToast, emit, loadRecipe, makeVariations, orient,
+  pickVariation, revealExport, saveRecipe, setAspect, setHelp, setPreviewSize, startExport,
 } from "./store.js";
 import { Thumb } from "./thumbs.js";
 import { downloadName } from "./util.js";
@@ -98,8 +98,9 @@ export function ExportDialog() {
   const mismatch = chosen && (chosen.h > chosen.w) !== (S.state.height > S.state.width);
   const maxSs = chosen ? Math.max(1, Math.min(3, Math.floor(16384 / Math.max(chosen.w, chosen.h)))) : 1;
   const quality = Math.min(ss, maxSs);
+  const dest = exportDestination();
   const go = () => startExport({ width: Math.round(chosen.w), height: Math.round(chosen.h), format: fmt, name,
-                                 supersample: quality, jpeg_quality: jq });
+                                 supersample: quality, jpeg_quality: jq, destination: dest });
   const mp = chosen ? (chosen.w * chosen.h / 1e6).toFixed(1) : 0;
   const QUALITY = [
     { value: 1, label: "Standard", title: "One sample per pixel" },
@@ -112,7 +113,7 @@ export function ExportDialog() {
       <button type="button" class="btn ghost" onClick=${copyCli}>Copy command</button>
       <span class="grow"></span>
       <button type="button" class="btn primary big" disabled=${running || !chosen} onClick=${go}>
-        ${running ? "Rendering…" : `Save ${chosen ? `${chosen.w}×${chosen.h}` : ""}`}</button>`}>
+        ${running ? "Rendering…" : `${dest === "download" ? "Download" : "Save"} ${chosen ? `${chosen.w}×${chosen.h}` : ""}`}</button>`}>
     <div class="size-grid">
       ${choices.map((c) => html`<button type="button" class=${`size-card${key === c.key ? " on" : ""}`} onClick=${() => setKey(c.key)}>
         <span class="size-shape" style=${(() => { const k = Math.min(56 / c.w, 40 / c.h); return { width: `${c.w * k}px`, height: `${c.h * k}px` }; })()}></span>
@@ -136,6 +137,9 @@ export function ExportDialog() {
         onChange=${setFmt} /></label>
       ${fmt === "jpg" ? html`<label class="jpeg-q">JPEG quality <${Slider} value=${jq} min=${60} max=${100} step=${1} int=${true}
         onInput=${setJq} /></label>` : null}
+      <label>Save to <${Segmented} value=${dest} onChange=${setExportDestination} options=${[
+        { value: "download", label: "Download", title: "Your browser downloads it (usually to Downloads)" },
+        { value: "folder", label: "Wallpapers folder", title: "Kept in backgrounds/gui/ inside the project" }]} /></label>
       <label class="grow">File name <input type="text" value=${name} onInput=${(e) => setName(e.currentTarget.value)} /></label>
     </div>
     <div class="muted small">${mp} megapixels${quality > 1 ? `, rendered at ${chosen.w * quality}×${chosen.h * quality} and averaged down`
@@ -158,15 +162,19 @@ function ExportStatus({ job }) {
       <div class="muted small">${stage}… ${pct}% · ${secs.toFixed(0)}s${eta != null ? ` · about ${Math.ceil(eta)}s left` : ""}</div>
     </div>`;
   }
+  const name = downloadName(job.path);
   return html`<div class="export-done">
     <img src=${`/api/export/${job.id}/file`} alt="" />
     <div class="grow">
-      <div><b>Saved</b> ${downloadName(job.path)} <span class="muted small">in ${(job.seconds || 0).toFixed(1)}s</span></div>
-      <div class="muted small path" title=${job.path}>${job.path}</div>
+      <div><b>${job.download ? "Downloaded" : "Saved"}</b> ${name} <span class="muted small">in ${(job.seconds || 0).toFixed(1)}s</span></div>
+      ${job.download
+        ? html`<div class="muted small">Check your browser's downloads.</div>`
+        : html`<div class="muted small path" title=${job.path}>${job.path}</div>`}
       <div class="btn-row">
-        <button type="button" class="btn accent" onClick=${setAsWallpaper}>Set as desktop wallpaper</button>
-        <button type="button" class="btn" onClick=${revealExport}>Show in ${S.catalog.platform === "mac" ? "Finder" : "folder"}</button>
-        <a class="btn" href=${`/api/export/${job.id}/file`} download=${downloadName(job.path)}>Download</a>
+        ${job.download
+          ? html`<button type="button" class="btn" onClick=${() => downloadExport(job)}>Download again</button>`
+          : html`<button type="button" class="btn" onClick=${revealExport}>Show in ${S.catalog.platform === "mac" ? "Finder" : "folder"}</button>
+                 <a class="btn" href=${`/api/export/${job.id}/file`} download=${name}>Download a copy</a>`}
       </div>
     </div>
   </div>`;

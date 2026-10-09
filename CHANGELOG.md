@@ -4,8 +4,8 @@
 
 - **New GUI.** A rebuilt, task-first interface: a look gallery, Variations, tabs for
   Look / Frame / Color / Layers / Effects, previews in your screen's exact shape, Compare,
-  a Save wallpaper dialog with per-screen sizes, Set as desktop wallpaper and Show in
-  Finder, image upload, keyboard shortcuts and a phone layout. No build step: small ES
+  a Save wallpaper dialog with per-screen sizes, supersampling, and a choice between a
+  direct browser download and the `backgrounds/gui/` folder, image upload, keyboard shortcuts and a phone layout. No build step: small ES
   modules with a vendored Preact + htm.
 - **Layers** replace the single mask: any number of text, shape and image layers, each
   painted on top or cut out of the render, with its own position, opacity, blend mode,

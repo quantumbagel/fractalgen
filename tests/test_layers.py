@@ -330,3 +330,33 @@ class ExportQualityTests(unittest.TestCase):
         b = np.zeros((2, 2, 4))
         b[0, 0] = [1, 1, 1, 1]
         np.testing.assert_allclose(downsample(b, 2)[0, 0], [1, 1, 1, 0.25])  # no dark fringe
+
+
+class ExportDestinationTests(unittest.TestCase):
+    def test_download_exports_live_in_a_temp_dir_and_are_pruned(self):
+        import time
+
+        from fractalgen.engine import OUT_ROOT
+        from fractalgen.gui.server import Exports, _validate_export_body, recipe_state
+
+        ex = Exports()
+        try:
+            st = recipe_state("julia_dragon", 32, 18)
+            with self.assertRaises(ValueError):
+                _validate_export_body({"state": st, "width": 32, "height": 18, "destination": "desktop"})
+            jobs = []
+            for i in range(Exports._KEEP_DOWNLOADS + 2):
+                job = ex.start({"state": st, "width": 32, "height": 18, "name": f"t{i}", "destination": "download"})
+                while ex.status(job)["status"] == "running":
+                    time.sleep(0.05)
+                jobs.append(job)
+            info = [ex.status(j) for j in jobs]
+            self.assertTrue(all(i["status"] == "done" and i["download"] for i in info))
+            last = Path(info[-1]["path"])
+            self.assertTrue(last.is_file())
+            self.assertFalse(last.resolve().is_relative_to(OUT_ROOT.resolve()))
+            self.assertIsNone(info[0]["path"])  # older downloads are cleaned up
+            root = last.parent.parent
+        finally:
+            ex.close()
+        self.assertFalse(root.exists())
