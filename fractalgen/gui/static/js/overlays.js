@@ -118,13 +118,23 @@ export function ExportDialog() {
   const [key, setKey] = useState(choices[0].key);
   const [custom, setCustom] = useState({ w: asp.size[0], h: asp.size[1] });
   const [fmt, setFmt] = useState("png");
+  const [ss, setSs] = useState(1);
+  const [jq, setJq] = useState(95);
   const [name, setName] = useState(S.state.recipe || S.state.generator);
   const job = S.exportJob;
   const chosen = key === "custom" ? { w: custom.w, h: custom.h } : choices.find((c) => c.key === key);
   const running = job && (job.status === "running" || job.status === "starting");
   const mismatch = chosen && (chosen.h > chosen.w) !== (S.state.height > S.state.width);
-  const go = () => startExport({ width: Math.round(chosen.w), height: Math.round(chosen.h), format: fmt, name });
+  const maxSs = chosen ? Math.max(1, Math.min(3, Math.floor(16384 / Math.max(chosen.w, chosen.h)))) : 1;
+  const quality = Math.min(ss, maxSs);
+  const go = () => startExport({ width: Math.round(chosen.w), height: Math.round(chosen.h), format: fmt, name,
+                                 supersample: quality, jpeg_quality: jq });
   const mp = chosen ? (chosen.w * chosen.h / 1e6).toFixed(1) : 0;
+  const QUALITY = [
+    { value: 1, label: "Standard", title: "One sample per pixel" },
+    { value: 2, label: "Smooth 2×", title: "Renders 4× the pixels and averages them: smoother edges and fine detail" },
+    { value: 3, label: "Ultra 3×", title: "Renders 9× the pixels: the cleanest edges, much slower" },
+  ].filter((q) => q.value <= maxSs);
 
   return html`<${Modal} title="Save wallpaper" onClose=${closeOverlay} footer=${html`
       <button type="button" class="btn ghost" onClick=${() => { S.ui.overlay = "save"; emit(); }}>Save as recipe…</button>
@@ -150,11 +160,15 @@ export function ExportDialog() {
       Looks frame themselves for each shape, so <button type="button" class="link"
       onClick=${() => setAspect(chosen.h > chosen.w ? "phone" : "desktop")}>preview that shape</button> first.</div>` : null}
     <div class="form-row">
+      <label>Quality <${Segmented} value=${quality} options=${QUALITY} onChange=${setSs} /></label>
       <label>Format <${Segmented} value=${fmt} options=${[{ value: "png", label: "PNG" }, { value: "jpg", label: "JPEG" }]}
         onChange=${setFmt} /></label>
+      ${fmt === "jpg" ? html`<label class="jpeg-q">JPEG quality <${Slider} value=${jq} min=${60} max=${100} step=${1} int=${true}
+        onInput=${setJq} /></label>` : null}
       <label class="grow">File name <input type="text" value=${name} onInput=${(e) => setName(e.currentTarget.value)} /></label>
     </div>
-    <div class="muted small">${mp} megapixels. Big sizes and simulations can take a while; you can keep editing meanwhile.</div>
+    <div class="muted small">${mp} megapixels${quality > 1 ? `, rendered at ${chosen.w * quality}×${chosen.h * quality} and averaged down`
+      : ""}. Big sizes, higher quality and simulations take longer; you can keep editing meanwhile.</div>
     ${job ? html`<${ExportStatus} job=${job} />` : null}
   </${Modal}>`;
 }
@@ -235,9 +249,16 @@ export function VariationsOverlay() {
 
 // ---------------------------------------------------------------- menu / help ----
 
-export function Menu() {
+/** The ⋯ menu, fixed under its button (the top bar clips overflow on phones). */
+export function Menu({ anchor }) {
   const close = () => { S.ui.menu = false; emit(); };
-  return html`<div class="menu-pop" onMouseLeave=${close}>
+  useEffect(() => {
+    const away = (e) => { if (!e.target.closest(".menu-pop, button[title='More']")) close(); };
+    window.addEventListener("pointerdown", away);
+    return () => window.removeEventListener("pointerdown", away);
+  }, []);
+  const pos = { top: `${anchor.bottom + 4}px`, right: `${Math.max(8, window.innerWidth - anchor.right)}px` };
+  return html`<div class="menu-pop" style=${pos}>
     <button type="button" class="dd-item" onClick=${() => { S.ui.overlay = "save"; close(); }}>Save as recipe…</button>
     <button type="button" class="dd-item" onClick=${() => { copyCli(); close(); }}>Copy command line</button>
     <div class="dd-sep"></div>

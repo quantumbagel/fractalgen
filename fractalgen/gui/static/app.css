@@ -257,7 +257,7 @@ input[type="color"] { width: 34px; height: 28px; padding: 0; border: 1px solid v
   position: absolute; z-index: 60; top: calc(100% + 4px); left: 0; min-width: 280px; max-height: 70vh; overflow: auto;
   background: var(--bg2); border: 1px solid var(--line2); border-radius: var(--r); box-shadow: 0 12px 36px rgba(0,0,0,.5); padding: 6px;
 }
-.menu-pop { left: auto; right: 0; }
+.menu-pop { position: fixed; left: auto; z-index: 90; }
 .dd-group { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); padding: 8px 8px 4px; }
 .dd-item { display: flex; flex-direction: column; align-items: flex-start; width: 100%; text-align: left; background: none; border: none; border-radius: var(--r-sm); padding: 6px 8px; gap: 2px; }
 button.dd-item:hover { background: var(--bg3); }
@@ -282,6 +282,9 @@ button.dd-item:hover { background: var(--bg3); }
 .tool { min-width: 30px; height: 30px; background: none; border: none; border-radius: var(--r-sm); color: var(--text); font-size: 16px; }
 .tool:hover { background: var(--bg3); }
 .tool.wide { font-size: 12px; padding: 0 10px; }
+.tool-select { background: transparent; border: none; font-size: 12px; padding: 0 22px 0 8px; height: 30px; color: var(--text); }
+.tool-select:hover { background: var(--bg3); }
+.jpeg-q .slider { width: 180px; }
 .status { position: absolute; left: 14px; bottom: 14px; display: flex; gap: 12px; align-items: center; font-size: 12px; color: var(--muted);
   background: rgba(16,18,24,.85); border: 1px solid var(--line); border-radius: var(--r); padding: 6px 10px; overflow: hidden; max-width: calc(100% - 260px); }
 .status .hint { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

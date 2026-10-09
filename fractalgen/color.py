@@ -82,6 +82,23 @@ def to_uint8(rgb: np.ndarray) -> np.ndarray:
     return np.clip(np.round(rgb * 255.0), 0, 255).astype(np.uint8)
 
 
+def downsample(rgb: np.ndarray, factor: int) -> np.ndarray:
+    """Average ``factor`` x ``factor`` blocks (supersampling antialias). RGBA averages
+    premultiplied color, so transparent edges don't darken."""
+    if factor <= 1:
+        return rgb
+    h, w, c = rgb.shape
+    h2, w2 = h // factor, w // factor
+    a = np.asarray(rgb[: h2 * factor, : w2 * factor], dtype=np.float64)
+    if c == 4:
+        a = np.concatenate([a[..., :3] * a[..., 3:], a[..., 3:]], axis=-1)
+    out = a.reshape(h2, factor, w2, factor, c).mean(axis=(1, 3))
+    if c == 4:
+        alpha = out[..., 3:]
+        out[..., :3] = np.where(alpha > 1e-9, out[..., :3] / np.maximum(alpha, 1e-9), 0.0)
+    return out
+
+
 def to_image(rgb: np.ndarray) -> Image.Image:
     """RGB, or RGBA when the array has an alpha channel (a transparent mask background)."""
     return Image.fromarray(to_uint8(rgb), mode="RGBA" if rgb.shape[-1] == 4 else "RGB")

@@ -12,7 +12,7 @@ export const S = {
   baseline: null, // the recipe as loaded: Reset / modified marks / Compare
   aspects: [],
   aspect: "screen", // default: a wallpaper for the screen the GUI is open on
-  previewSize: 720,
+  previewSize: 960,
   modified: new Set(),
   ui: {
     tab: "look",
@@ -487,7 +487,11 @@ export async function restoreFromHash(h) {
 }
 
 export async function boot() {
-  try { S.ui.help = localStorage.getItem("fractalgen.help") !== "0"; } catch (_) { /* private mode */ }
+  try {
+    S.ui.help = localStorage.getItem("fractalgen.help") !== "0";
+    const px = Number(localStorage.getItem("fractalgen.previewSize"));
+    if (px) S.previewSize = clamp(px, 240, 2000);
+  } catch (_) { /* private mode */ }
   S.catalog = await apiJson("/api/catalog");
   buildAspects();
   if (location.hash.length > 1) {
@@ -590,6 +594,7 @@ async function renderPass() {
 
 export function setPreviewSize(px) {
   S.previewSize = clamp(Math.round(px), 240, 2000);
+  try { localStorage.setItem("fractalgen.previewSize", String(S.previewSize)); } catch (_) { /* private mode */ }
   syncDims();
   persistHash();
   scheduleRender(150);

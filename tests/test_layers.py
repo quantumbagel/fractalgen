@@ -310,3 +310,23 @@ class ServerTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ExportQualityTests(unittest.TestCase):
+    def test_supersample_validation_and_downsample(self):
+        from fractalgen.color import downsample
+        from fractalgen.gui.server import _validate_export_body
+
+        st = {"generator": "escape_time"}
+        _validate_export_body({"state": st, "width": 64, "height": 36, "supersample": 3, "jpeg_quality": 80})
+        for bad in ({"supersample": 5}, {"supersample": "2"}, {"jpeg_quality": 10}, {"width": 9000, "supersample": 2}):
+            with self.assertRaises(ValueError):
+                _validate_export_body({"state": st, "width": 64, "height": 36, **bad})
+        a = np.zeros((4, 4, 4))
+        a[:2, :2] = [1.0, 0.0, 0.0, 1.0]  # one opaque red quadrant, the rest transparent
+        out = downsample(a, 2)
+        np.testing.assert_allclose(out[0, 0], [1, 0, 0, 1])
+        np.testing.assert_allclose(out[1, 1], [0, 0, 0, 0])
+        b = np.zeros((2, 2, 4))
+        b[0, 0] = [1, 1, 1, 1]
+        np.testing.assert_allclose(downsample(b, 2)[0, 0], [1, 1, 1, 0.25])  # no dark fringe

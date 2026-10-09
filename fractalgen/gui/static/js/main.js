@@ -63,8 +63,10 @@ function TopBar() {
         <button type="button" class="btn ghost" title="Undo every change to this look" disabled=${!changed} onClick=${resetAll}>Reset</button>
       </div>
       <div class="menu-wrap">
-        <button type="button" class="icon-btn big" title="More" onClick=${() => { S.ui.menu = !S.ui.menu; emit(); }}>⋯</button>
-        ${S.ui.menu ? html`<${Menu} />` : null}
+        <button type="button" class="icon-btn big" title="More" onClick=${(e) => {
+          S.ui.menu = S.ui.menu ? false : e.currentTarget.getBoundingClientRect();
+          emit();
+        }}>⋯</button>
       </div>
       <button type="button" class="btn primary" title="Render at full size and save (S)"
         onClick=${() => { S.ui.overlay = "export"; emit(); }}><span class="long">Save wallpaper</span><span class="short">Save</span></button>
@@ -152,6 +154,7 @@ function App() {
       ${o === "save" ? html`<${SaveDialog} />` : null}
       ${o === "variations" ? html`<${VariationsOverlay} />` : null}
       ${o === "keys" ? html`<${KeysOverlay} />` : null}
+      ${S.ui.menu ? html`<${Menu} anchor=${S.ui.menu} />` : null}
       <${Toasts} />
     </div>`;
 }

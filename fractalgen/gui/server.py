@@ -507,6 +507,15 @@ def _validate_export_body(body: dict[str, Any]) -> tuple[dict[str, Any], int, in
     if fmt_raw not in ("png", "jpg", "jpeg"):
         raise ValueError("export format must be png, jpg, or jpeg")
     fmt = "jpg" if fmt_raw in ("jpg", "jpeg") else "png"
+    ss = body.get("supersample", 1)
+    if not isinstance(ss, int) or isinstance(ss, bool) or not 1 <= ss <= 4:
+        raise ValueError("supersample must be 1, 2, 3 or 4")
+    if max(w, h) * ss > _EXPORT_MAX_DIM:
+        raise ValueError(f"{w}x{h} at {ss}x supersampling renders {w * ss}x{h * ss}, over the "
+                         f"{_EXPORT_MAX_DIM}px limit; pick a lower quality or a smaller size")
+    q = body.get("jpeg_quality", 95)
+    if not isinstance(q, int) or isinstance(q, bool) or not 50 <= q <= 100:
+        raise ValueError("jpeg_quality must be 50..100")
     return state, w, h, fmt
 
 
@@ -837,13 +846,19 @@ class Exports:
             stem = "".join(c if c.isalnum() or c in "-_@" else "_" for c in (body.get("name") or state.get("recipe") or "gui"))
             path = OUT_ROOT / "gui" / f"{stem}_{w}x{h}.{fmt}"
             with progress.tracking(self.jobs[job]["_tracker"]):
+                ss = int(body.get("supersample", 1))
                 with progress.span(0.0, RENDER_SHARE):
                     recipe = state_recipe(state, state.get("recipe") or "gui")
-                    rgb = recipe.render(w, h, n_strips=default_n_strips(w, h))
+                    # Supersampling renders a bigger frame (the look is the same at every size) and
+                    # averages it down: smoother edges and fine detail.
+                    rgb = recipe.render(w * ss, h * ss, n_strips=default_n_strips(w * ss, h * ss))
                 with progress.span(RENDER_SHARE, 1.0, "saving"):
+                    from ..color import downsample
                     from ..tomlout import image_meta
 
-                    save_image(path, rgb, fmt, meta=image_meta(recipe, w, h))
+                    rgb = downsample(rgb, ss)
+                    save_image(path, rgb, fmt, jpeg_quality=int(body.get("jpeg_quality", 95)),
+                               meta=image_meta(recipe, w, h))
             # seconds before status: a poll that sees "done" must see the final time
             self.jobs[job].update(seconds=time.perf_counter() - t0, path=str(path))
             self.jobs[job]["status"] = "done"

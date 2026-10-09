@@ -3,8 +3,8 @@
 
 import { html, useEffect, useRef, useState } from "../vendor/preact-htm.js";
 import {
-  S, commit, currentAspect, emit, layerLabel, layerValue, resetView, scheduleRender, selectLayer, startCompare,
-  stopCompare, useStore,
+  S, commit, currentAspect, emit, layerLabel, layerValue, resetView, scheduleRender, selectLayer, setPreviewSize,
+  startCompare, stopCompare, useStore,
 } from "./store.js";
 import { clamp } from "./util.js";
 
@@ -237,11 +237,31 @@ export function Stage() {
     </div>`;
 }
 
+const PREVIEW_QUALITY = [
+  { px: 480, label: "Fast" },
+  { px: 960, label: "Good" },
+  { px: 1600, label: "Sharp" },
+];
+
+function PreviewQuality() {
+  const frame = document.querySelector(".frame");
+  // "Full": one render pixel per screen pixel of the preview frame.
+  const full = frame ? Math.min(2000, Math.round(Math.max(frame.clientWidth, frame.clientHeight) * (window.devicePixelRatio || 1))) : 2000;
+  const opts = [...PREVIEW_QUALITY, { px: full, label: "Full" }];
+  const cur = opts.find((o) => o.px === S.previewSize) ? S.previewSize : "custom";
+  return html`<select class="tool-select" title="Preview quality: render size of the live preview (the saved wallpaper is always full size)"
+    value=${cur} onChange=${(e) => setPreviewSize(Number(e.currentTarget.value))}>
+    ${opts.map((o) => html`<option value=${o.px}>${o.label} preview (${o.px}px)</option>`)}
+    ${cur === "custom" ? html`<option value="custom" disabled>${S.previewSize}px preview</option>` : null}
+  </select>`;
+}
+
 function StageTools() {
   const v = S.state.view;
   const zoom = (f) => { v.half_width *= f; commit("view.half_width"); };
   return html`
     <div class="stage-tools">
+      <${PreviewQuality} />
       ${v ? html`
         <button type="button" class="tool" title="Zoom in" onClick=${() => zoom(0.5)}>+</button>
         <button type="button" class="tool" title="Zoom out" onClick=${() => zoom(2)}>−</button>
