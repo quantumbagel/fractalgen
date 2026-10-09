@@ -37,7 +37,9 @@ def ripples(ctx, *, waves: int = 5, freq: float = 12.0, decay: float = 0.3, pale
     return fg.sample_palette(palette, t)
 
 
-@fg.post_op("posterize", "Quantize each channel to N levels", neutral=0, range=(0, 32))
-def posterize(rgb, levels, ctx):
-    levels = int(levels)
-    return rgb if levels < 2 else np.round(rgb * (levels - 1)) / (levels - 1)
+@fg.post_op("scanlines", "Darken every other band of rows, like an old CRT (0 = off)", neutral=0.0, range=(0.0, 1.0),
+            start=0.35, category="texture")
+def scanlines(rgb, amount, ctx):
+    period = max(2, round(6 * ctx.res_scale)) if ctx is not None else 6  # 6 pixels at 4K
+    rows = (np.arange(rgb.shape[0]) // (period // 2)) % 2
+    return rgb * (1.0 - float(amount) * rows)[:, None, None]

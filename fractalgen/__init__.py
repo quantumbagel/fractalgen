@@ -36,7 +36,10 @@ from .context import RenderContext
 from .generators.base import GENERATORS, generator
 from .loader import bootstrap, load_path, section
 from .params import Doc, Range
-from .post import POST_OPS, apply_post, post_op
+from .layers import LAYER_TYPES, apply_layers, layer_type
+from .mask import SHAPES, shape
+from .post import POST_OPS, apply_post, effect, post_op
+from .schema import Key
 from .palette import PALETTES, Palette, get_palette, register_palette, sample_palette
 from .recipe import RECIPES, Recipe, register_recipe
 from .view import View, angle
@@ -46,6 +49,9 @@ __all__ = [
     "GENERATORS",
     "PALETTES",
     "POST_OPS",
+    "LAYER_TYPES",
+    "SHAPES",
+    "Key",
     "RECIPES",
     "Recipe",
     "RenderContext",
@@ -54,6 +60,10 @@ __all__ = [
     "Range",
     "angle",
     "apply_post",
+    "apply_layers",
+    "effect",
+    "layer_type",
+    "shape",
     "auto_tone",
     "bootstrap",
     "generator",

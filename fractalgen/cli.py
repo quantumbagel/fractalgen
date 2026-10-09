@@ -95,7 +95,7 @@ def _port(text: str) -> int:
 
 
 _SWEEP_VIEW_KEYS = frozenset({"zoom", "center", "half_width", "rotation", "fit", "ref_aspect"})
-_SWEEP_TABLES = frozenset({"view", "post", "tone", "params", "mask"})
+_SWEEP_TABLES = frozenset({"view", "post", "tone", "params", "mask", "background"})
 _SWEEP_TAG_SAFE = re.compile(r"[^A-Za-z0-9._=@+-]")
 
 
@@ -112,6 +112,19 @@ def _kv_raw(text: str) -> tuple[str, str]:
         raise argparse.ArgumentTypeError(f"expected key=value, got {text!r}")
     k, v = text.split("=", 1)
     return k.strip(), v
+
+
+def _inline_table(text: str) -> dict[str, Any]:
+    """A TOML inline table, braces optional: 'type="text", text="HI", size=0.5'."""
+    import tomllib
+
+    body = text.strip()
+    if not body.startswith("{"):
+        body = "{" + body + "}"
+    try:
+        return tomllib.loads(f"v = {body}")["v"]
+    except tomllib.TOMLDecodeError as e:
+        raise argparse.ArgumentTypeError(f"expected a TOML inline table like 'type=\"text\", text=\"HI\"': {e}")
 
 
 def _suggest(kind: str, name: str, known: Iterable[str], n: int = 5) -> str:
@@ -184,6 +197,37 @@ def _add_override_args(p: argparse.ArgumentParser) -> None:
         help='Cut the render out with text / a shape / an image, e.g. --mask text=HELLO '
              '--mask background=self --mask glow=0.5 (see `mask`)',
     )
+    g.add_argument(
+        "--layer",
+        dest="layers",
+        type=_inline_table,
+        action="append",
+        default=[],
+        metavar="TABLE",
+        help='Add a layer on top (repeatable), e.g. --layer \'type="text", text="HELLO", fill="ffffff", y=0.8\' '
+             '(see `mask`)',
+    )
+    g.add_argument(
+        "--effect",
+        dest="effects",
+        type=_inline_table,
+        action="append",
+        default=[],
+        metavar="TABLE",
+        help='Add an effect at the end of the post list (repeatable), e.g. --effect \'op="bloom", amount=0.5\' '
+             '(see `post`)',
+    )
+    g.add_argument("--no-post", action="store_true", help="Drop the recipe's own effects (before --post / --effect)")
+    g.add_argument("--no-layers", action="store_true", help="Drop the recipe's own layers (before --layer)")
+    g.add_argument(
+        "--background",
+        dest="backgrounds",
+        type=_kv_raw,
+        action="append",
+        default=[],
+        metavar="KEY=VALUE",
+        help="Behind cut-out layers, e.g. --background fill=self --background dim=0.2 (see `mask`)",
+    )
 
 
 def _overrides(args: argparse.Namespace) -> dict[str, Any]:
@@ -208,14 +252,34 @@ def _overrides(args: argparse.Namespace) -> dict[str, Any]:
         view["fit"] = args.fit
     if view:
         ov["view"] = view
+    if getattr(args, "no_post", False):
+        ov["post"] = []
     if args.posts:
-        ov["post"] = dict(args.posts)
+        if ov.get("post") == []:
+            ov["new_post"] = [{"op": k, "value": v} for k, v in args.posts]
+        else:
+            ov["post"] = dict(args.posts)
+    if getattr(args, "effects", None):
+        from .post import check_post
+
+        ov["new_post"] = (ov.get("new_post") or []) + check_post(args.effects)
     if args.tones:
         ov["tone"] = dict(args.tones)
     if args.masks:
         from .mask import check_mask
 
         ov["mask"] = check_mask(dict(args.masks))
+    if getattr(args, "no_layers", False):
+        ov["layers"] = []
+        ov.pop("mask", None)
+    if getattr(args, "layers", None):
+        from .layers import check_layers
+
+        ov["new_layers"] = check_layers(args.layers)
+    if getattr(args, "backgrounds", None):
+        from .layers import check_background
+
+        ov["background"] = check_background(dict(args.backgrounds))
     return ov
 
 
@@ -502,8 +566,10 @@ def _cmd_show(args, _loads) -> int:
         print(f"tone       {r.tone}")
     if r.post:
         print(f"post       {r.post}")
-    if r.mask:
-        print(f"mask       {r.mask}")
+    if r.layers:
+        print(f"layers     {r.layers}")
+    if r.background:
+        print(f"background {r.background}")
     if r.portrait:
         print(f"portrait   {r.portrait}")
     if spec.uses_view:
@@ -735,8 +801,13 @@ def _sweep_overrides(sweep: tuple[str, Any], base: dict[str, Any]) -> list[tuple
 def _cmd_post(args, _loads) -> int:
     from .post import POST_OPS
 
-    for name, (_, doc) in POST_OPS.items():
-        print(f"  {name:12s} {doc}")
+    print("Effects run in list order; each also takes `mix` (0..1) and `enabled`. Lengths are pixels at 4K.")
+    for name, op in POST_OPS.items():
+        if op.hidden:
+            continue
+        print(f"  {name:20s} {op.doc}")
+        for pname, key in (op.params or {}).items():
+            print(f"  {'':20s}   {pname} = {key.neutral!r}: {key.doc}")
     return 0
 
 
@@ -749,13 +820,27 @@ def _cmd_tone(args, _loads) -> int:
 
 
 def _cmd_mask(args, _loads) -> int:
+    from .layers import BACKGROUND_KEYS, COMMON_KEYS, LAYER_TYPES
     from .mask import MASK_KEYS
 
-    print("Off until text, shape or image is set. Lengths are pixels at 4K.")
-    for name, key in MASK_KEYS.items():
-        extra = f" [{', '.join(c for c in key.choices if c)}]" if key.choices else ""
-        default = f" (default {key.neutral!r})" if key.neutral not in ("", None) else ""
-        print(f"  {name:16s} {key.doc}{extra}{default}")
+    def show(keys):
+        for name, key in keys.items():
+            choices = key.choice_list()
+            extra = f" [{', '.join(c for c in choices if c)}]" if choices else ""
+            default = f" (default {key.neutral!r})" if key.neutral not in ("", None) else ""
+            print(f"    {name:16s} {key.doc}{extra}{default}")
+
+    print("Layers: [[recipe.NAME.layers]] tables (or --layer 'type=\"text\", text=\"HI\"'), drawn bottom to top.")
+    print("Lengths are pixels at 4K.\n")
+    for kind, lt in LAYER_TYPES.items():
+        print(f"  type = {kind!r}: {lt.doc}")
+        show(lt.keys)
+    print("\n  every layer:")
+    show(COMMON_KEYS)
+    print("\nbackground = { ... } (behind cut-out layers, --background KEY=VALUE):")
+    show(BACKGROUND_KEYS)
+    print("\nOlder single-layer form, mask = { ... } (--mask KEY=VALUE); off until text, shape or image is set:")
+    show(MASK_KEYS)
     return 0
 
 

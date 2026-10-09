@@ -8,24 +8,32 @@ TOML formulas show up automatically.
 
 API (JSON unless noted)
 -----------------------
-GET  /api/catalog                     generators (+ param schema), recipes, palettes, post / tone ops, presets,
-                                      and per-formula default `coeffs` for map/flow attractors
+GET  /api/catalog                     generators (+ param schema), recipes, palettes, effects, layer types,
+                                      tone / background keys, blend modes, fonts, presets, map/flow `coeffs`
 GET  /api/state?recipe=NAME&w=&h=     a recipe resolved to an editable *state*
 POST /api/render   {state}            -> image/png (204 if the same client asked for a newer seq meanwhile)
                                       headers: X-Render-Ms, X-View-Extent "half_w,half_h" (view generators;
-                                      for the frame size `extent_size` [w, h] if given)
+                                      for the frame size `extent_size` [w, h] if given), X-Layer-Boxes (JSON)
 POST /api/save     {name, state, overwrite}  -> writes custom/NAME.toml and registers it
 POST /api/export   {state, width, height, format, name} -> {job}; full-size render in the background
 GET  /api/export/JOB                  -> {status, path, error, seconds, progress, stage}
+GET  /api/export/JOB/file             -> the exported image
 GET  /api/progress?client=ID          -> {progress, stage} of that client's running preview render
-                                      (progress null when none is running)
+POST /api/upload   (raw bytes; X-Filename header) -> {path}: saved under custom/uploads/ for image layers
+POST /api/reveal   {path}             -> shows an exported file in Finder / Explorer / the file manager
+POST /api/wallpaper {path}            -> sets an exported file as the desktop wallpaper
+POST /api/cli      {state, width, height} -> {command}
 
 A *state* is::
 
     {"recipe": "julia_dragon" | null, "generator": "escape_time",
      "palette": "ember" | ["000000", ...] | null,
      "params": {...}, "view": {"center": [re, im], "half_width": h, "rotation": deg, "fit": "fill"} | null,
-     "post": {...}, "tone": {...}, "mask": {...}, "width": 640, "height": 360, "seq": 12, "client": "a1b2"}
+     "tone": {...}, "post": [{"op": "vignette", "value": 0.3}, ...],
+     "layers": [{"type": "text", "text": "HI", ...}, ...], "background": {...},
+     "width": 640, "height": 360, "seq": 12, "client": "a1b2"}
+
+List items may carry an ``id`` (the page's own key); it is ignored.
 """
 
 from __future__ import annotations
@@ -56,10 +64,13 @@ from ..engine import OUT_ROOT
 from ..generators.base import GENERATORS, Param
 from ..loader import CUSTOM_DIR, bootstrap
 from ..palette import PALETTES
-from ..mask import MASK_KEYS, check_mask
-from ..post import POST_OPS
+from .. import layers as layering
+from ..blend import BLEND_MODES
+from ..labels import label_for
+from ..mask import MASK_KEYS
+from ..post import POST_OPS, check_post, post_to_legacy
 from ..tone import TONE_KEYS
-from ..recipe import RECIPES, Recipe
+from ..recipe import RECIPES, Recipe, _merge_edits
 
 STATIC = Path(__file__).resolve().parent / "static"
 _COLOR_WORDS = ("color", "colour", "tint", "bg", "background", "interior", "glow", "metal", "teal", "plum", "violet")
@@ -67,6 +78,16 @@ _MAX_BODY_BYTES = 10 * 1024 * 1024
 _PREVIEW_MAX_DIM = 4096
 _EXPORT_MAX_DIM = 16384
 _SAVE_NAME_CHARS = frozenset(string.ascii_letters + string.digits + "_-")
+_UPLOAD_MAX_BYTES = 40 * 1024 * 1024
+_UPLOAD_EXT = (".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".tif", ".tiff")
+
+# Parameters shown up front in the GUI; the rest sit under "More settings".
+_BASIC_PARAMS = frozenset({
+    "palette", "c", "formula", "power", "max_iter", "map", "flow", "field", "expr", "trap", "symmetry", "n",
+    "seed", "colors", "coloring", "interior", "style", "mode", "kind", "density", "speed", "freq", "zoom",
+    "exposure", "saturation", "gamma", "blur", "glow_strength", "sequence", "F", "k", "n_magnets", "xforms",
+    "n_xforms", "p", "q", "waves", "drops", "tile_colors", "color_by", "glow_color", "background_color", "hues",
+})
 
 
 # ---------------------------------------------------------------- schema ----
@@ -136,12 +157,24 @@ def param_schema(p: Param) -> dict[str, Any]:
     rng = list(p.range) if p.range else default_range(kind, p.default)
     return {
         "name": p.name,
+        "label": label_for(p.name),
         "kind": kind,
         "default": default,
         "doc": p.doc,
         "range": rng,
         "choices": p.choice_list(),
+        "advanced": p.name not in _BASIC_PARAMS,
     }
+
+
+def _font_names() -> list[str]:
+    from ..mask import _font_files
+
+    seen: dict[str, str] = {}
+    for path in _font_files().values():
+        stem = path.stem.replace("-", " ").replace("_", " ")
+        seen.setdefault(stem.lower(), stem)
+    return sorted(seen.values(), key=str.lower)
 
 
 def catalog() -> dict[str, Any]:
@@ -150,12 +183,16 @@ def catalog() -> dict[str, Any]:
     gens = {}
     for name in GENERATORS:
         g = GENERATORS.get(name)
+        params = [param_schema(p) for p in g.params.values()]
+        if not any(not p["advanced"] for p in params if p["name"] != "palette"):
+            for p in [p for p in params if p["name"] != "palette"][:4]:
+                p["advanced"] = False
         gens[name] = {
             "category": g.category,
             "description": g.description,
             "uses_view": g.uses_view,
             "default_view": jsonable(g.default_view),
-            "params": [param_schema(p) for p in g.params.values()],
+            "params": params,
         }
     from ..generators.fields import VECTOR_FIELDS
     from ..generators.flows import FLOWS
@@ -171,32 +208,37 @@ def catalog() -> dict[str, Any]:
         "generators": gens,
         "coefficients": coeff_sets,
         "recipes": [
-            {"name": n, "generator": r.generator, "description": r.description, "tags": list(r.tags)}
+            {"name": n, "generator": r.generator, "description": r.description, "tags": list(r.tags),
+             "category": GENERATORS.get(r.generator).category if r.generator in GENERATORS else "misc",
+             "custom": bool(r.source) and Path(r.source).resolve().is_relative_to(CUSTOM_DIR.resolve())}
             for n, r in RECIPES.items()
         ],
         "palettes": [
             {"name": n, "stops": PALETTES.get(n).hex_stops(), "description": PALETTES.get(n).description}
             for n in PALETTES
         ],
-        "post_ops": [
-            {"name": n, "doc": op.doc, "kind": op.kind or "float", "neutral": jsonable(op.neutral),
-             "range": list(op.range) if op.range else None}
-            for n, op in POST_OPS.items()
-        ],
+        "effects": [op.schema(n) for n, op in POST_OPS.items() if not op.hidden],
         "tone_ops": [
-            {"name": n, "doc": k.doc, "kind": k.kind, "neutral": k.neutral, "range": list(k.range) if k.range else None}
+            {"name": n, "label": label_for(n), "doc": k.doc, "kind": k.kind, "neutral": k.neutral,
+             "range": list(k.range) if k.range else None}
             for n, k in TONE_KEYS.items()
         ],
-        "mask_ops": [
-            {"name": n, "doc": k.doc, "kind": k.kind, "neutral": k.neutral, "range": list(k.range) if k.range else None,
-             "choices": list(k.choices) if k.choices else None}
-            for n, k in MASK_KEYS.items()
-        ],
+        "layer_types": [lt.schema(n) for n, lt in layering.LAYER_TYPES.items()],
+        "background_keys": [k.schema(n) for n, k in layering.BACKGROUND_KEYS.items()],
+        "blend_modes": list(BLEND_MODES),
+        "fonts": _font_names(),
         "presets": [
             {"name": n, "width": p.width, "height": p.height, "format": p.format}
             for n, p in PRESETS.items() if n == p.name
         ],
+        "platform": _platform(),
     }
+
+
+def _platform() -> str:
+    import sys
+
+    return "mac" if sys.platform == "darwin" else "windows" if sys.platform.startswith("win") else "linux"
 
 
 def recipe_state(name: str, w: int, h: int) -> dict[str, Any]:
@@ -212,34 +254,56 @@ def recipe_state(name: str, w: int, h: int) -> dict[str, Any]:
                  "rotation": view.rotation, "fit": view.fit} if spec.uses_view else None,
         "post": jsonable(r.resolve_post(w, h)),
         "tone": jsonable(r.resolve_tone(w, h)),
-        "mask": jsonable(r.resolve_mask(w, h)),
+        **dict(zip(("layers", "background"), jsonable(list(r.resolve_layers(w, h))))),
         "width": w,
         "height": h,
     }
 
 
+def _table_diff(cur: dict[str, Any], ref: dict[str, Any]) -> dict[str, Any]:
+    """Keys that differ; ``None`` resets a key ``cur`` dropped."""
+    return {k: cur.get(k) for k in set(cur) | set(ref) if cur.get(k) != ref.get(k)}
+
+
+def state_layers(state: dict[str, Any]) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """A state's (layers, background); an older state's ``mask`` table is read as one layer."""
+    if state.get("mask") and not state.get("layers"):
+        return layering.from_mask({k: v for k, v in state["mask"].items() if v is not None})
+    return (layering.check_layers(state.get("layers")),
+            layering.check_background({k: v for k, v in (state.get("background") or {}).items() if v is not None}))
+
+
+def state_post(state: dict[str, Any]) -> list[dict[str, Any]]:
+    return check_post(state.get("post"))
+
+
 def state_edits(state: dict[str, Any], base: Recipe) -> dict[str, Any]:
-    """What the GUI changed relative to ``base`` resolved at the state's own frame size."""
+    """What the GUI changed relative to ``base`` resolved at the state's own frame size.
+
+    Layer edits are a patch by index while the stack keeps its shape (same kinds in the
+    same order), so the other orientation keeps its own overrides; otherwise the list.
+    """
     ref = recipe_state(base.name, int(state.get("width", 640)), int(state.get("height", 360)))
-    edits: dict[str, Any] = {"params": {}, "view": {}, "post": {}, "tone": {}, "mask": {}}
+    edits: dict[str, Any] = {"params": {}, "view": {}, "tone": {}, "background": {}}
     for k, v in (state.get("params") or {}).items():
         if v != ref["params"].get(k):
             edits["params"][k] = v
     for k, v in (state.get("view") or {}).items():
         if ref["view"] is not None and v != ref["view"].get(k):
             edits["view"][k] = v
-    post, ref_post = state.get("post") or {}, ref["post"]
-    for k in set(post) | set(ref_post):
-        if post.get(k) != ref_post.get(k):
-            edits["post"][k] = post.get(k)  # None switches a recipe's op off
-    tone, ref_tone = state.get("tone") or {}, ref["tone"]
-    for k in set(tone) | set(ref_tone):
-        if tone.get(k) != ref_tone.get(k):
-            edits["tone"][k] = tone.get(k)
-    mask, ref_mask = state.get("mask") or {}, ref["mask"]
-    for k in set(mask) | set(ref_mask):
-        if mask.get(k) != ref_mask.get(k):
-            edits["mask"][k] = mask.get(k)  # None drops a recipe's key back to its default
+    edits["tone"] = _table_diff(state.get("tone") or {}, ref["tone"])
+    layers, background = state_layers(state)
+    ref_layers, ref_bg = layering.check_layers(ref["layers"]), layering.check_background(ref["background"])
+    edits["background"] = _table_diff(background, ref_bg)
+    if layers != ref_layers:
+        if [l["type"] for l in layers] == [l["type"] for l in ref_layers]:
+            edits["layers"] = {str(i): _table_diff(cur, old) for i, (cur, old) in enumerate(zip(layers, ref_layers))
+                               if cur != old}
+        else:
+            edits["layers"] = layers
+    post = state_post(state)
+    if post != check_post(ref["post"]):
+        edits["post"] = post
     if state.get("palette") != ref["palette"]:
         edits["palette"] = state.get("palette")
     return edits
@@ -260,9 +324,27 @@ def state_recipe(state: dict[str, Any], name: str = "gui") -> Recipe:
         e = state_edits(state, base)
         e["params"] = {k: v for k, v in e["params"].items() if k in gen.params and k != "palette"}
         portrait = {k: dict(v) if isinstance(v, dict) else v for k, v in base.portrait.items()}
-        for key in ("params", "post", "tone", "mask"):
+        for key in ("params", "tone", "background"):
             if e[key]:
                 portrait[key] = {**(portrait.get(key) or {}), **e[key]}
+        layers = base.layers
+        if "layers" in e:
+            edit = e["layers"]
+            try:
+                layers = layering.patch_layers(base.layers, edit)
+            except (IndexError, KeyError):  # the orientations' stacks differ: the edited one wins
+                edit = layers = state_layers(state)[0]
+            if isinstance(edit, list):
+                portrait.pop("layers", None)
+            elif portrait.get("layers") is not None:
+                try:
+                    portrait["layers"] = _merge_edits(portrait["layers"], edit, layering.patch_layers)
+                except (IndexError, KeyError):
+                    portrait.pop("layers")
+        post = base.post
+        if "post" in e:
+            post = e["post"]
+            portrait.pop("post", None)
         # View edits are absolute in the orientation they were made in; the other
         # orientation gets the same pan / zoom / turn relative to its own framing.
         view_edits, other_edits = e["view"], {}
@@ -275,6 +357,7 @@ def state_recipe(state: dict[str, Any], name: str = "gui") -> Recipe:
         palette = base.palette
         if "palette" in e:
             palette = portrait["palette"] = e["palette"]
+        drop = lambda d: {k: v for k, v in d.items() if v is not None}  # noqa: E731
         return Recipe(
             name=name,
             generator=gen.name,
@@ -282,15 +365,17 @@ def state_recipe(state: dict[str, Any], name: str = "gui") -> Recipe:
             view={**base.view, **land_edits} if gen.uses_view else {},
             portrait=portrait,
             palette=palette if "palette" in gen.params else None,
-            post={k: v for k, v in {**base.post, **e["post"]}.items() if v is not None},
-            tone={k: v for k, v in {**base.tone, **e["tone"]}.items() if v is not None},
-            mask={k: v for k, v in {**base.mask, **e["mask"]}.items() if v is not None},
+            post=post,
+            tone=drop({**base.tone, **e["tone"]}),
+            layers=layers,
+            background=drop({**base.background, **e["background"]}),
             description=base.description,
             # Pans and zooms keep the recipe's own exposure (see tone.py): tone is
             # measured on that recipe's anchor view, in whichever orientation renders.
             tone_from=(base.tone_from or base.name) if gen.uses_view else "",
         )
     view = dict(state.get("view") or {}) if gen.uses_view else {}
+    layers, background = state_layers(state)
     return Recipe(
         name=name,
         generator=gen.name,
@@ -298,9 +383,10 @@ def state_recipe(state: dict[str, Any], name: str = "gui") -> Recipe:
         view=view,
         portrait={"view": dict(view)} if view else {},  # keep the chosen fit on phones too
         palette=state.get("palette") if "palette" in gen.params else None,
-        post={k: v for k, v in (state.get("post") or {}).items() if v is not None},
+        post=state_post(state),
         tone={k: v for k, v in (state.get("tone") or {}).items() if v is not None},
-        mask=check_mask(state.get("mask")),
+        layers=layers,
+        background=background,
         tone_view={} if gen.uses_view else None,  # expose as at the generator's default view
     )
 
@@ -352,6 +438,12 @@ def _fmt_palette_cli(p: Any) -> str:
     if isinstance(p, dict) and "stops" in p:
         return ",".join(str(x).replace("#", "") for x in p["stops"])
     return _fmt_literal(p)
+
+
+def _inline(table: dict[str, Any]) -> str:
+    from ..tomlout import toml_value
+
+    return toml_value(table)[2:-2]  # "{ a = 1 }" -> "a = 1"
 
 
 def _diff_maps(a: dict[str, Any], b: dict[str, Any]) -> dict[str, Any]:
@@ -438,9 +530,10 @@ def cli_command(state: dict[str, Any], width: int, height: int) -> str:
             "palette": None,
             "params": {},
             "view": None,
-            "post": {},
+            "post": [],
             "tone": {},
-            "mask": {},
+            "layers": [],
+            "background": {},
         }
         g = GENERATORS.get(gen)
         if g:
@@ -481,17 +574,39 @@ def cli_command(state: dict[str, Any], width: int, height: int) -> str:
             parts.extend(["--rotate", _shell_quote(str(v["rotation"]))])
         if v.get("fit") is not None:
             parts.extend(["--fit", _shell_quote(str(v["fit"]))])
-    for k, val in sorted(_diff_maps(state.get("post") or {}, ref.get("post") or {}).items()):
-        if val is not None:
-            parts.extend(["--post", _shell_quote(f"{k}={_fmt_literal(val)}")])
     for k, val in sorted(_diff_maps(state.get("tone") or {}, ref.get("tone") or {}).items()):
         if val is not None:
             parts.extend(["--tone", _shell_quote(f"{k}={_fmt_literal(val)}")])
-    for k, val in sorted(_diff_maps(state.get("mask") or {}, ref.get("mask") or {}).items()):
-        if val is None:  # back to the default
-            val = MASK_KEYS[k].neutral if k in MASK_KEYS else None
-        if val is not None:
+    post, ref_post = state_post(state), check_post(ref.get("post"))
+    if post != ref_post:
+        new, old = post_to_legacy(post), post_to_legacy(ref_post)
+        if new is not None and old is not None and set(old) <= set(new):
+            for k in sorted(_diff_maps(new, old)):
+                parts.extend(["--post", _shell_quote(f"{k}={_fmt_literal(new[k])}")])
+        else:
+            if ref_post:
+                parts.append("--no-post")
+            for item in post:
+                parts.extend(["--effect", _shell_quote(_inline(item))])
+    layers, background = state_layers(state)
+    ref_layers = layering.check_layers(ref.get("layers"))
+    ref_bg = layering.check_background(ref.get("background"))
+    new_mask, old_mask = layering.to_mask(layers, background), layering.to_mask(ref_layers, ref_bg)
+    if new_mask is not None and old_mask is not None:  # one cut-out layer: the compact --mask form
+        for k, val in sorted(_diff_maps(new_mask, old_mask).items()):
+            if val is None:  # back to the default
+                val = MASK_KEYS[k].neutral
             parts.extend(["--mask", _shell_quote(f"{k}={val if isinstance(val, str) else _fmt_literal(val)}")])
+        return " ".join(parts)
+    if layers != ref_layers:
+        if ref_layers:
+            parts.append("--no-layers")
+        for layer in layers:
+            parts.extend(["--layer", _shell_quote(_inline(layer))])
+    for k, val in sorted(_diff_maps(background, ref_bg).items()):
+        if val is None:
+            val = layering.BACKGROUND_KEYS[k].neutral
+        parts.extend(["--background", _shell_quote(f"{k}={val if isinstance(val, str) else _fmt_literal(val)}")])
     return " ".join(parts)
 
 
@@ -516,7 +631,8 @@ def thumb_fingerprint(recipe_name: str, w: int, h: int) -> str:
         "view": st["view"],
         "post": st["post"],
         "tone": st["tone"],
-        "mask": st["mask"],
+        "layers": st["layers"],
+        "background": st["background"],
         "w": w,
         "h": h,
     }
@@ -639,7 +755,7 @@ class Renderer:
             else:
                 self._waiting.pop(client, None)
 
-    def render_png(self, state: dict[str, Any]) -> tuple[bytes | None, float, str]:
+    def render_png(self, state: dict[str, Any]) -> tuple[bytes | None, float, str, str]:
         _validate_render_state(state)
         seq = int(state.get("seq", 0))
         client = str(state.get("client", ""))
@@ -649,7 +765,7 @@ class Renderer:
         with self.lock:
             self._dec_waiting(client)
             if seq < self.latest[client]:
-                return None, 0.0, ""
+                return None, 0.0, "", ""
             w, h = _parse_dims(state.get("width", 640), state.get("height", 360),
                                max_dim=_PREVIEW_MAX_DIM, label="preview")
             t0 = time.perf_counter()
@@ -667,7 +783,9 @@ class Renderer:
                 _, _, view = recipe.resolve(w, h)
                 hw, hh = view.extents(*(state.get("extent_size") or (w, h)))
                 extent = f"{hw!r},{hh!r}"
-            return buf.getvalue(), (time.perf_counter() - t0) * 1000.0, extent
+            layers, _ = recipe.resolve_layers(w, h)
+            boxes = json.dumps(layering.layer_boxes(layers, w, h)) if layers else ""
+            return buf.getvalue(), (time.perf_counter() - t0) * 1000.0, extent, boxes
 
 
 class Exports:
@@ -756,6 +874,70 @@ def save_state(name: str, state: dict[str, Any], overwrite: bool = False) -> Pat
     return path
 
 
+def save_upload(filename: str, data: bytes) -> str:
+    """Store an image the page uploaded for an image layer; returns its path relative to custom/."""
+    stem = Path(filename or "image").stem
+    ext = Path(filename or "").suffix.lower()
+    if ext not in _UPLOAD_EXT:
+        raise ValueError(f"upload an image ({', '.join(_UPLOAD_EXT)}), got {filename!r}")
+    if len(data) > _UPLOAD_MAX_BYTES:
+        raise ValueError(f"image too large ({len(data)} bytes; max {_UPLOAD_MAX_BYTES})")
+    from PIL import Image
+
+    Image.open(io.BytesIO(data)).verify()  # raises on non-images
+    safe = "".join(c if c.isalnum() or c in "-_" else "_" for c in stem)[:60] or "image"
+    digest = hashlib.sha256(data).hexdigest()[:8]
+    rel = Path("uploads") / f"{safe}-{digest}{ext}"
+    dest = CUSTOM_DIR / rel
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    if not dest.exists():
+        dest.write_bytes(data)
+    return rel.as_posix()
+
+
+def _exported(path: str, exports: "Exports") -> Path:
+    """Only files this server exported may be revealed / set as wallpaper."""
+    p = Path(path).resolve()
+    known = {Path(j["path"]).resolve() for j in exports.jobs.values() if j.get("path")}
+    if p not in known or not p.is_file():
+        raise ValueError("not an exported file")
+    return p
+
+
+def reveal(path: Path) -> None:
+    import subprocess
+    import sys
+
+    if sys.platform == "darwin":
+        subprocess.run(["open", "-R", str(path)], check=True)
+    elif sys.platform.startswith("win"):
+        subprocess.run(["explorer", "/select,", str(path)], check=False)
+    else:
+        subprocess.run(["xdg-open", str(path.parent)], check=True)
+
+
+def set_wallpaper(path: Path) -> None:
+    import subprocess
+    import sys
+
+    if sys.platform == "darwin":
+        script = f'tell application "System Events" to tell every desktop to set picture to {json.dumps(str(path))}'
+        subprocess.run(["osascript", "-e", script], check=True, capture_output=True)
+    elif sys.platform.startswith("win"):
+        import ctypes
+
+        if not ctypes.windll.user32.SystemParametersInfoW(20, 0, str(path), 3):  # SPI_SETDESKWALLPAPER
+            raise OSError("Windows refused the wallpaper")
+    else:
+        uri = path.as_uri()
+        for key in ("picture-uri", "picture-uri-dark"):
+            subprocess.run(["gsettings", "set", "org.gnome.desktop.background", key, uri], check=True)
+
+
+_CTYPES = {".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8",
+           ".css": "text/css; charset=utf-8", ".svg": "image/svg+xml", ".png": "image/png", ".json": "application/json"}
+
+
 def make_handler(renderer: Renderer, exports: Exports, thumbs: ThumbQueue | None = None):
     class Handler(BaseHTTPRequestHandler):
         server_version = "fractalgen-gui"
@@ -800,6 +982,12 @@ def make_handler(renderer: Renderer, exports: Exports, thumbs: ThumbQueue | None
             try:
                 if url.path in ("/", "/index.html"):
                     self._send(200, (STATIC / "index.html").read_bytes(), "text/html; charset=utf-8")
+                elif url.path.startswith("/static/"):
+                    fp = (STATIC / url.path[len("/static/"):]).resolve()
+                    if fp.is_file() and fp.is_relative_to(STATIC.resolve()) and fp.suffix in _CTYPES:
+                        self._send(200, fp.read_bytes(), _CTYPES[fp.suffix])
+                    else:
+                        self._send(404, b"not found", "text/plain")
                 elif url.path == "/api/catalog":
                     self._json(catalog())
                 elif url.path == "/api/state":
@@ -855,21 +1043,38 @@ def make_handler(renderer: Renderer, exports: Exports, thumbs: ThumbQueue | None
         def do_POST(self) -> None:  # noqa: N802
             url = urlparse(self.path)
             try:
+                if url.path == "/api/upload":
+                    n = int(self.headers.get("Content-Length") or 0)
+                    if n <= 0 or n > _UPLOAD_MAX_BYTES:
+                        raise ValueError(f"upload size must be 1..{_UPLOAD_MAX_BYTES} bytes")
+                    from urllib.parse import unquote
+
+                    name = unquote(self.headers.get("X-Filename") or "image.png")
+                    self._json({"path": save_upload(name, self.rfile.read(n))})
+                    return
                 body = self._body()
                 if url.path == "/api/render":
-                    png, ms, extent = renderer.render_png(body)
+                    png, ms, extent, boxes = renderer.render_png(body)
                     if png is None:  # superseded: no content, and no console error in the browser
                         self._send(204, b"", "text/plain", {"X-Stale": "1"})
                     else:
                         hdr = {"X-Render-Ms": f"{ms:.0f}"}
                         if extent:  # frame half-extents in plane units (before rotation)
                             hdr["X-View-Extent"] = extent
+                        if boxes:
+                            hdr["X-Layer-Boxes"] = boxes
                         self._send(200, png, "image/png", hdr)
                 elif url.path == "/api/save":
                     path = save_state(body["name"], body["state"], body.get("overwrite") is True)
                     self._json({"path": str(path), "name": body["name"]})
                 elif url.path == "/api/export":
                     self._json({"job": exports.start(body)})
+                elif url.path == "/api/reveal":
+                    reveal(_exported(str(body.get("path", "")), exports))
+                    self._json({"ok": True})
+                elif url.path == "/api/wallpaper":
+                    set_wallpaper(_exported(str(body.get("path", "")), exports))
+                    self._json({"ok": True})
                 elif url.path == "/api/cli":
                     st = body.get("state") or body
                     w = int(body.get("width", st.get("width", 640)))

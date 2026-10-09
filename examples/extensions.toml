@@ -74,4 +74,4 @@ generator = "ripples"
 palette = "biolum"
 view = { half_width = 1.6 }
 params = { waves = 7, freq = 18.0 }
-post = { posterize = 12, vignette = 0.4 }
+post = { scanlines = 0.3, vignette = 0.4 }

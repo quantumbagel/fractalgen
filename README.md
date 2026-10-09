@@ -288,9 +288,10 @@ def ripples(ctx, *, waves: int = 5, freq: float = 12.0, palette="abyss", seed: i
     amp = sum(np.sin(freq * np.hypot(re - x, im - y)) for x, y in rng.uniform(-1, 1, (waves, 2)))
     return fg.sample_palette(palette, fg.histogram_index(amp, np.ones_like(amp, bool)))
 
-@fg.post_op("posterize", "Quantize each channel to N levels", range=(2, 32))
-def posterize(rgb, levels, ctx):
-    return np.round(rgb * levels) / levels
+@fg.post_op("scanlines", "Darken every other band of rows (0 = off)", neutral=0.0, range=(0.0, 1.0))
+def scanlines(rgb, amount, ctx):
+    rows = (np.arange(rgb.shape[0]) // 3) % 2
+    return rgb * (1.0 - amount * rows)[:, None, None]
 ```
 
 Other hooks: `fg.register_palette`, `fg.register_formula` (numba step

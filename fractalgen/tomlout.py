@@ -47,6 +47,10 @@ def _recipe_table(name: str, *suffix: str) -> str:
     return "[" + ".".join(_key(s) for s in ("recipe", name, *suffix)) + "]"
 
 
+def _array_table(name: str, *suffix: str) -> str:
+    return "[" + _recipe_table(name, *suffix) + "]"
+
+
 def _line(key: str, value: Any, doc: str = "") -> str:
     comment = f"  # {doc}" if doc else ""
     if value is None:
@@ -56,8 +60,9 @@ def _line(key: str, value: Any, doc: str = "") -> str:
 
 def recipe_to_toml(src: Recipe, name: str, *, width: int = 3840, height: int = 2160) -> str:
     """A self-contained recipe with every generator parameter written out."""
+    from .layers import BACKGROUND_KEYS, to_mask
     from .mask import MASK_KEYS
-    from .post import POST_OPS
+    from .post import POST_OPS, post_to_legacy
     from .tone import TONE_KEYS
 
     spec, params, view = src.resolve(width, height)
@@ -94,13 +99,25 @@ def recipe_to_toml(src: Recipe, name: str, *, width: int = 3840, height: int = 2
             continue
         out.append(_line(pname, params.get(pname), p.doc))
 
-    out += ["", _recipe_table(name, "post"), "# Finishing ops for any generator; uncomment to use."]
-    for op, (_, doc) in POST_OPS.items():
-        if op in src.post:
-            out.append(_line(op, src.post[op], doc))
-        else:
-            out.append(f"# {op} = ...  # {doc}")
-
+    legacy_post = post_to_legacy(src.post)
+    if legacy_post is not None:
+        out += ["", _recipe_table(name, "post"), "# Finishing effects for any generator; uncomment to use. For repeats or "
+                "your own order use [[recipe.NAME.post]] tables (see `fractalgen post`)."]
+        for op, pop in POST_OPS.items():
+            if pop.hidden and op not in legacy_post:
+                continue
+            if op in legacy_post:
+                out.append(_line(op, legacy_post[op], pop.doc))
+            elif not pop.params:
+                out.append(f"# {op} = ...  # {pop.doc}")
+            else:
+                out.append(f"# {op} = {{ {', '.join(f'{k} = {toml_value(v.neutral)}' for k, v in pop.params.items())} }}"
+                           f"  # {pop.doc}")
+    else:
+        out += ["", "# Finishing effects, applied in this order."]
+        for item in src.post:
+            out.append(_array_table(name, "post"))
+            out += [_line(k, v) for k, v in item.items()]
     out += ["", _recipe_table(name, "tone"), "# Auto-exposure adjustments; omitted keys keep the look's default."]
     for key, tk in TONE_KEYS.items():
         if key in src.tone:
@@ -108,13 +125,26 @@ def recipe_to_toml(src: Recipe, name: str, *, width: int = 3840, height: int = 2
         else:
             out.append(f"# {key} = {toml_value(tk.neutral)}  # {tk.doc}")
 
-    out += ["", _recipe_table(name, "mask"), "# Cut the render out with text / a shape / an image; set text, shape or image to use."]
-    for key, mk in MASK_KEYS.items():
-        if key in src.mask:
-            out.append(_line(key, src.mask[key], mk.doc))
-        else:
-            out.append(f"# {key} = {toml_value(mk.neutral)}  # {mk.doc}")
-
+    legacy_mask = to_mask(src.layers, src.background)
+    if legacy_mask is not None:
+        out += ["", _recipe_table(name, "mask"), "# Cut the render out with text / a shape / an image; set text, shape "
+                "or image to use. For several layers use [[recipe.NAME.layers]] tables (see `fractalgen mask`)."]
+        for key, mk in MASK_KEYS.items():
+            if key in legacy_mask:
+                out.append(_line(key, legacy_mask[key], mk.doc))
+            else:
+                out.append(f"# {key} = {toml_value(mk.neutral)}  # {mk.doc}")
+    else:
+        out += ["", _recipe_table(name, "background"), "# Behind cut-out layers (fill = \"fractal\")."]
+        for key, bk in BACKGROUND_KEYS.items():
+            if key in src.background:
+                out.append(_line(key, src.background[key], bk.doc))
+            else:
+                out.append(f"# {key} = {toml_value(bk.neutral)}  # {bk.doc}")
+        out += ["", "# Layers, bottom to top."]
+        for layer in src.layers:
+            out.append(_array_table(name, "layers"))
+            out += [_line(k, v) for k, v in layer.items()]
     portrait = {k: dict(v) if isinstance(v, dict) else v for k, v in src.portrait.items()}
     if spec.portrait_params:
         portrait["params"] = {**spec.portrait_params, **(portrait.get("params") or {})}
@@ -186,7 +216,7 @@ def overrides_to_toml(name: str, generator: str, ov: dict[str, Any]) -> str:
     lines = [_recipe_table(name), _line("generator", generator)]
     if "palette" in ov:
         lines.append(_line("palette", ov["palette"]))
-    for key in ("view", "params", "post", "tone", "mask"):
+    for key in ("view", "params", "post", "tone", "mask", "layers", "background"):
         if ov.get(key):
             lines.append(f"{key} = {toml_value(ov[key])}")
     return "\n".join(lines)

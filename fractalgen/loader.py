@@ -105,6 +105,8 @@ def _drop_source(source: str) -> dict[str, list[str]]:
     from .generators.flows import FLOWS
     from .generators.maps import MAPS
     from .palette import PALETTES
+    from .layers import LAYER_TYPES
+    from .mask import SHAPES
     from .post import POST_OPS
     from .recipe import RECIPES, _RAW
 
@@ -113,6 +115,8 @@ def _drop_source(source: str) -> dict[str, list[str]]:
         "palettes": PALETTES,
         "recipes": RECIPES,
         "post_ops": POST_OPS,
+        "shapes": SHAPES,
+        "layer_types": LAYER_TYPES,
         "presets": PRESETS,
         "maps": MAPS,
         "flows": FLOWS,

@@ -117,11 +117,16 @@ class GuiApiTests(unittest.TestCase):
     def test_index_html(self) -> None:
         _, hdrs, body = self._get("/")
         self.assertIn("text/html", hdrs.get("Content-type") or hdrs.get("Content-Type", ""))
-        self.assertIn(b"<script>", body)
+        self.assertIn(b'type="module"', body)
+        _, hdrs, js = self._get("/static/js/main.js")
+        self.assertIn("javascript", hdrs.get("Content-Type", ""))
+        self.assertIn(b"render(", js)
+        self._get("/static/../server.py", code=404)
 
     def test_catalog(self) -> None:
         cat = self._json("/api/catalog")
-        for key in ("generators", "recipes", "palettes", "post_ops", "presets", "coefficients"):
+        for key in ("generators", "recipes", "palettes", "effects", "layer_types", "background_keys", "blend_modes",
+                    "fonts", "tone_ops", "presets", "coefficients"):
             self.assertIn(key, cat)
         for g in cat["generators"].values():
             for p in g["params"]:
@@ -195,10 +200,11 @@ class GuiApiTests(unittest.TestCase):
         # Untouched portrait framing stays portrait-only.
         self.assertEqual(v_land.center, base.resolve(64, 36)[2].center)
         self.assertEqual(v_port.center, base.resolve(36, 64)[2].center)
-        # Switching a recipe's post op off sticks.
+        # Effects added in the GUI stick, in their order.
         st = recipe_state("julia_dragon", 64, 36)
-        st["post"] = {"vignette": 0.5}
-        self.assertEqual(state_recipe(st).resolve_post(64, 36).get("vignette"), 0.5)
+        st["post"] = [{"op": "vignette", "value": 0.5, "id": "a"}, {"op": "bloom", "amount": 0.2}]
+        self.assertEqual(state_recipe(st).resolve_post(36, 64),
+                         [{"op": "vignette", "value": 0.5}, {"op": "bloom", "amount": 0.2}])
 
     def test_bad_input_400(self) -> None:
         _, _, raw = self._get("/api/state?recipe=__no_such__&w=64&h=36", code=400)

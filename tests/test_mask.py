@@ -193,7 +193,8 @@ class MaskRecipeTests(unittest.TestCase):
 
     def test_builtin_masked_recipes_render(self):
         for name in ("seahorse_porthole", "snowflake_star", "dragon_lettering"):
-            self.assertTrue(RECIPES.get(name).mask, name)
+            self.assertTrue(RECIPES.get(name).layers, name)
+            self.assertIsNotNone(RECIPES.get(name).resolve_mask(64, 36), name)
 
     def test_fork_round_trip_keeps_mask(self):
         import tomllib
@@ -204,7 +205,8 @@ class MaskRecipeTests(unittest.TestCase):
         text = recipe_to_toml(src, "forked")
         self.assertIn("[recipe.forked.mask]", text)
         forked = Recipe.from_table("forked", tomllib.loads(text)["recipe"]["forked"])
-        self.assertEqual(forked.mask, src.mask)
+        self.assertEqual(forked.layers, src.layers)
+        self.assertEqual(forked.background, src.background)
         self.assertEqual(forked.resolve_mask(36, 64), src.resolve_mask(36, 64))
 
 
@@ -237,17 +239,19 @@ class MaskGuiStateTests(unittest.TestCase):
         from fractalgen.gui import server
 
         st = server.recipe_state("dragon_lettering", 64, 36)
-        self.assertEqual(st["mask"]["text"], "FRACTAL")
-        st["mask"] = {**st["mask"], "glow": 0.1, "shadow": None}
+        self.assertEqual(st["layers"][0]["text"], "FRACTAL")
+        layer = {**st["layers"][0], "glow": 0.1}
+        del layer["shadow"]
+        st["layers"] = [layer]
         r = server.state_recipe(st, "gui_mask_test")
-        self.assertEqual(r.mask["glow"], 0.1)
-        self.assertNotIn("shadow", r.mask)
+        self.assertEqual(r.layers[0]["glow"], 0.1)
+        self.assertNotIn("shadow", r.layers[0])
         self.assertEqual(r.resolve_mask(36, 64)["text"], "FRAC\nTAL")  # portrait text survives
         self.assertEqual(r.resolve_mask(36, 64)["glow"], 0.1)  # and so does the edit
         cmd = server.cli_command(st, 64, 36)
         self.assertIn("--mask glow=0.1", cmd)
         self.assertIn("--mask shadow=0.0", cmd)
-        self.assertTrue(any(op["name"] == "background" for op in server.catalog()["mask_ops"]))
+        self.assertTrue(any(k["name"] == "fill" for k in server.catalog()["background_keys"]))
 
 
 if __name__ == "__main__":

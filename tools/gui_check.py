@@ -5,15 +5,17 @@
     python tools/gui_check.py [--all] [--port 8821]
 
 Starts `python -m fractalgen gui`, drives the page like a user (edits, undo,
-drag / wheel / rotate, palettes, recipe + generator + aspect switching, URL
-hash reload, save, export) and checks the results. `--all` also loads every
-recipe in the page. Exits non-zero on any failure. Not part of the unit tests
-because it needs a browser.
+drag / wheel / rotate, palettes, browse, screen shapes, layers, effects,
+variations, URL reload, save, export, image upload) and checks the results.
+`--all` also loads every recipe in the page. Exits non-zero on any failure.
+Not part of the unit tests because it needs a browser. The page exposes its
+store as `window.fg`.
 """
-import io
 import argparse
+import io
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 
@@ -49,13 +51,13 @@ def js(page, expr, arg=None):
 
 def idle(page, timeout=120000):
     page.wait_for_timeout(250)
-    page.wait_for_function("!document.getElementById('renderBadge').classList.contains('show')"
-                           " && document.getElementById('previewImg').naturalWidth > 0", timeout=timeout)
-    page.wait_for_timeout(100)
+    page.wait_for_function("window.fg && fg.S.state && !fg.S.view.busy && "
+                           "document.querySelector('.frame img')?.naturalWidth > 0", timeout=timeout)
+    page.wait_for_timeout(120)
 
 
 def frame_shot(page):
-    return np.asarray(Image.open(io.BytesIO(page.locator("#previewFrame").screenshot())).convert("RGB"), dtype=float)
+    return np.asarray(Image.open(io.BytesIO(page.locator(".frame").screenshot())).convert("RGB"), dtype=float)
 
 
 def rankdiff(a, b):
@@ -63,18 +65,23 @@ def rankdiff(a, b):
 
     def ranks(x):
         img = Image.fromarray(x.astype(np.uint8)).filter(ImageFilter.GaussianBlur(3))
-        l = (np.asarray(img, dtype=float) @ [0.2126, 0.7152, 0.0722]).ravel()
-        return np.argsort(np.argsort(l, kind="stable"), kind="stable") / l.size
+        lum = (np.asarray(img, dtype=float) @ [0.2126, 0.7152, 0.0722]).ravel()
+        return np.argsort(np.argsort(lum, kind="stable"), kind="stable") / lum.size
     return float(np.abs(ranks(a) - ranks(b)).mean())
 
 
-def row_input(page, label, kind="number"):
-    """The input of the sidebar row whose label text is `label`."""
-    return page.locator(f".row:has(> label.lbl:text-is('{label}')) input[type={kind}]").first
+def field(page, label):
+    """The field whose label reads `label` (exact)."""
+    return page.locator(f".field:has(> .field-head > .field-label:text-is('{label}'))").first
 
 
-def plane_at(page, x, y):
-    return js(page, "([x, y]) => { const p = planeFromEvent({clientX: x, clientY: y}); return [p.re, p.im]; }", [x, y])
+def tab(page, name):
+    page.locator(f".tab:has(.tab-label:text-is('{name}'))").click()
+    page.wait_for_timeout(150)
+
+
+def st(page, path):
+    return js(page, f"fg.S.state.{path}")
 
 
 try:
@@ -86,75 +93,75 @@ try:
         page.on("response", lambda r: logs.append(f"HTTP {r.status} {r.url}") if r.status >= 400 and r.status != 409 else None)
         page.goto(f"http://127.0.0.1:{PORT}/")
         idle(page)
-        check(js(page, "state.recipe") == "julia_dragon", "boots on julia_dragon")
+        check(st(page, "recipe") == "julia_dragon", "boots on julia_dragon")
+        check(js(page, "fg.S.aspect") == "screen", "defaults to this screen's shape")
 
         print("number box / slider edits stick")
-        mi = row_input(page, "max_iter")
+        mi = field(page, "Detail (iterations)").locator("input[type=number]")
         mi.fill("200")
         mi.dispatch_event("change")
         idle(page)
-        check(js(page, "state.params.max_iter") == 200, f"number box -> 200 (got {js(page, 'state.params.max_iter')})")
-        js(page, """() => { const s = [...document.querySelectorAll('.row')].find(r => r.querySelector('label')?.textContent === 'gamma').querySelector('input[type=range]');
-                    s.value = 1.5; s.dispatchEvent(new Event('input')); s.dispatchEvent(new Event('change')); }""")
+        check(st(page, "params.max_iter") == 200, f"number box -> 200 (got {st(page, 'params.max_iter')})")
+        js(page, """() => { const s = [...document.querySelectorAll('.field')].find(f => f.querySelector('.field-label')?.textContent === 'Gamma')
+                    .querySelector('input[type=range]'); s.value = 1.5; s.dispatchEvent(new Event('input', {bubbles: true})); }""")
         idle(page)
-        check(abs(js(page, "state.params.gamma") - 1.5) < 1e-9, f"slider release keeps 1.5 (got {js(page, 'state.params.gamma')})")
-        check(js(page, "document.querySelector('.row.modified') !== null"), "edited rows marked modified")
+        check(abs(st(page, "params.gamma") - 1.5) < 1e-9, f"slider -> 1.5 (got {st(page, 'params.gamma')})")
+        check(js(page, "document.querySelector('.field.mod') !== null"), "edited fields marked modified")
 
         print("undo / redo")
-        page.click("#btnUndo")
+        page.click("button[title^='Undo (']")
         idle(page)
-        check(abs(js(page, "state.params.gamma") - 0.85) < 1e-9 and js(page, "state.params.max_iter") == 200, "undo reverts gamma only")
-        page.click("#btnUndo")
+        check(abs(st(page, "params.gamma") - 0.85) < 1e-9 and st(page, "params.max_iter") == 200, "undo reverts gamma only")
+        page.click("button[title^='Undo (']")
         idle(page)
-        check(js(page, "state.params.max_iter") == 480, "second undo reverts max_iter")
-        page.click("#btnRedo")
-        page.click("#btnRedo")
+        check(st(page, "params.max_iter") == 480, "second undo reverts max_iter")
+        page.click("button[title^='Redo (']")
+        page.click("button[title^='Redo (']")
         idle(page)
-        check(js(page, "state.params.max_iter") == 200 and abs(js(page, "state.params.gamma") - 1.5) < 1e-9, "redo x2 restores both")
-        check(js(page, "document.getElementById('btnRedo').disabled"), "redo disabled at end")
+        check(st(page, "params.max_iter") == 200 and abs(st(page, "params.gamma") - 1.5) < 1e-9, "redo x2 restores both")
+        check(js(page, "document.querySelector(\"button[title^='Redo (']\").disabled"), "redo disabled at end")
 
         print("view: drag pan / wheel zoom keep the grabbed point under the cursor")
-        box = page.locator("#previewOverlay").bounding_box()
+        tab(page, "Frame")
+        box = page.locator(".frame .overlay").bounding_box()
         for rot in (0, 35):
-            rv = row_input(page, "rotation")
-            rv.fill(str(rot))
-            rv.dispatch_event("change")
+            js(page, f"() => fg.setPath('view.rotation', {rot})")
             idle(page)
             x0, y0 = round(box["x"] + box["width"] * 0.4), round(box["y"] + box["height"] * 0.45)
             x1, y1 = x0 + 120, y0 + 70
-            p0 = plane_at(page, x0, y0)
+            p0 = js(page, f"fg.planeFromClient({x0}, {y0})")
             page.mouse.move(x0, y0)
             page.mouse.down()
             page.mouse.move(x1, y1, steps=6)
             page.mouse.up()
-            p1 = plane_at(page, x1, y1)
+            p1 = js(page, f"fg.planeFromClient({x1}, {y1})")
             err = max(abs(p0[0] - p1[0]), abs(p0[1] - p1[1]))
             check(err < 1e-9, f"pan at rotation {rot}: point stays under cursor (err {err:.2e})")
             idle(page)
             xw, yw = round(box["x"] + box["width"] * 0.7), round(box["y"] + box["height"] * 0.3)
-            q0 = plane_at(page, xw, yw)
-            hw0 = js(page, "state.view.half_width")
+            q0 = js(page, f"fg.planeFromClient({xw}, {yw})")
+            hw0 = st(page, "view.half_width")
             page.mouse.move(xw, yw)
             page.mouse.wheel(0, -200)
-            page.wait_for_timeout(50)
-            q1 = plane_at(page, xw, yw)
-            hw1 = js(page, "state.view.half_width")
+            page.wait_for_timeout(60)
+            q1 = js(page, f"fg.planeFromClient({xw}, {yw})")
+            hw1 = st(page, "view.half_width")
             err = max(abs(q0[0] - q1[0]), abs(q0[1] - q1[1]))
             check(hw1 < hw0, f"wheel up zooms in ({hw0:.3f} -> {hw1:.3f})")
             check(err < 1e-9, f"zoom at rotation {rot}: point stays under cursor (err {err:.2e})")
             idle(page)
 
         print("interim transform matches the fresh render")
-        page.click("#btnReset")
+        js(page, "() => fg.resetAll()")
         idle(page)
         for desc, change in [("pan", "v.center = [v.center[0] + 0.15, v.center[1] - 0.08]"),
                              ("rotate", "v.rotation = (v.rotation || 0) + 20"),
                              ("zoom", "v.half_width *= 0.75")]:
             a0 = frame_shot(page)
-            js(page, f"() => {{ const v = state.view; {change}; updatePreviewTransform(); }}")
-            page.wait_for_timeout(100)
+            js(page, f"() => {{ clearTimeout(window.__t); const v = fg.S.state.view; {change}; fg.emit(); }}")
+            page.wait_for_timeout(30)  # before the debounced render lands
             a = frame_shot(page)
-            js(page, "() => { seq++; scheduleRender(); }")
+            js(page, "() => fg.commit('test')")
             idle(page)
             bb = frame_shot(page)
             h, w = a.shape[:2]
@@ -162,123 +169,218 @@ try:
             # Histogram coloring renormalizes per frame, so compare rank-normalized luminance.
             d, d0 = rankdiff(a[c], bb[c]), rankdiff(a0[c], bb[c])
             check(d < 0.4 * d0, f"{desc}: transformed preview ~ rendered (rank diff {d:.3f} vs untransformed {d0:.3f})")
-        page.click("#btnReset")
+        js(page, "() => fg.resetAll()")
         idle(page)
 
-        print("palettes")
-        pal0 = js(page, "state.palette")
-        post_sel = page.locator(".section:has(h3:text-is('Post')) select.palette-select").first
-        check(post_sel.input_value() == "", "post palette remap shows off by default")
-        post_sel.select_option("ember")
+        print("palettes and quick adjustments")
+        tab(page, "Color")
+        pal0 = st(page, "palette")
+        page.locator(".pal:has(.pal-name:text-is('aurora'))").click()
         idle(page)
-        check(js(page, "state.post.palette") == "ember" and js(page, "state.palette") == pal0,
-              f"post remap sets post.palette only (post={js(page, 'state.post.palette')}, palette={js(page, 'state.palette')})")
-        page.locator(".section:has(h3:text-is('Post')) select.palette-select").first.select_option("")
+        check(st(page, "palette") == "aurora", f"palette tile -> {st(page, 'palette')}")
+        page.locator("button:text('⇄ Reverse')").click()
         idle(page)
-        check(js(page, "state.post.palette") is None, "post remap back off")
-        page.locator(".section:has(h3:text-is('Parameters')) button:text('⇄ reverse')").first.click()
+        check(st(page, "palette") == "aurora_r", f"reverse -> {st(page, 'palette')}")
+        page.locator("button:text('Custom colors…')").click()
+        page.locator(".stop button[title^='Add a color']").first.click()
         idle(page)
-        check(js(page, "state.palette") == f"{pal0}_r", f"reverse named palette -> {js(page, 'state.palette')}")
-        page.locator(".section:has(h3:text-is('Parameters')) details.stops-edit summary").first.click()
+        check(isinstance(st(page, "palette"), list) and len(st(page, "palette")) >= 3, "custom stops edit")
+        sat = field(page, "Saturation").locator("input[type=number]")
+        sat.fill("1.4")
+        sat.dispatch_event("change")
         idle(page)
-        check(isinstance(js(page, "state.palette"), list), "edit stops converts to inline stops")
-        n = js(page, "state.palette.length")
-        page.locator(".section:has(h3:text-is('Parameters')) .stop-row button:text('+')").first.click()
+        check(js(page, "fg.S.state.post.some(e => e.op === 'saturation' && e.value === 1.4)"), "quick saturation adds an effect")
+        sat = field(page, "Saturation").locator("input[type=number]")
+        sat.fill("1")
+        sat.dispatch_event("change")
         idle(page)
-        check(js(page, "state.palette.length") == n + 1, "add stop")
-        tint = page.locator(".row:has(> label.lbl:text-is('tint')) input[type=checkbox]").first
-        tint.check()
+        check(js(page, "!fg.S.state.post.some(e => e.op === 'saturation')"), "back to neutral removes it")
+        js(page, f"() => fg.setPalette({pal0!r})")
         idle(page)
-        check(js(page, "state.post.tint") is not None, "tint enable")
-        tint.uncheck()
-        idle(page)
-        check(js(page, "state.post.tint") is None, "tint disable")
 
-        print("recipe search / generator picker / aspect / reset")
-        page.click("#recipeSearch")
-        page.fill("#recipeSearch", "clifford")
-        js(page, "() => { filterRecipeList('clifford'); openRecipeList(); }")
-        page.locator("#recipeList button.recipe-row", has_text="clifford").first.click(force=True)
+        print("browse / generator / undo")
+        page.locator(".look-btn").click()
+        page.locator(".browse-bar input").fill("clifford")
+        page.locator(".browse-bar input").press("Enter")
         idle(page)
-        check("clifford" in (js(page, "state.recipe") or ""), f"picked {js(page, 'state.recipe')}")
-        page.select_option("#genPicker", "domain_color")
+        check("clifford" in (st(page, "recipe") or ""), f"browse + Enter picked {st(page, 'recipe')}")
+        tab(page, "Look")
+        page.locator(".section-head:has(h3:text-is('Start from scratch'))").click()
+        page.locator(".panel select:has(option:text('Choose a generator…'))").select_option("domain_color")
         idle(page)
-        check(js(page, "state.recipe") is None and js(page, "state.generator") == "domain_color", "generator picker")
-        page.click("#btnUndo")
+        check(st(page, "recipe") is None and st(page, "generator") == "domain_color", "start from a generator")
+        page.click("button[title^='Undo (']")
         idle(page)
-        check("clifford" in (js(page, "state.recipe") or ""), "undo returns to the recipe")
-        js(page, "() => selectRecipe('julia_dragon')")
+        check("clifford" in (st(page, "recipe") or ""), "undo returns to the recipe")
+
+        print("screen shapes")
+        js(page, "() => fg.loadRecipe('julia_dragon')")
         idle(page)
-        page.select_option("#aspectSel", "phone")
+        page.select_option(".screen-pick select", "phone")
         idle(page)
-        check(js(page, "state.height > state.width"), "phone aspect is portrait")
-        check(js(page, "document.querySelectorAll('.row.modified').length") == 0, "portrait overrides not flagged as modified")
-        mi = row_input(page, "max_iter")
-        mi.fill("150")
-        mi.dispatch_event("change")
+        check(js(page, "fg.S.state.height > fg.S.state.width"), "phone shape is portrait")
+        check(js(page, "fg.S.modified.size") == 0, "portrait overrides not flagged as modified")
+        js(page, "() => fg.setPath('params.max_iter', 150)")
         idle(page)
-        page.click("#btnReset")
+        page.click("button:text-is('Reset')")
         idle(page)
-        check(js(page, "deepEq(state.params, baseline.params)"), "reset restores recipe values")
+        check(js(page, "JSON.stringify(fg.S.state.params) === JSON.stringify(fg.S.baseline.params)"), "reset restores recipe values")
+        page.click("button[title^='Undo (']")
+        idle(page)
+        check(st(page, "params.max_iter") == 150, "reset is undoable")
 
         print("hash round trip")
-        mi = row_input(page, "max_iter")
-        mi.fill("321")
-        mi.dispatch_event("change")
+        js(page, "() => fg.setPath('params.max_iter', 321)")
         idle(page)
         page.reload()
         idle(page)
-        check(js(page, "state.params.max_iter") == 321 and js(page, "aspectKey") == "phone", "reload restores edits + aspect")
-        page.select_option("#aspectSel", "desktop")
+        check(st(page, "params.max_iter") == 321 and js(page, "fg.S.aspect") == "phone", "reload restores edits + shape")
+        page.select_option(".screen-pick select", "desktop")
         idle(page)
+
+        print("layers")
+        js(page, "() => fg.loadRecipe('julia_dragon')")
+        idle(page)
+        tab(page, "Layers")
+        before = frame_shot(page)
+        page.locator(".add-row button:has-text('Text')").click()
+        idle(page)
+        ta = field(page, "Text").locator("textarea")
+        ta.fill("HI")
+        ta.dispatch_event("input")
+        idle(page)
+        check(st(page, "layers.length") == 1 and st(page, "layers[0].text") == "HI", "add a text layer and type")
+        check(rankdiff(before, frame_shot(page)) > 0.02, "layered preview differs")
+        check(js(page, "fg.S.view.boxes?.length") == 1, "server sends the layer's box")
+        x_before = js(page, "fg.S.state.layers[0].x ?? 0.5")
+        fb = page.locator(".frame .overlay").bounding_box()
+        cx, cy = fb["x"] + fb["width"] / 2, fb["y"] + fb["height"] / 2
+        page.mouse.move(cx, cy)
+        page.mouse.down()
+        page.mouse.move(cx + fb["width"] * 0.2, cy, steps=5)
+        page.mouse.up()
+        idle(page)
+        x_after = st(page, "layers[0].x")
+        check(abs(x_after - x_before - 0.2) < 0.02, f"dragging the layer moves it ({x_before} -> {x_after})")
+        page.keyboard.press("ArrowUp")
+        idle(page)
+        check(abs(st(page, "layers[0].y") - 0.49) < 1e-9, f"arrow key nudges ({st(page, 'layers[0].y')})")
+        page.locator(".fill-picker button:text-is('Color')").first.click()
+        idle(page)
+        check(st(page, "layers[0].fill") == "ffffff", "fill -> color")
+        page.locator(".fill-picker button:text-is('Fractal')").first.click()
+        idle(page)
+        page.locator(".fill-picker button:text-is('Transparent')").click()
+        idle(page)
+        check(js(page, "document.querySelector('.frame').classList.contains('transparent')"),
+              "transparent background shows the checkerboard")
+        page.locator(".item button[title='Duplicate']").first.click()
+        idle(page)
+        check(st(page, "layers.length") == 2, "duplicate")
+        page.locator(".add-row button:has-text('Shape')").click()
+        idle(page)
+        page.locator(".shape-grid button[title='heart']").click()
+        idle(page)
+        check(st(page, "layers[2].shape") == "heart", "shape picker")
+        js(page, "() => fg.moveLayer(fg.S.state.layers[2].id, -1)")
+        idle(page)
+        check(st(page, "layers[1].type") == "shape", "reorder")
+        page.locator(".chip-btn:text-is('Neon')").click()
+        idle(page)
+        check(st(page, "layers[1].glow") == 1.2, "style preset")
+        for _ in range(9):
+            page.click("button[title^='Undo (']")
+        idle(page)
+        check(st(page, "layers.length") <= 1, f"undo walks back the layer edits ({st(page, 'layers.length')} left)")
+
+        print("image upload")
+        tmp = Path(tempfile.mkdtemp()) / "logo.png"
+        im = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
+        im.paste((255, 255, 255, 255), (16, 16, 48, 48))
+        im.save(tmp)
+        page.locator(".add-row input[type=file]").set_input_files(str(tmp))
+        idle(page)
+        img_path = js(page, "fg.S.state.layers.at(-1)?.image")
+        check(js(page, "fg.S.state.layers.at(-1)?.type") == "image" and str(img_path).startswith("uploads/"),
+              f"upload creates an image layer ({img_path})")
+        if img_path:
+            (ROOT / "custom" / img_path).unlink(missing_ok=True)
+
+        print("portrait text override survives edits")
+        js(page, "() => fg.loadRecipe('dragon_lettering')")
+        idle(page)
+        page.select_option(".screen-pick select", "phone")
+        idle(page)
+        check(st(page, "layers[0].text") == "FRAC\nTAL", f"portrait text ({st(page, 'layers[0].text')!r})")
+        js(page, "() => fg.setLayer(fg.S.state.layers[0].id, 'glow', 0.2)")
+        idle(page)
+        page.select_option(".screen-pick select", "desktop")
+        idle(page)
+        check(st(page, "layers[0].text") == "FRACTAL" and st(page, "layers[0].glow") == 0.2,
+              f"landscape keeps its text and the edit ({st(page, 'layers[0]')})")
+
+        print("effects")
+        js(page, "() => fg.loadRecipe('julia_dragon')")
+        idle(page)
+        tab(page, "Effects")
+        page.locator("button:text('+ Add effect')").click()
+        page.locator(".dd-item:has(span:text-is('Bloom'))").click()
+        idle(page)
+        check(st(page, "post[0].op") == "bloom", "add bloom")
+        page.locator(".chip-btn:text-is('Film')").click()
+        idle(page)
+        check(js(page, "fg.S.state.post.map(e => e.op).join()") == "contrast,grain,vignette", "Film preset")
+        page.locator(".card-head button[title='Later']").first.click()
+        idle(page)
+        check(js(page, "fg.S.state.post.map(e => e.op).join()") == "grain,contrast,vignette", "reorder effects")
+        page.locator(".card-head .eye").first.click()
+        idle(page)
+        check(st(page, "post[0].enabled") is False, "turn an effect off")
 
         print("save / export")
         name = "_e2e_tmp"
         target = ROOT / "custom" / f"{name}.toml"
         target.unlink(missing_ok=True)
-        page.click("#btnSave")
-        page.fill("#saveName", name)
-        page.click("#saveGo")
+        js(page, "() => fg.setPath('params.max_iter', 321)")
+        idle(page)
+        page.locator(".topbar .btn.primary").click()
+        page.locator("button:text('Save as recipe…')").click()
+        page.locator(".modal input[type=text]").fill(name)
+        page.locator(".modal .btn.primary:text-is('Save')").click()
         page.wait_for_timeout(1500)
-        check(target.exists() and "max_iter = 321" in target.read_text(), "save writes custom recipe with the edit")
-        check(js(page, f"catalog.recipes.some(r => r.name === '{name}')"), "saved recipe appears in catalog")
+        text = target.read_text() if target.exists() else ""
+        check("max_iter = 321" in text and "grain" in text, "save writes the recipe with the edit and effects")
+        check(js(page, f"fg.S.catalog.recipes.some(r => r.name === '{name}')"), "saved recipe appears in the catalog")
         target.unlink(missing_ok=True)
-        page.click("#saveCancel")  # the dialog stays open to show where it saved
-        page.click("#btnExport")
-        page.fill("#exportW", "160")
-        page.fill("#exportH", "90")
-        page.fill("#exportName", "_e2e")
-        page.click("#exportGo")
-        page.wait_for_function("document.getElementById('exportStatus').textContent.startsWith('Saved') || "
-                               "document.getElementById('exportStatus').textContent.startsWith('Error')", timeout=60000)
-        st = page.inner_text("#exportStatus")
-        check(st.startswith("Saved"), f"export: {st[:120]}")
-        if st.startswith("Saved"):
-            out = Path(st.split("Saved: ", 1)[1].strip())
+        page.keyboard.press("Escape")
+        page.locator(".topbar .btn.primary").click()
+        page.locator(".size-card:has(.size-label:text-is('Custom'))").click()
+        dims = page.locator(".custom-dims input")
+        dims.nth(0).fill("160")
+        dims.nth(1).fill("90")
+        page.locator(".form-row input[type=text]").fill("_e2e")
+        page.locator(".modal-foot .btn.primary").click()
+        page.wait_for_function("['done', 'error'].includes(fg.S.exportJob?.status)", timeout=60000)
+        job = js(page, "fg.S.exportJob")
+        check(job["status"] == "done", f"export: {job.get('error') or job['status']}")
+        if job["status"] == "done":
+            out = Path(job["path"])
             check(out.exists() and Image.open(out).size == (160, 90), "export file is 160x90")
+            check(page.locator("button:text('Set as desktop wallpaper')").count() == 1, "offers set-as-wallpaper")
             out.unlink(missing_ok=True)
-        page.click("#exportCancel")
+        page.keyboard.press("Escape")
 
-        print("mask")
-        n_rows = page.locator(".row[data-path^='mask.']").count()
-        before = frame_shot(page)
-        text = page.locator(".row:has(> label.lbl:text-is('text')) input[type=text]").first
-        text.fill("HI")
-        text.press("Enter")
+        print("variations")
+        page.locator(".tab:has(.tab-label:text-is('Look'))").click()
+        page.locator("button:text-is('Variations')").click()
+        page.wait_for_function("fg.S.variations.length && fg.S.variations[0].url", timeout=60000)
+        p0 = js(page, "JSON.stringify(fg.S.state.params)")
+        page.locator(".gallery.variations .card").first.click()
         idle(page)
-        check(js(page, "state.mask.text") == "HI", "typing text turns the mask on")
-        check(page.locator(".row[data-path^='mask.']").count() > n_rows, "mask controls appear once it is on")
-        check(rankdiff(before, frame_shot(page)) > 0.02, "masked preview differs")
-        bg = page.locator(".row:has(> label.lbl:text-is('background')) input[type=text]").first
-        bg.fill("transparent")
-        bg.press("Enter")
+        check(js(page, "fg.S.ui.overlay") is None, "picking a variation closes the grid")
+        page.click("button[title^='Undo (']")
         idle(page)
-        check(js(page, "document.getElementById('previewFrame').classList.contains('transparent')"),
-              "transparent background shows the checkerboard")
-        page.click("#btnUndo")
-        page.click("#btnUndo")
-        idle(page)
-        check(not js(page, "maskActive()"), "undo turns the mask off again")
+        check(js(page, "JSON.stringify(fg.S.state.params)") == p0, "undo returns from a variation")
 
         print("last-click-wins load token")
         delayed = {"n": 0}
@@ -297,100 +399,38 @@ try:
 
         page.route("**/api/state*", delay_first_state)
         try:
-            js(page, "() => { void selectRecipe('julia_dragon'); void selectRecipe('mandelbrot_spiral'); }")
+            js(page, "() => { void fg.loadRecipe('julia_dragon'); void fg.loadRecipe('mandelbrot_spiral'); }")
             idle(page)
             page.wait_for_timeout(1300)
-            check(js(page, "state.recipe") == "mandelbrot_spiral",
-                  f"last recipe click wins (got {js(page, 'state.recipe')})")
-            js(page, "() => selectRecipe('julia_dragon')")
-            idle(page)
-            delayed["n"] = 0
-            js(page, """() => {
-              document.getElementById('aspectSel').value = 'phone';
-              void onAspectChange();
-              document.getElementById('aspectSel').value = 'desktop';
-              void onAspectChange();
-            }""")
-            idle(page)
-            page.wait_for_timeout(1300)
-            vw = js(page, "({a: aspectKey, c: state.view.center, hw: state.view.half_width, w: state.width, h: state.height})")
-            check(vw["a"] == "desktop" and vw["w"] > vw["h"], f"last aspect wins framing ({vw})")
-            check(abs(vw["c"][0]) < 0.05 and abs(vw["c"][1] - 0.05) < 0.05 and abs(vw["hw"] - 1.45) < 0.05,
-                  f"desktop view not stale phone ({vw})")
+            check(st(page, "recipe") == "mandelbrot_spiral", f"last recipe click wins (got {st(page, 'recipe')})")
         finally:
             page.unroute("**/api/state*")
 
-        print("nudge is undoable and keeps ints")
-        mi0 = js(page, "state.params.max_iter")
-        js(page, "() => { undoStack = []; redoStack = []; resetHistoryBase(); updateHistoryButtons(); }")
-        page.click("#btnNudge")
-        idle(page)
-        mi1 = js(page, "state.params.max_iter")
-        check(mi1 != mi0, f"nudge changed max_iter ({mi0} -> {mi1})")
-        check(js(page, "Number.isInteger(state.params.max_iter)"), f"nudge keeps max_iter as int (got {mi1})")
-        check(js(page, "undoStack.length > 0"), "nudge pushed an undo step")
-        page.click("#btnUndo")
-        idle(page)
-        check(js(page, "state.params.max_iter") == mi0, f"undo restores pre-nudge max_iter (got {js(page, 'state.params.max_iter')})")
-
-        print("complex sub-row reset")
-        js(page, "() => { state.view.center = [0.5, 0.25]; commitChange('view.center'); }")
-        idle(page)
-        page.locator(".row[data-path='view.center.0'] .reset-row").click()
-        idle(page)
-        c = js(page, "state.view.center")
-        b0 = js(page, "baseline.view.center[0]")
-        check(abs(c[0] - b0) < 1e-12, f"reset real restores baseline ({c[0]} vs {b0})")
-        check(abs(c[1] - 0.25) < 1e-12, f"reset real leaves imag ({c[1]})")
-
-        print("export rejects negative size")
-        page.click("#btnExport")
-        page.fill("#exportW", "-32")
-        page.fill("#exportH", "48")
-        page.click("#exportGo")
+        print("phone width")
+        page.set_viewport_size({"width": 390, "height": 760})
         page.wait_for_timeout(300)
-        est = page.inner_text("#exportStatus")
-        check("at least 16" in est.lower(), f"export rejects negative size ({est[:120]})")
-        page.click("#exportCancel")
-
-        print("half_width rejects non-positive")
-        hw0 = js(page, "state.view.half_width")
-        js(page, """() => {
-          const num = document.querySelector('[data-path="view.half_width"] input[type=number]');
-          num.value = '-2';
-          num.dispatchEvent(new Event('change'));
-        }""")
-        page.wait_for_timeout(100)
-        check(js(page, "state.view.half_width") == hw0 and hw0 > 0,
-              f"negative half_width ignored (still {js(page, 'state.view.half_width')})")
-
-        print("phone-width topbar sizes to content")
-        page.set_viewport_size({"width": 390, "height": 700})
-        page.wait_for_timeout(250)
-        top = js(page, """() => {
-          const el = document.getElementById('topbar');
-          const cs = getComputedStyle(el);
-          return {h: el.getBoundingClientRect().height, sh: el.scrollHeight, basis: cs.flexBasis, overflow: cs.overflow};
-        }""")
-        check(top["h"] + 1 >= top["sh"], f"phone topbar not clipped (h={top['h']:.0f} scroll={top['sh']})")
+        over = js(page, "(() => { const t = document.querySelector('.topbar'); return t.scrollWidth - t.clientWidth; })()")
+        check(over <= 1, f"phone topbar fits ({over}px over)")
+        tab(page, "Layers")
+        check(js(page, "document.querySelector('.sidebar').classList.contains('open')"), "tab opens the panel sheet")
         page.set_viewport_size({"width": 1500, "height": 900})
         page.wait_for_timeout(200)
 
         if ALL:
             print("every recipe renders in the GUI")
-            page.evaluate("() => { document.getElementById('previewSize').value = 320; }")
-            names = js(page, "catalog.recipes.map(r => r.name)")
+            js(page, "() => fg.setPreviewSize(320)")
+            names = js(page, "fg.S.catalog.recipes.map(r => r.name)")
             bad = []
-            for i, n in enumerate(names):
-                js(page, f"() => selectRecipe({n!r})")
+            for n in names:
+                js(page, f"() => fg.loadRecipe({n!r})")
                 try:
                     idle(page, timeout=180000)
-                except Exception as e:
+                except Exception:
                     bad.append(f"{n}: timeout")
                     continue
-                err = js(page, "document.getElementById('errHost').innerText")
-                if err.strip() or js(page, "state.recipe") != n:
-                    bad.append(f"{n}: {err.strip()[:200]}")
+                err = js(page, "fg.S.view.error?.message || ''")
+                if err or st(page, "recipe") != n:
+                    bad.append(f"{n}: {err[:200]}")
             check(not bad, f"{len(names)} recipes, failures: {bad}")
         if args.screenshot:
             page.screenshot(path=str(args.screenshot))

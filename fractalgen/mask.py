@@ -33,76 +33,54 @@ from typing import Any, Callable
 import numpy as np
 
 from . import progress
-
-SHAPES = ("", "circle", "ring", "heart", "star", "hexagon", "rounded")
-
-
-@dataclass(frozen=True)
-class MaskKey:
-    doc: str
-    neutral: Any  # the default; "neutral" matches post / tone ops for the GUI
-    kind: str  # float, int, bool, string, choice, color
-    range: tuple | None = None
-    choices: tuple[str, ...] | None = None
-
-    def coerce(self, name: str, value: Any) -> Any:
-        try:
-            if self.kind == "float":
-                v = float(value)
-                if not math.isfinite(v):
-                    raise ValueError("must be finite")
-                return v
-            if self.kind == "bool":
-                if isinstance(value, str):
-                    return value.strip().lower() in ("1", "true", "yes", "on")
-                return bool(value)
-            if self.kind == "color" and isinstance(value, (list, tuple)):
-                return [float(x) for x in value[:3]]
-            v = str(value)
-            if self.choices is not None and v not in self.choices:
-                raise ValueError(f"must be one of {[c for c in self.choices if c]}")
-            return v
-        except (TypeError, ValueError) as e:
-            raise ValueError(f"mask.{name}={value!r}: {e}") from None
+from .registry import Registry
+from .schema import Key
 
 
-MASK_KEYS: dict[str, MaskKey] = {
-    "text": MaskKey('Text to cut the fractal into ("\\n" breaks lines)', "", "string"),
-    "font": MaskKey("Font name (e.g. \"Arial Black\", \"Avenir Next Heavy\") or a .ttf/.otf/.ttc path; "
-                    "empty = a heavy system font", "", "string"),
-    "shape": MaskKey("Shape to cut the fractal into", "", "choice", choices=SHAPES),
-    "image": MaskKey("Image file whose alpha (or brightness) is the mask; relative paths may sit in custom/",
-                     "", "string"),
-    "image_channel": MaskKey("Which part of `image` is the mask (auto: alpha if it has any, else brightness)",
-                             "auto", "choice", choices=("auto", "alpha", "luma")),
-    "size": MaskKey("Fraction of the frame the mask fills (it fits inside size x width by size x height)",
-                    0.8, "float", (0.05, 1.5)),
-    "x": MaskKey("Horizontal center of the mask, 0 = left edge, 1 = right edge", 0.5, "float", (0.0, 1.0)),
-    "y": MaskKey("Vertical center of the mask, 0 = top edge, 1 = bottom edge", 0.5, "float", (0.0, 1.0)),
-    "rotate": MaskKey("Rotate the mask counter-clockwise, degrees", 0.0, "float", (-180.0, 180.0)),
-    "invert": MaskKey("Show the fractal outside the mask instead of inside", False, "bool"),
-    "feather": MaskKey("Soften the mask edge, pixels at 4K", 0.0, "float", (0.0, 40.0)),
-    "outline": MaskKey("Outline around the mask, pixels at 4K (0 = none)", 0.0, "float", (0.0, 40.0)),
-    "outline_color": MaskKey("Outline color (hex)", "ffffff", "color"),
-    "glow": MaskKey("The fractal's own colors glowing out past the mask edge (0 = off)", 0.0, "float", (0.0, 2.0)),
-    "glow_radius": MaskKey("Size of the glow, pixels at 4K", 40.0, "float", (2.0, 200.0)),
-    "shadow": MaskKey("Drop shadow under the mask onto the background (0 = off, 1 = black)", 0.0, "float", (0.0, 1.0)),
-    "bevel": MaskKey("Raised, lit edges inside the mask (0 = flat)", 0.0, "float", (0.0, 2.0)),
-    "background": MaskKey('Outside the mask: hex color, "transparent", "self" (the fractal, dimmed), '
-                          '"recipe:NAME", or "palette:NAME" (vertical gradient)', "000000", "string"),
-    "background_dim": MaskKey("Brightness of an image background (self / recipe), 0..1", 0.15, "float", (0.0, 1.0)),
-    "background_blur": MaskKey("Blur of an image background, pixels at 4K", 0.0, "float", (0.0, 120.0)),
+MaskKey = Key  # backwards-compatible name
+
+
+def _shape_choices() -> list[str]:
+    return [""] + SHAPES.names()
+
+
+MASK_KEYS: dict[str, Key] = {
+    "text": Key('Text to cut the fractal into ("\\n" breaks lines)', "", "string"),
+    "font": Key("Font name (e.g. \"Arial Black\", \"Avenir Next Heavy\") or a .ttf/.otf/.ttc path; "
+                "empty = a heavy system font", "", "font"),
+    "shape": Key("Shape to cut the fractal into", "", "choice", choices=_shape_choices),
+    "image": Key("Image file whose alpha (or brightness) is the mask; relative paths may sit in custom/",
+                 "", "path"),
+    "image_channel": Key("Which part of `image` is the mask (auto: alpha if it has any, else brightness)",
+                         "auto", "choice", choices=("auto", "alpha", "luma")),
+    "size": Key("Fraction of the frame the mask fills (it fits inside size x width by size x height)",
+                0.8, "float", (0.05, 1.5)),
+    "x": Key("Horizontal center of the mask, 0 = left edge, 1 = right edge", 0.5, "float", (0.0, 1.0)),
+    "y": Key("Vertical center of the mask, 0 = top edge, 1 = bottom edge", 0.5, "float", (0.0, 1.0)),
+    "rotate": Key("Rotate the mask counter-clockwise, degrees", 0.0, "float", (-180.0, 180.0), unit="deg"),
+    "invert": Key("Show the fractal outside the mask instead of inside", False, "bool"),
+    "feather": Key("Soften the mask edge, pixels at 4K", 0.0, "float", (0.0, 40.0), unit="px"),
+    "outline": Key("Outline around the mask, pixels at 4K (0 = none)", 0.0, "float", (0.0, 40.0), unit="px"),
+    "outline_color": Key("Outline color (hex)", "ffffff", "color"),
+    "glow": Key("The fractal's own colors glowing out past the mask edge (0 = off)", 0.0, "float", (0.0, 2.0)),
+    "glow_radius": Key("Size of the glow, pixels at 4K", 40.0, "float", (2.0, 200.0), unit="px"),
+    "shadow": Key("Drop shadow under the mask onto the background (0 = off, 1 = black)", 0.0, "float", (0.0, 1.0)),
+    "bevel": Key("Raised, lit edges inside the mask (0 = flat)", 0.0, "float", (0.0, 2.0)),
+    "background": Key('Outside the mask: hex color, "transparent", "self" (the fractal, dimmed), '
+                      '"recipe:NAME", or "palette:NAME" (vertical gradient)', "000000", "string"),
+    "background_dim": Key("Brightness of an image background (self / recipe), 0..1", 0.15, "float", (0.0, 1.0)),
+    "background_blur": Key("Blur of an image background, pixels at 4K", 0.0, "float", (0.0, 120.0), unit="px"),
 }
 
 
 def check_mask(table: dict[str, Any] | None) -> dict[str, Any]:
-    """Validate and coerce a mask table. ``None`` values drop a key (back to its default)."""
+    """Validate and coerce a legacy mask table. ``None`` values drop a key (back to its default)."""
     out: dict[str, Any] = {}
     for k, v in (table or {}).items():
         if k not in MASK_KEYS:
             raise KeyError(f"Unknown mask key {k!r}. Known: {sorted(MASK_KEYS)}")
         if v is not None:
-            out[k] = MASK_KEYS[k].coerce(k, v)
+            out[k] = MASK_KEYS[k].coerce(f"mask.{k}", v)
     return out
 
 
@@ -299,36 +277,117 @@ def _image_mask(path: str, channel: str, width: int, height: int, box: tuple[flo
     return np.asarray(canvas, dtype=np.float32) / 255.0
 
 
+@dataclass(frozen=True)
+class ShapeSpec:
+    """A cut-out shape: a signed distance function (negative inside).
+
+    ``sdf(x, y)`` gets coordinates scaled so the shape's circle of radius 1 fills
+    the layer box (unit shapes), or, with ``box=True``, pixel offsets from the
+    center plus the box half-extents: ``sdf(x, y, hx, hy)`` in pixels.
+    """
+
+    sdf: Callable[..., np.ndarray]
+    doc: str = ""
+    box: bool = False
+
+
+SHAPES: Registry[ShapeSpec] = Registry("shape")
+
+
+def shape(name: str, doc: str = "", *, box: bool = False, replace: bool = False):
+    """Register a mask / layer shape::
+
+        @fractalgen.shape("diamond", "A square on its corner")
+        def diamond(x, y):
+            return (abs(x) + abs(y) - 1.0) / 1.4142
+    """
+
+    def wrap(fn):
+        SHAPES.register(name, ShapeSpec(fn, doc or (fn.__doc__ or "").strip(), box), replace=replace)
+        return fn
+
+    return wrap
+
+
 def _shape_mask(shape: str, width: int, height: int, box: tuple[float, float], center: tuple[float, float],
                 rotate: float) -> np.ndarray:
     """Antialiased signed-distance shapes; rotation is applied to the coordinates."""
+    try:
+        spec = SHAPES.get(shape)
+    except KeyError as e:
+        raise ValueError(f"mask.shape: {e.args[0]}") from None
     ys, xs = np.mgrid[0:height, 0:width].astype(np.float64)
     dx, dy = xs + 0.5 - center[0], center[1] - (ys + 0.5)  # y up
     th = math.radians(rotate)
     c, s = math.cos(th), math.sin(th)
     px, py = c * dx + s * dy, -s * dx + c * dy
-    if shape == "rounded":
-        hx, hy = box[0] / 2.0, box[1] / 2.0
-        rr = 0.18 * min(hx, hy)
-        qx, qy = np.abs(px) - hx + rr, np.abs(py) - hy + rr
-        d = np.hypot(np.maximum(qx, 0), np.maximum(qy, 0)) + np.minimum(np.maximum(qx, qy), 0) - rr
+    if spec.box:
+        d = spec.sdf(px, py, box[0] / 2.0, box[1] / 2.0)
     else:
         R = min(box) / 2.0
-        x, y = px / R, py / R
-        if shape == "circle":
-            d = np.hypot(x, y) - 1.0
-        elif shape == "ring":
-            d = np.abs(np.hypot(x, y) - 0.78) - 0.22
-        elif shape == "heart":
-            d = _sd_heart(x * 0.604, y * 0.604 + 0.552) / 0.604
-        elif shape == "star":
-            d = _sd_star5(x, y, 1.0, 0.45)
-        elif shape == "hexagon":
-            d = _sd_hexagon(x, y, 0.866)
-        else:
-            raise ValueError(f"mask.shape: unknown shape {shape!r}")
-        d = d * R
+        d = spec.sdf(px / R, py / R) * R
     return np.clip(0.5 - d, 0.0, 1.0).astype(np.float32)
+
+
+@shape("circle", "A disc")
+def _sd_circle(x, y):
+    return np.hypot(x, y) - 1.0
+
+
+@shape("ring", "A thick ring")
+def _sd_ring(x, y):
+    return np.abs(np.hypot(x, y) - 0.78) - 0.22
+
+
+@shape("heart", "A heart")
+def _sd_heart_shape(x, y):
+    return _sd_heart(x * 0.604, y * 0.604 + 0.552) / 0.604
+
+
+@shape("star", "A five-pointed star")
+def _sd_star_shape(x, y):
+    return _sd_star5(x, y, 1.0, 0.45)
+
+
+@shape("hexagon", "A hexagon")
+def _sd_hexagon_shape(x, y):
+    return _sd_hexagon(x, y, 0.866)
+
+
+@shape("rounded", "A rounded rectangle filling the layer box", box=True)
+def _sd_rounded(px, py, hx, hy):
+    rr = 0.18 * min(hx, hy)
+    qx, qy = np.abs(px) - hx + rr, np.abs(py) - hy + rr
+    return np.hypot(np.maximum(qx, 0), np.maximum(qy, 0)) + np.minimum(np.maximum(qx, qy), 0) - rr
+
+
+@shape("rectangle", "A sharp rectangle filling the layer box", box=True)
+def _sd_rect(px, py, hx, hy):
+    qx, qy = np.abs(px) - hx, np.abs(py) - hy
+    return np.hypot(np.maximum(qx, 0), np.maximum(qy, 0)) + np.minimum(np.maximum(qx, qy), 0)
+
+
+@shape("diamond", "A square standing on its corner")
+def _sd_diamond(x, y):
+    return (np.abs(x) + np.abs(y) - 1.0) / math.sqrt(2.0)
+
+
+@shape("triangle", "An equilateral triangle, point up")
+def _sd_triangle(x, y):
+    k = math.sqrt(3.0)
+    r = k / 2.0  # half the side: circumradius 1, centroid at the origin
+    px, py = np.abs(x) - r, y + r / k
+    flip = px + k * py > 0.0
+    px, py = np.where(flip, (px - k * py) / 2.0, px), np.where(flip, (-k * px - py) / 2.0, py)
+    px = px - np.clip(px, -2.0 * r, 0.0)
+    return -np.hypot(px, py) * np.sign(py)
+
+
+@shape("crescent", "A crescent moon")
+def _sd_crescent(x, y):
+    outer = np.hypot(x, y) - 1.0
+    inner = np.hypot(x - 0.62, y - 0.22) - 0.62  # the bite stops short of the center
+    return np.maximum(outer, -inner)
 
 
 def _sd_heart(x: np.ndarray, y: np.ndarray) -> np.ndarray:
@@ -374,63 +433,7 @@ def _rotate(m: np.ndarray, deg: float, center: tuple[float, float]) -> np.ndarra
     return np.asarray(img, dtype=np.float32) / 255.0
 
 
-def build(table: dict[str, Any], width: int, height: int) -> np.ndarray:
-    """The coverage mask (H, W) in 0..1, before feathering / inversion."""
-    size = float(_get(table, "size"))
-    box = (max(1.0, size * width), max(1.0, size * height))
-    center = (float(_get(table, "x")) * width, float(_get(table, "y")) * height)
-    rotate = float(_get(table, "rotate"))
-    m = np.zeros((height, width), np.float32)
-    if table.get("shape"):
-        m = np.maximum(m, _shape_mask(table["shape"], width, height, box, center, rotate))
-    if table.get("image"):
-        im = _image_mask(table["image"], _get(table, "image_channel"), width, height, box, center)
-        m = np.maximum(m, _rotate(im, rotate, center))
-    if table.get("text"):
-        tm = _text_mask(table["text"], str(_get(table, "font")), width, height, box, center)
-        m = np.maximum(m, _rotate(tm, rotate, center))
-    return m
-
-
 # ---------------------------------------------------------------- compositing ----
-
-_BG_DEPTH = [0]  # keeps recipe:NAME backgrounds from recursing forever
-
-
-def _background(table: dict[str, Any], width: int, height: int, fractal: np.ndarray, scale: float):
-    """(background (H, W, 3), transparent?)."""
-    spec = str(_get(table, "background")).strip()
-    low = spec.lower()
-    if low in ("transparent", "none", "alpha"):
-        return np.zeros((height, width, 3), np.float32), True
-    if low.startswith("palette:"):
-        from .palette import get_palette
-
-        ramp = np.asarray(get_palette(spec.split(":", 1)[1].strip()).sample(np.linspace(0.0, 1.0, height)))
-        return np.broadcast_to(ramp[:, None, :3], (height, width, 3)).astype(np.float32), False
-    if low == "self":
-        img = fractal
-    elif low.startswith("recipe:"):
-        from .recipe import RECIPES
-
-        if _BG_DEPTH[0] >= 2:
-            raise ValueError("mask.background: recipe backgrounds nest too deeply")
-        _BG_DEPTH[0] += 1
-        try:
-            img = np.asarray(RECIPES.get(spec.split(":", 1)[1].strip()).render(width, height))[..., :3]
-        finally:
-            _BG_DEPTH[0] -= 1
-    else:
-        try:
-            color = hex_rgb(spec)
-        except ValueError:
-            raise ValueError(
-                f"mask.background={spec!r}: use a hex color, transparent, self, recipe:NAME or palette:NAME"
-            ) from None
-        return np.broadcast_to(color.astype(np.float32), (height, width, 3)).copy(), False
-    img = blur(img, float(_get(table, "background_blur")) * scale)
-    return np.asarray(img, dtype=np.float32) * float(_get(table, "background_dim")), False
-
 
 def _outline_ring(m: np.ndarray, width_px: float) -> np.ndarray:
     """Antialiased band of ``width_px`` just outside the mask."""
@@ -464,53 +467,22 @@ def _bevel(rgb: np.ndarray, m: np.ndarray, amount: float, scale: float) -> np.nd
     return rgb * shade[..., None] + spec[..., None]
 
 
+def build(table: dict[str, Any], width: int, height: int) -> np.ndarray:
+    """A legacy mask table's coverage (H, W) in 0..1, before feathering / inversion."""
+    from .layers import coverage, from_mask
+
+    m = np.zeros((height, width), np.float32)
+    for layer in from_mask(check_mask(table))[0]:
+        m = np.maximum(m, coverage(layer, width, height, 1.0, raw=True))
+    return m
+
+
 def apply_mask(fractal: np.ndarray, table: dict[str, Any], scale: float) -> np.ndarray:
-    """Composite ``fractal`` (H, W, 3) through the mask. Returns RGB, or RGBA when transparent.
+    """Composite ``fractal`` (H, W, 3) through a legacy mask table. Returns RGB, or RGBA when transparent.
 
     ``scale`` converts "pixels at 4K" to this frame's pixels (RenderContext.res_scale).
     """
-    height, width = fractal.shape[:2]
-    F = np.asarray(fractal, dtype=np.float32)
-    with progress.span(0.0, 0.4, "mask"):
-        m = build(table, width, height)
-        feather = float(_get(table, "feather")) * scale
-        if feather >= 0.5:
-            m = np.clip(blur(m, feather), 0.0, 1.0)
-        if _get(table, "invert"):
-            m = 1.0 - m
-    with progress.span(0.4, 0.7, "background"):
-        bg, transparent = _background(table, width, height, F, scale)
-    shadow = float(_get(table, "shadow"))
-    glow = float(_get(table, "glow"))
-    glow_r = float(_get(table, "glow_radius")) * scale
-    alpha_parts = [m]
-    if shadow > 0:
-        r = 24.0 * scale
-        off = max(1, int(round(0.5 * r)))
-        shifted = np.zeros_like(m)
-        shifted[off:, off:] = m[:-off, :-off]
-        s = np.clip(shadow * blur(shifted, r), 0.0, 1.0) * (1.0 - m)
-        bg = bg * (1.0 - s[..., None])
-        alpha_parts.append(s)
-    bevel = float(_get(table, "bevel"))
-    if bevel > 0:
-        F = np.clip(_bevel(F, m, bevel, scale), 0.0, None)
-    out = bg * (1.0 - m[..., None]) + F * m[..., None]
-    outline = float(_get(table, "outline")) * scale
-    if outline > 0:
-        ring = _outline_ring(m, max(outline, 0.75))
-        out = out * (1.0 - ring[..., None]) + hex_rgb(_get(table, "outline_color")).astype(np.float32) * ring[..., None]
-        alpha_parts.append(ring)
-    if glow > 0:
-        g = np.clip(glow * blur(F * m[..., None], glow_r) * (1.0 - m[..., None]), 0.0, 1.0)
-        out = 1.0 - (1.0 - out) * (1.0 - g)  # screen blend
-        alpha_parts.append(g.max(axis=-1))
-    if not transparent:
-        return np.clip(out, 0.0, 1.0).astype(np.float64)
-    keep = np.ones_like(m)
-    for a in alpha_parts:
-        keep *= 1.0 - np.clip(a, 0.0, 1.0)
-    alpha = 1.0 - keep
-    # `out` was composited over black, i.e. it is premultiplied by alpha.
-    rgb = np.where(alpha[..., None] > 1e-6, out / np.maximum(alpha, 1e-6)[..., None], 0.0)
-    return np.concatenate([np.clip(rgb, 0.0, 1.0), alpha[..., None]], axis=-1).astype(np.float64)
+    from .layers import apply_layers, from_mask
+
+    layers, background = from_mask(check_mask(table))
+    return apply_layers(fractal, layers, background, scale)
