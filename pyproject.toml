@@ -46,4 +46,4 @@ fractalgen = "fractalgen.cli:main"
 include = ["fractalgen*"]
 
 [tool.setuptools.package-data]
-fractalgen = ["data/*.toml", "data/recipes/*.toml", "gui/static/*"]
+fractalgen = ["data/*.toml", "data/recipes/*.toml", "gui/static/*", "gui/static/js/*", "gui/static/vendor/*"]

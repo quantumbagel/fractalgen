@@ -217,26 +217,15 @@ def newton(
 
 def _poly_newton(zr0: np.ndarray, zi0: np.ndarray, coeffs: np.ndarray, max_iter: int, tol: float):
     """Newton for sum coeffs[k] * z**(n-k); coeffs[0] is leading term."""
-    zr, zi = zr0.copy(), zi0.copy()
-    done_n = np.zeros(zr.shape, dtype=np.float64)
-    done = np.zeros(zr.shape, dtype=bool)
-    dcoeffs = np.polyder(coeffs)
-    for k in range(1, max_iter + 1):
-        live = ~done
-        progress.update(k / max_iter)
-        if not np.any(live):
-            break
-        z = zr + 1j * zi
-        p = np.polyval(coeffs, z)
-        dp = np.polyval(dcoeffs, z)
-        with np.errstate(divide="ignore", invalid="ignore"):
-            z_new = z - p / dp
-        z_new = np.where(np.isfinite(z_new), z_new, z)
-        zr = np.where(live, z_new.real, zr)
-        zi = np.where(live, z_new.imag, zi)
-        newly = live & (np.abs(p) < tol)
-        done[newly] = True
-        done_n[newly] = k
+    from .. import kernels
+
+    coeffs = np.asarray(coeffs, dtype=np.complex128)
+    dcoeffs = np.asarray(np.polyder(coeffs), dtype=np.complex128)
+    zr, zi, done_n = kernels.poly_newton_kernel(
+        np.ascontiguousarray(zr0, dtype=np.float64), np.ascontiguousarray(zi0, dtype=np.float64),
+        np.ascontiguousarray(coeffs.real), np.ascontiguousarray(coeffs.imag),
+        np.ascontiguousarray(dcoeffs.real), np.ascontiguousarray(dcoeffs.imag),
+        int(max_iter), float(tol), progress.units(zr0.shape[0]))
     return zr + 1j * zi, done_n
 
 

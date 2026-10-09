@@ -40,6 +40,12 @@ def deposit(
         return
     ix = ix[valid]
     iy = iy[valid]
+    if weights is None and hue_val is not None and not np.isscalar(hue_val):
+        from .. import kernels
+
+        # Same in-order sums as np.add.at, without its overhead.
+        kernels.scatter_add2(density, hue, iy, ix, np.ascontiguousarray(hue_val[valid], dtype=density.dtype))
+        return
     if weights is None:
         np.add.at(density, (iy, ix), 1.0)
     else:
@@ -81,6 +87,21 @@ def auto_window(
     return float(x0), float(x1), float(y0), float(y1)
 
 
+def _histogram2d(x: np.ndarray, y: np.ndarray, bins: int) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """np.histogram2d(x, y, bins) for finite samples, computed in parallel."""
+    from .. import kernels
+
+    def edges(v: np.ndarray) -> np.ndarray:
+        lo, hi = float(v.min()), float(v.max())
+        if lo == hi:
+            lo, hi = lo - 0.5, hi + 0.5
+        return np.linspace(lo, hi, bins + 1)
+
+    xe, ye = edges(x), edges(y)
+    return kernels.histogram2d_counts(np.ascontiguousarray(x, dtype=np.float64),
+                                      np.ascontiguousarray(y, dtype=np.float64), xe, ye), xe, ye
+
+
 def dense_window(
     xs: Sequence[np.ndarray],
     ys: Sequence[np.ndarray],
@@ -97,7 +118,7 @@ def dense_window(
     x, y = x[finite], y[finite]
     if x.size < 32:
         return auto_window(xs, ys)
-    H, xe, ye = np.histogram2d(x, y, bins=260)
+    H, xe, ye = _histogram2d(x, y, 260)
     total = float(H.sum())
     if total <= 0:
         return auto_window(xs, ys)

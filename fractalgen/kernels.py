@@ -74,6 +74,14 @@ def escape_kernel(cr, ci, max_iter, kind, jcr, jci, pk, done):
             pi = 0.0
             did = 0
             n_esc = 0.0
+            # Brent cycle check: an orbit that exactly repeats a saved state can never escape.
+            sr = 0.0
+            si = 0.0
+            spr = 0.0
+            spi = 0.0
+            armed = False  # (fastmath: no NaN sentinels)
+            lim = 8
+            cnt = 0
             for n in range(max_iter):
                 if kind == 2 or kind == 3:
                     zr = abs(zr)
@@ -119,6 +127,17 @@ def escape_kernel(cr, ci, max_iter, kind, jcr, jci, pk, done):
                     ni = 2.0 * zr * zi + cix
                 zr = nr
                 zi = ni
+                if armed and zr == sr and zi == si and pr == spr and pi == spi:
+                    break
+                cnt += 1
+                if cnt == lim:
+                    sr = zr
+                    si = zi
+                    spr = pr
+                    spi = pi
+                    armed = True
+                    cnt = 0
+                    lim *= 2
             escaped_n[y, x] = n_esc
             escaped[y, x] = did
         done[y] = 1
@@ -137,6 +156,11 @@ def orbit_trap_kernel(cr, ci, max_iter, trap_id, done):
             best = 1e9
             crx = cr[y, x]
             cix = ci[y, x]
+            sr = 0.0  # Brent cycle check: once the orbit repeats, later points add nothing
+            si = 0.0
+            armed = False
+            lim = 8
+            cnt = 0
             for _n in range(max_iter):
                 zr2 = zr * zr
                 zi2 = zi * zi
@@ -161,6 +185,15 @@ def orbit_trap_kernel(cr, ci, max_iter, trap_id, done):
                 ni = 2.0 * zr * zi + cix
                 zr = nr
                 zi = ni
+                if armed and zr == sr and zi == si:
+                    break
+                cnt += 1
+                if cnt == lim:
+                    sr = zr
+                    si = zi
+                    armed = True
+                    cnt = 0
+                    lim *= 2
             trap_d[y, x] = best if best > 1e-8 else 1e-8
             if trap_d[y, x] > 10.0:
                 trap_d[y, x] = 10.0
@@ -324,6 +357,35 @@ def scatter_add2(a, b, iy, ix, wb):
     for i in range(iy.shape[0]):
         a[iy[i], ix[i]] += 1.0
         b[iy[i], ix[i]] += wb[i]
+
+
+@_exclusive
+@njit(parallel=True, nogil=True)
+def histogram2d_counts(x, y, xe, ye):
+    """np.histogram2d(x, y, bins=(xe, ye))[0] for finite x, y: same edges and right-edge rule.
+
+    Counts are integers, so per-chunk partial histograms sum to exactly numpy's result.
+    """
+    nx = xe.shape[0] - 1
+    ny = ye.shape[0] - 1
+    n = x.shape[0]
+    chunks = 64
+    parts = np.zeros((chunks, nx, ny))
+    step = (n + chunks - 1) // chunks
+    for c in prange(chunks):
+        for i in range(c * step, min(n, (c + 1) * step)):
+            ix = np.searchsorted(xe, x[i], side="right")
+            iy = np.searchsorted(ye, y[i], side="right")
+            if x[i] == xe[nx]:
+                ix -= 1
+            if y[i] == ye[ny]:
+                iy -= 1
+            if 1 <= ix <= nx and 1 <= iy <= ny:
+                parts[c, ix - 1, iy - 1] += 1.0
+    out = np.zeros((nx, ny))
+    for c in range(chunks):
+        out += parts[c]
+    return out
 
 
 @njit(fastmath=True, nogil=True)
@@ -589,6 +651,11 @@ def escape_kernel_generic(cr, ci, max_iter, step, julia, jc, k, bailout2, log_de
                 z = 0j
                 c = p
             zp = 0j
+            sz = 0j  # Brent cycle check (see escape_kernel)
+            szp = 0j
+            armed = False
+            lim = 8
+            cnt = 0
             for n in range(max_iter):
                 mag2 = z.real * z.real + z.imag * z.imag
                 if mag2 > bailout2:
@@ -609,6 +676,15 @@ def escape_kernel_generic(cr, ci, max_iter, step, julia, jc, k, bailout2, log_de
                 zn = step(z, c, zp, k)
                 zp = z
                 z = zn
+                if armed and z == sz and zp == szp:
+                    break
+                cnt += 1
+                if cnt == lim:
+                    sz = z
+                    szp = zp
+                    armed = True
+                    cnt = 0
+                    lim *= 2
         done[y] = 1
     return escaped_n, escaped
 
@@ -774,6 +850,109 @@ def flame_chunk(x, y, col, t0, n_steps, coefs, varw, cum, xcol, cspeed, sym, key
         col[i] = pc
 
 
+# ---- magnetic pendulum / polynomial Newton (exact ports of numpy code: no fastmath) ----
+
+@_exclusive
+@njit(parallel=True, nogil=True)
+def pendulum_kernel(X, Y, mx, my, steps, dt, g, friction, strength, softening, done):
+    """Integrate the damped magnetic pendulum from every start point; returns (x, y, vx, vy).
+
+    Same operation order as the numpy version it replaced, so results match bit for bit.
+    """
+    h, w = X.shape
+    ox = np.empty((h, w))
+    oy = np.empty((h, w))
+    ovx = np.empty((h, w))
+    ovy = np.empty((h, w))
+    nm = mx.shape[0]
+    for yy in prange(h):
+        for xx in range(w):
+            x = X[yy, xx]
+            y = Y[yy, xx]
+            vx = 0.0
+            vy = 0.0
+            for _s in range(steps):
+                ax = -g * x - friction * vx
+                ay = -g * y - friction * vy
+                for i in range(nm):
+                    dx = mx[i] - x
+                    dy = my[i] - y
+                    r2 = dx * dx + dy * dy + softening
+                    inv = strength / (r2 * np.sqrt(r2))
+                    ax += dx * inv
+                    ay += dy * inv
+                vx += ax * dt
+                vy += ay * dt
+                x += vx * dt
+                y += vy * dt
+            ox[yy, xx] = x
+            oy[yy, xx] = y
+            ovx[yy, xx] = vx
+            ovy[yy, xx] = vy
+        done[yy] = 1
+    return ox, oy, ovx, ovy
+
+
+@njit(nogil=True)
+def _cdiv(ar, ai, br, bi):
+    """numpy's complex division (Smith's algorithm, as in its ufunc loop)."""
+    abr = abs(br)
+    abi = abs(bi)
+    if abr >= abi:
+        if abr == 0.0 and abi == 0.0:
+            return ar / abr, ai / abi
+        rat = bi / br
+        scl = 1.0 / (br + bi * rat)
+        return (ar + ai * rat) * scl, (ai - ar * rat) * scl
+    rat = br / bi
+    scl = 1.0 / (bi + br * rat)
+    return (ar * rat + ai) * scl, (ai * rat - ar) * scl
+
+
+@_exclusive
+@njit(parallel=True, nogil=True)
+def poly_newton_kernel(zr0, zi0, cr, ci, dcr, dci, max_iter, tol, done):
+    """Newton's method on sum coeffs[k] z^(n-k) per pixel; returns (zr, zi, step it converged at or 0)."""
+    h, w = zr0.shape
+    oz_r = np.empty((h, w))
+    oz_i = np.empty((h, w))
+    on = np.zeros((h, w))
+    nc = cr.shape[0]
+    nd = dcr.shape[0]
+    for yy in prange(h):
+        for xx in range(w):
+            zr = zr0[yy, xx]
+            zi = zi0[yy, xx]
+            for k in range(1, max_iter + 1):
+                pr = 0.0  # Horner, as np.polyval
+                pi = 0.0
+                for j in range(nc):
+                    tr = pr * zr - pi * zi
+                    ti = pr * zi + pi * zr
+                    pr = tr + cr[j]
+                    pi = ti + ci[j]
+                dr = 0.0
+                di = 0.0
+                for j in range(nd):
+                    tr = dr * zr - di * zi
+                    ti = dr * zi + di * zr
+                    dr = tr + dcr[j]
+                    di = ti + dci[j]
+                qr, qi = _cdiv(pr, pi, dr, di)
+                nr = zr - qr
+                ni = zi - qi
+                if np.isfinite(nr) and np.isfinite(ni):
+                    zr = nr
+                    zi = ni
+                if np.hypot(pr, pi) < tol:
+                    on[yy, xx] = k
+                    break
+            oz_r[yy, xx] = zr
+            oz_i[yy, xx] = zi
+        done[yy] = 1
+    return oz_r, oz_i, on
+
+
 # ---- buddhabrot ----------------------------------------------------------------
 
 @njit(fastmath=True)
@@ -818,11 +997,25 @@ def buddhabrot_escape(n, key, i0, x0, x1, y0, y1, max_iter, bailout2, kind):
                 continue
         zr = 0.0
         zi = 0.0
+        sr = 0.0  # Brent cycle check: an exactly repeating orbit never escapes
+        si = 0.0
+        armed = False  # (fastmath: no NaN sentinels)
+        lim = 8
+        cnt = 0
         for it in range(max_iter):
             zr, zi = _bb_step(zr, zi, a, b, kind)
             if zr * zr + zi * zi > bailout2:
                 out[k] = it + 1
                 break
+            if armed and zr == sr and zi == si:
+                break
+            cnt += 1
+            if cnt == lim:
+                sr = zr
+                si = zi
+                armed = True
+                cnt = 0
+                lim *= 2
     return cr, ci, out
 
 

@@ -95,24 +95,11 @@ def magnetic_pendulum(
         ys = np.linspace(span, -span, height)
     X, Y = np.meshgrid(xs, ys)
     X0, Y0 = X.copy(), Y.copy()
-    vx = np.zeros_like(X)
-    vy = np.zeros_like(Y)
+    from .. import kernels
 
-    for s in range(steps):
-        progress.update(s / steps)
-        ax = -g * X - friction * vx
-        ay = -g * Y - friction * vy
-        for i in range(n_magnets):
-            dx = mx[i] - X
-            dy = my[i] - Y
-            r2 = dx * dx + dy * dy + softening
-            inv = strength / (r2 * np.sqrt(r2))
-            ax += dx * inv
-            ay += dy * inv
-        vx += ax * dt
-        vy += ay * dt
-        X += vx * dt
-        Y += vy * dt
+    X, Y, vx, vy = kernels.pendulum_kernel(
+        np.ascontiguousarray(X), np.ascontiguousarray(Y), mx, my, int(steps), float(dt), float(g), float(friction),
+        float(strength), float(softening), progress.units(height))
 
     dist = np.stack([(X - mx[i]) ** 2 + (Y - my[i]) ** 2 for i in range(n_magnets)], axis=0)
     winner = np.argmin(dist, axis=0)

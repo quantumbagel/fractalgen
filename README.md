@@ -32,7 +32,8 @@ attractors, IFS, reaction-diffusion, flow fields, slime mold, sandpiles,
 hyperbolic tilings, harmonographs, fractal flames, Buddhabrots, KAM islands,
 caustics, and more. Everything that shapes a picture is data you can tweak:
 generator parameters, palettes, framing (center / zoom / **rotation**), camera
-angles, finishing, and masks (fractal-filled text and shapes).
+angles, finishing effects, and layers (text, shapes and images painted over the
+render or cut out of it).
 
 The original hard-coded scripts (`generate.py`, `ultra.py`, `bg/`) live on the
 `old-code` branch. Every recipe reproduces their 4K output pixel-for-pixel except
@@ -84,8 +85,8 @@ Rebuild the header (and gallery thumbs, if you have local 8K renders) with
 | **palette** | gradient stops (optionally positioned) | `fractalgen/data/palettes.toml` |
 | **view** | complex-plane window (Lyapunov: the (a, b) plane): `center`, `half_width`, `rotation` (deg), `fit` | recipe `view = {...}` |
 | **tone** | adjusts a generator's automatic exposure before the palette: `black`, `white`, `curve`, `per_frame` (see below) | recipe `tone = {...}` |
-| **post** | finishing that works on *any* render: exposure, contrast, gamma, saturation, hue shift, tint, vignette, palette remap, flips | recipe `post = {...}` |
-| **mask** | cuts any render out with text, a shape or an image, over a background (see below) | recipe `mask = {...}` |
+| **post** | an ordered list of finishing effects for *any* render: brightness, contrast, saturation, hue, tint, vignette, bloom, grain, blur, sharpen, chromatic aberration, gradients, recolor, ... (see below) | recipe `[[post]]` tables (or `post = {...}`) |
+| **layers** | any number of text, shape and image layers, painted on top or cut from the render, over a `background` (see below) | recipe `[[layers]]` tables (or one `mask = {...}`) |
 | **formula registries** | escape-time formulas, 2D maps, 3D flows, vector fields, domain functions | Python or TOML |
 | **preset** | output size + default recipe selection + memory caps | `fractalgen/data/presets.toml` |
 
@@ -159,41 +160,91 @@ past where the default's range runs out. `python -m fractalgen tone` lists them;
 `--sweep tone.white=1,0.8,0.6` explores one. Generators with no automatic stretch
 (domain coloring, for instance) ignore `tone`.
 
-### Masks: fractal text, shapes and cut-outs
+### Layers: text, shapes and images
 
-Any recipe can be cut out with text, a shape or an image; the fractal shows through
-and `background` fills the rest:
+A recipe can stack any number of layers, drawn bottom to top. Each one is a `text`,
+`shape` or `image` with its own placement, fill and style:
 
 ```toml
-[recipe.dragon_lettering]
+[recipe.dragon_title]
 extends = "julia_dragon"
-mask = { text = "FRACTAL", glow = 0.7, bevel = 0.5, background = "self", background_dim = 0.12 }
-portrait.mask = { text = "FRAC\nTAL" }          # phones get two lines
+background = { fill = "self", dim = 0.15, blur = 24 }   # behind cut-out layers
+
+[[recipe.dragon_title.layers]]
+type = "text"
+text = "FRACTAL"          # fill defaults to "fractal": the render shows through the letters
+glow = 0.7
+bevel = 0.5
+name = "title"
+
+[[recipe.dragon_title.layers]]
+type = "shape"
+shape = "heart"
+fill = "ff3366"           # a solid heart painted on top
+size = 0.12
+x = 0.9
+y = 0.12
+shadow = 0.5
+
+[recipe.dragon_title.portrait]
+layers = { title = { text = "FRAC\nTAL" } }   # phones: patch a layer by name (or index)
 ```
 
 ```sh
 python -m fractalgen render julia_dragon --size 3840x2160 \
-    --mask text=HELLO --mask font="Avenir Next Heavy" --mask outline=6 --mask background=self
+    --layer 'type="text", text="HELLO", font="Avenir Next Heavy", outline=6' --background fill=self
 python -m fractalgen render julia_dragon --size 2048x2048 \
-    --mask image=logo.png --mask background=transparent      # PNG with alpha
-python -m fractalgen mask                                     # every key, documented
+    --layer 'type="image", image="logo.png", size=0.3, y=0.85'     # paint a logo on top
+python -m fractalgen mask                                            # every key, documented
 ```
 
-- **what**: `text` (`\n` breaks lines; `font` takes a family name like `"Arial Black"` or
+- **kind**: `text` (`\n` breaks lines; `font` takes a family name like `"Arial Black"` or
   `"Avenir Next Heavy"`, or a font file), `shape` (circle, ring, heart, star, hexagon,
-  rounded), or `image` (its alpha, or its brightness). Several combine.
-- **where**: `size` (fraction of the frame it fills), `x` / `y` (0..1, from the top left),
-  `rotate`, `invert` (fractal outside instead of inside), `feather`.
-- **finish**: `outline` + `outline_color`, `glow` (the fractal's own colors bleeding past
-  the edge) + `glow_radius`, `shadow`, `bevel`.
-- **background**: a hex color, `transparent`, `self` (the fractal itself, dimmed by
-  `background_dim`, softened by `background_blur`), `recipe:NAME` (another look), or
-  `palette:NAME` (a vertical gradient).
+  rounded, rectangle, diamond, triangle, crescent, plus any registered with `fg.shape`), or
+  `image` (a PNG with transparency works best).
+- **fill**: `"fractal"` (the render shows through: a cut-out; the default for text and
+  shapes), a hex color, `"palette:NAME"` (a top-to-bottom gradient), `"recipe:NAME"`
+  (another look), or `"image"` (an image layer's own pixels; its default).
+- **where**: `size` (fraction of the frame it fits in), `x` / `y` (0..1, from the top
+  left), `rotate`, `invert`, `feather`.
+- **style**: `opacity`, `blend` (normal, multiply, screen, overlay, soft_light, add,
+  difference, lighten, darken), `outline` + `outline_color`, `glow` + `glow_radius`,
+  `shadow`, `bevel`, and `enabled = false` to keep a layer but hide it.
+- **background** (shown when any layer is a cut-out): `fill` = a hex color, `transparent`,
+  `self` (the render itself, dimmed by `dim`, softened by `blur`), `recipe:NAME`, or
+  `palette:NAME`.
 
-The mask runs before `post`, so post finishes the whole frame. Lengths are pixels at 4K, so
-previews match exports. In the GUI the Mask section switches on as soon as text, a shape
-or an image is set, and dragging the preview moves the fractal inside the letters.
-Built-in examples: `seahorse_porthole`, `snowflake_star`, `dragon_lettering`.
+Layers run before `post`, so effects finish the whole frame. Lengths are pixels at 4K, so
+previews match exports. The older single-layer form still works and renders the same:
+`mask = { text = "FRACTAL", glow = 0.7, background = "self", background_dim = 0.12 }` with
+`--mask key=value`. Built-in examples: `seahorse_porthole`, `snowflake_star`, `dragon_lettering`.
+
+### Effects
+
+`post` is an ordered list: each effect works on the result of the one before, so the same
+effect can appear twice and order matters. Every effect also takes `mix` (0..1, blend with
+its input) and `enabled`:
+
+```toml
+[[recipe.NAME.post]]
+op = "bloom"
+amount = 0.6
+radius = 80
+
+[[recipe.NAME.post]]
+op = "grain"
+amount = 0.05
+
+[[recipe.NAME.post]]
+op = "vignette"
+value = 0.35
+```
+
+The short table form still works and runs in a fixed order:
+`post = { exposure = 0.3, saturation = 1.2, vignette = 0.35 }`. On the command line,
+`--post vignette=0.35` sets one effect, `--effect 'op="bloom", amount=0.5'` appends one, and
+`--no-post` drops the recipe's own. `python -m fractalgen post` lists every effect and its
+parameters.
 
 Palettes anywhere: a name (`"ember"`), reversed (`"ember_r"`), inline stops
 (`["000000", "ff6a00", "fff3d6"]`), or `{ stops = [...], positions = [0, 0.3, 1] }`.
@@ -202,16 +253,23 @@ Complex numbers: `[re, im]` or `"-0.8+0.156j"`.
 
 ### The GUI
 
-`python -m fractalgen gui` opens a local page with a control for every parameter of
-the current recipe. Each control shows what it does, its unit, default and typical
-range (toggle with "show help"). Drag the image to pan, scroll to zoom, Shift+scroll
-or Alt+drag to rotate, `R` resets the view; Undo/Redo, Reset, and the URL keep your
-edits (bookmark or reload it). **Save recipe** writes `custom/NAME.toml` as a
-complete, self-contained recipe (every parameter spelled out at the 4K reference,
-including your edits and the original's portrait overrides). A pan or zoom made on a
-desktop frame carries over to the phone framing as the same shift and zoom factor (and
-vice versa), and the saved look keeps the original's exposure. **Export** renders at full
-size into `backgrounds/gui/`, with a progress bar and the recipe embedded in the file.
+`python -m fractalgen gui` opens a local page built for making a wallpaper quickly:
+
+- **Pick a look** from the gallery (thumbnails, search, categories), step through them
+  with ‹ › or hit Surprise me. **Variations** shows eight random tweaks to choose from.
+- **Screen**: previews in your screen's exact shape by default; switch to a phone, an
+  ultrawide or any preset. Looks frame themselves for each shape.
+- Tabs: **Look** (the main settings up front, every other parameter under More settings),
+  **Frame** (drag to pan, scroll to zoom, Shift+scroll or Alt+drag to turn), **Color**
+  (palette swatches, brightness / contrast / saturation / hue / vignette, exposure),
+  **Layers** (add text, shapes or an uploaded image, drag them on the picture, style
+  presets like Neon or Emboss) and **Effects** (an ordered, reorderable stack with presets
+  like Film or Dreamy).
+- **Compare** (or hold `\`) shows the look as it was loaded; undo / redo cover every edit,
+  including switching screen shapes; the URL keeps your edits.
+- **Save wallpaper** renders at full size (this screen, 4K, 8K, phone and more), then
+  **Set as desktop wallpaper**, **Show in Finder** or **Download**. **Save as recipe**
+  writes `custom/NAME.toml`. `?` lists the keyboard shortcuts.
 
 ### Same picture at every size
 
@@ -294,7 +352,23 @@ def scanlines(rgb, amount, ctx):
     return rgb * (1.0 - amount * rows)[:, None, None]
 ```
 
-Other hooks: `fg.register_palette`, `fg.register_formula` (numba step
+Effects with several parameters take a schema (`fg.Key`) and get a dict; new shapes
+are a signed distance function:
+
+```python
+@fg.effect("duotone", "Map brightness onto two colors", category="color", params={
+    "dark": fg.Key("Shadow color", "1b1035", "color"),
+    "light": fg.Key("Highlight color", "ffd27a", "color"),
+})
+def duotone(rgb, p, ctx):
+    ...
+
+@fg.shape("drop", "A teardrop")
+def drop(x, y):                          # x, y scaled so radius 1 fills the layer box
+    return np.hypot(x, y + 0.2 * y.clip(0)) - 1.0
+```
+
+Other hooks: `fg.layer_type` (a new kind of layer), `fg.register_palette`, `fg.register_formula` (numba step
 `f(z, c, zp, k) -> complex`), `fg.register_map`, `fg.register_flow`,
 `fractalgen.generators.fields.register_vector_field`, `register_domain`,
 `fractalgen.loader.section("name")` for brand-new TOML tables, and
@@ -357,7 +431,7 @@ fg.save_image("dragon.png", rgb)
 ```
 
 `overrides` on `fg.render` may hold `params`, `view`, `palette`, `tone`, `post`,
-and `mask`, the same keys as the CLI flags.
+`layers`, `background` and `mask`, the same things as the CLI flags.
 
 ## Development
 
