@@ -26,7 +26,7 @@
   background: var(--bg);
 }
 * { box-sizing: border-box; }
-body { margin: 0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+body { margin: 0; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
 
 /* Top bar */
 .topbar {
@@ -51,7 +51,70 @@ body { margin: 0; height: 100vh; display: flex; flex-direction: column; overflow
 .sep { width: 1px; height: 24px; background: var(--border); flex-shrink: 0; }
 .render-ms { color: var(--muted); font-variant-numeric: tabular-nums; min-width: 4em; }
 .recipe-wrap { position: relative; }
-.recipe-wrap input { width: 140px; }
+.recipe-wrap input { width: min(320px, 42vw); }
+.recipe-list { min-width: min(420px, 92vw); }
+.recipe-list .recipe-row {
+  display: block; width: 100%; text-align: left; padding: 6px 10px; border: none;
+  background: transparent; color: var(--text); cursor: pointer; font-size: 12px;
+}
+.recipe-list .recipe-row .r-name { font-weight: 500; }
+.recipe-list .recipe-row .r-desc { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.recipe-list .recipe-row .r-tags { margin-top: 2px; display: flex; flex-wrap: wrap; gap: 4px; }
+.recipe-list .recipe-row .tag {
+  font-size: 9px; padding: 1px 5px; border-radius: 3px; background: var(--bg3); color: var(--muted);
+}
+.recipe-list .recipe-row .thumb {
+  width: 64px; height: 36px; object-fit: cover; border-radius: 3px; float: right; margin-left: 8px;
+  background: var(--bg3);
+}
+.recipe-list button.recipe-row:hover, .recipe-list button.recipe-row.active, .recipe-list button.recipe-row:focus-visible {
+  background: var(--bg3); outline: none;
+}
+.gallery-backdrop { z-index: 150; }
+.gallery-panel {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 8px;
+  width: min(960px, 94vw); max-height: 85dvh; display: flex; flex-direction: column; padding: 12px 14px;
+}
+.gallery-grid {
+  flex: 1; overflow: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px;
+  margin-top: 10px;
+}
+.gallery-card {
+  background: var(--bg3); border: 1px solid var(--border); border-radius: var(--radius); padding: 6px;
+  cursor: pointer; text-align: center;
+}
+.gallery-card img { width: 100%; aspect-ratio: 16/9; object-fit: cover; border-radius: 3px; background: #000; }
+.gallery-card .g-name { font-size: 11px; margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sim-note {
+  font-size: 11px; color: var(--muted); padding: 4px 10px; background: var(--bg2); border-bottom: 1px solid var(--border);
+}
+.export-toast {
+  font-size: 11px; color: var(--muted); max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.shortcuts-overlay {
+  position: fixed; inset: 0; z-index: 300; background: rgba(0,0,0,.6); display: none; align-items: center; justify-content: center;
+}
+.shortcuts-overlay.open { display: flex; }
+.shortcuts-panel {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 16px 20px; max-width: 420px;
+  max-height: 80dvh; overflow: auto;
+}
+.shortcuts-panel dl { margin: 0; }
+.shortcuts-panel dt { font-weight: 600; margin-top: 8px; }
+.shortcuts-panel dd { margin: 2px 0 0 1em; color: var(--muted); font-size: 12px; }
+.sidebar-sheet-backdrop {
+  display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 40;
+}
+@media (max-width: 800px) {
+  .topbar { flex: 0 0 auto; flex-wrap: wrap; white-space: normal; row-gap: 6px; padding-bottom: 6px; height: auto; overflow: visible; }
+  .sidebar.collapsed { flex: 0 0 0; width: 0; min-width: 0; padding: 0; border: none; }
+  .sidebar:not(.collapsed) {
+    position: fixed; left: 0; top: var(--top-h); bottom: 0; z-index: 50; width: min(var(--sidebar-w), 92vw);
+    max-width: 92vw; box-shadow: 8px 0 24px rgba(0,0,0,.35);
+  }
+  body.sidebar-open .sidebar-sheet-backdrop { display: block; }
+}
+.preview-overlay { touch-action: none; }
 /* fixed, not absolute: the topbar scrolls horizontally, which would clip an absolute dropdown */
 .recipe-list {
   position: fixed; z-index: 100; max-height: min(420px, calc(100vh - 60px)); overflow: auto;
@@ -60,11 +123,6 @@ body { margin: 0; height: 100vh; display: flex; flex-direction: column; overflow
 }
 .recipe-list.open { display: block; }
 .recipe-list .grp { padding: 4px 8px; font-size: 10px; color: var(--muted); text-transform: uppercase; }
-.recipe-list button {
-  display: block; width: 100%; text-align: left; padding: 5px 10px; border: none;
-  background: transparent; color: var(--text); cursor: pointer; font-size: 12px;
-}
-.recipe-list button:hover, .recipe-list button.active { background: var(--bg3); }
 
 /* Main layout */
 .main { flex: 1; display: flex; min-height: 0; }
@@ -120,6 +178,10 @@ body.no-help .row .doc, body.no-help .group-head .doc { display: none; }
   display: block; width: 100%; height: 100%; object-fit: contain;
   pointer-events: none; user-select: none;
 }
+/* A transparent mask background shows as a checkerboard. */
+.preview-frame.transparent img {
+  background: repeating-conic-gradient(#808080 0% 25%, #b0b0b0 0% 50%) 0 0 / 16px 16px;
+}
 .preview-overlay {
   position: absolute; inset: 0; cursor: grab;
 }
@@ -130,6 +192,10 @@ body.no-help .row .doc, body.no-help .group-head .doc { display: none; }
   color: var(--muted); pointer-events: none; opacity: 0; transition: opacity .2s;
 }
 .render-badge.show { opacity: 1; }
+.render-badge::after {
+  content: ""; position: absolute; left: 0; bottom: 0; height: 2px; border-radius: 1px;
+  width: calc(var(--p, 0) * 100%); background: var(--accent); transition: width .2s;
+}
 
 .err-panel {
   margin: 8px; padding: 10px 12px; background: var(--danger-bg); border: 1px solid var(--danger);
@@ -166,63 +232,121 @@ details.stops-edit .stop-row { display: flex; gap: 4px; margin: 4px 0; align-ite
 .modal input, .modal select { width: 100%; padding: 6px 8px; background: var(--bg3);
   border: 1px solid var(--border); color: var(--text); border-radius: var(--radius); }
 .export-status { margin-top: 10px; font-size: 12px; color: var(--muted); word-break: break-all; }
+.export-bar { display: block; width: 100%; height: 6px; margin-top: 10px; appearance: none; border: 0;
+  border-radius: 3px; background: var(--bg3); overflow: hidden; }
+.export-bar[hidden] { display: none; }
+.export-bar::-webkit-progress-bar { background: var(--bg3); }
+.export-bar::-webkit-progress-value { background: var(--accent); transition: width 0.3s; }
+.export-bar::-moz-progress-bar { background: var(--accent); }
 </style>
 </head>
 <body>
 <header class="topbar" id="topbar">
   <div class="recipe-wrap" id="recipeWrap">
-    <label>Recipe</label>
-    <input type="text" id="recipeSearch" placeholder="Search recipes…" autocomplete="off">
-    <div class="recipe-list" id="recipeList"></div>
+    <label for="recipeSearch">Recipe</label>
+    <input type="text" id="recipeSearch" placeholder="Search recipes…" autocomplete="off" aria-expanded="false" aria-controls="recipeList">
+    <div class="recipe-list" id="recipeList" role="listbox"></div>
   </div>
-  <select id="genPicker" title="Start from generator"><option value="">From generator…</option></select>
+  <button type="button" class="btn" id="btnGallery" title="Recipe gallery">Gallery</button>
+  <button type="button" class="btn" id="btnPrev" title="Previous recipe ([)">Prev</button>
+  <button type="button" class="btn" id="btnNext" title="Next recipe (])">Next</button>
+  <button type="button" class="btn" id="btnShuffle" title="Random recipe (.)">Shuffle</button>
+  <button type="button" class="btn" id="btnNudge" title="Perturb numeric parameters">Nudge</button>
+  <select id="genPicker" title="Start from generator" aria-label="Start from generator"><option value="">From generator…</option></select>
   <span class="sep"></span>
-  <label>Aspect</label>
+  <label for="aspectSel">Aspect</label>
   <select id="aspectSel"></select>
-  <label>Preview</label>
+  <label for="previewSize">Preview</label>
   <input type="range" id="previewSize" min="240" max="1600" step="10" value="720">
   <span id="previewSizeLbl">720</span>
-  <span class="render-ms" id="renderMs">—</span>
+  <span class="render-ms" id="renderMs" aria-live="off">—</span>
+  <label class="help-toggle-top" for="helpToggleTop"><input type="checkbox" id="helpToggleTop"> help</label>
   <span class="sep"></span>
   <button type="button" class="btn" id="btnUndo" title="Undo (⌘Z)">Undo</button>
   <button type="button" class="btn" id="btnRedo" title="Redo (⇧⌘Z)">Redo</button>
   <button type="button" class="btn" id="btnReset">Reset</button>
+  <button type="button" class="btn" id="btnCopyCli" title="Copy equivalent CLI command">Copy CLI</button>
   <button type="button" class="btn primary" id="btnSave">Save recipe</button>
   <button type="button" class="btn" id="btnExport">Export</button>
+  <span class="export-toast" id="exportToast" aria-live="polite" hidden></span>
   <button type="button" class="btn" id="btnSidebar" title="Toggle sidebar">Panel</button>
 </header>
+<div class="sim-note" id="simNote" hidden>Simulations cost the same at any preview size — only the final picture resolution changes.</div>
+<div class="sidebar-sheet-backdrop" id="sidebarBackdrop"></div>
 <div class="main">
   <aside class="sidebar" id="sidebar"></aside>
   <div class="preview-wrap">
     <div id="errHost"></div>
     <div class="preview-stage" id="previewStage">
       <div class="preview-frame" id="previewFrame">
-        <img id="previewImg" alt="Fractal preview">
+        <img id="previewImg" alt="">
         <div class="preview-overlay" id="previewOverlay"></div>
-        <div class="render-badge" id="renderBadge"></div>
+        <div class="render-badge" id="renderBadge" aria-live="polite"></div>
       </div>
     </div>
   </div>
 </div>
-<div class="modal-backdrop" id="exportModal">
-  <div class="modal">
-    <h4>Export image</h4>
-    <label>Preset size</label>
+<div class="modal-backdrop" id="exportModal" role="presentation">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="exportTitle">
+    <h4 id="exportTitle">Export image</h4>
+    <label for="exportPreset">Preset size</label>
     <select id="exportPreset"></select>
     <label>Width × Height (custom)</label>
     <div style="display:flex;gap:8px">
-      <input type="number" id="exportW" min="16" max="8192" placeholder="W">
-      <input type="number" id="exportH" min="16" max="8192" placeholder="H">
+      <input type="number" id="exportW" min="16" max="16384" placeholder="W" aria-label="Export width">
+      <input type="number" id="exportH" min="16" max="16384" placeholder="H" aria-label="Export height">
     </div>
-    <label>Format</label>
+    <label for="exportFmt">Format</label>
     <select id="exportFmt"><option value="png">PNG</option><option value="jpg">JPEG</option></select>
-    <label>Name (optional)</label>
+    <label for="exportName">Name (optional)</label>
     <input type="text" id="exportName" placeholder="filename stem">
-    <div class="export-status" id="exportStatus"></div>
+    <progress class="export-bar" id="exportBar" max="1" value="0" hidden></progress>
+    <div class="export-status" id="exportStatus" aria-live="polite"></div>
     <div class="actions">
-      <button type="button" class="btn" id="exportCancel">Cancel</button>
+      <button type="button" class="btn" id="exportCopyPath" hidden>Copy path</button>
+      <a class="btn" id="exportDownload" href="#" download hidden>Download</a>
+      <button type="button" class="btn" id="exportCancel">Close</button>
       <button type="button" class="btn primary" id="exportGo">Export</button>
     </div>
+  </div>
+</div>
+<div class="modal-backdrop" id="saveModal" role="presentation">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="saveTitle">
+    <h4 id="saveTitle">Save recipe</h4>
+    <label for="saveName">Name</label>
+    <input type="text" id="saveName" placeholder="letters, digits, _ -" autocomplete="off">
+    <label><input type="checkbox" id="saveOverwrite"> Overwrite if exists</label>
+    <div class="export-status" id="saveError" style="color:var(--danger)"></div>
+    <div class="export-status" id="saveOk"></div>
+    <div class="actions">
+      <button type="button" class="btn" id="saveCancel">Cancel</button>
+      <button type="button" class="btn primary" id="saveGo">Save</button>
+    </div>
+  </div>
+</div>
+<div class="modal-backdrop gallery-backdrop" id="galleryModal" role="presentation">
+  <div class="gallery-panel" role="dialog" aria-modal="true" aria-labelledby="galleryTitle">
+    <h4 id="galleryTitle">Recipe gallery</h4>
+    <input type="text" class="filter-inp" id="gallerySearch" placeholder="Filter recipes…" aria-label="Filter gallery">
+    <div class="gallery-grid" id="galleryGrid"></div>
+    <div class="actions" style="margin-top:10px">
+      <button type="button" class="btn" id="galleryClose">Close</button>
+    </div>
+  </div>
+</div>
+<div class="shortcuts-overlay" id="shortcutsOverlay" role="dialog" aria-modal="true" aria-label="Keyboard shortcuts">
+  <div class="shortcuts-panel">
+    <h4>Keyboard shortcuts</h4>
+    <dl>
+      <dt>⌘/Ctrl+Z</dt><dd>Undo</dd>
+      <dt>⌘/Ctrl+Y or ⇧⌘Z</dt><dd>Redo</dd>
+      <dt>R</dt><dd>Reset view</dd>
+      <dt>[ / ]</dt><dd>Previous / next recipe</dd>
+      <dt>.</dt><dd>Shuffle recipe</dd>
+      <dt>?</dt><dd>This help</dd>
+      <dt>Esc</dt><dd>Close menus and modals</dd>
+    </dl>
+    <button type="button" class="btn" id="shortcutsClose" style="margin-top:12px">Close</button>
   </div>
 </div>
 <script>
@@ -231,8 +355,51 @@ details.stops-edit .stop-row { display: flex; gap: 4px; margin: 4px 0; align-ite
 // --- utilities ---
 const $ = (id) => document.getElementById(id);
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+
+function formControlFocused() {
+  const el = document.activeElement;
+  if (!el) return false;
+  const tag = el.tagName;
+  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
+  if (el.isContentEditable) return true;
+  const list = $("recipeList");
+  if (list?.classList.contains("open") && (el.getAttribute("role") === "option" || list.contains(el))) return true;
+  return false;
+}
+
+let modalReturnFocus = null;
+function openModal(backdropId) {
+  modalReturnFocus = document.activeElement;
+  $(backdropId).classList.add("open");
+  const dlg = $(backdropId).querySelector("[role=dialog]");
+  const first = dlg?.querySelector("input,button,select,textarea");
+  first?.focus();
+}
+function closeModal(backdropId) {
+  $(backdropId).classList.remove("open");
+  if (modalReturnFocus?.focus) modalReturnFocus.focus();
+}
 const deepClone = (o) => JSON.parse(JSON.stringify(o));
 const deepEq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+
+function finiteNum(x) {
+  return typeof x === "number" && Number.isFinite(x) ? x : null;
+}
+
+function sanitizeView(view, fallback) {
+  if (!view || typeof view !== "object") return view;
+  const fb = fallback || {};
+  const src = Array.isArray(view.center) ? view.center : null;
+  const fbc = Array.isArray(fb.center) ? fb.center : [0, 0];
+  const re = finiteNum(src?.[0]) ?? finiteNum(fbc[0]) ?? 0;
+  const im = finiteNum(src?.[1]) ?? finiteNum(fbc[1]) ?? 0;
+  let hw = finiteNum(view.half_width) ?? finiteNum(fb.half_width);
+  if (hw == null || hw <= 0) hw = 2;
+  else hw = Math.max(1e-14, hw);
+  const rot = finiteNum(view.rotation) ?? finiteNum(fb.rotation) ?? 0;
+  const fit = view.fit || fb.fit || "fill";
+  return { ...view, center: [re, im], half_width: hw, rotation: rot, fit };
+}
 
 function b64UrlEncode(obj) {
   const s = JSON.stringify(obj);
@@ -292,6 +459,7 @@ let redoStack = [];
 let seq = 0;
 const clientId = Math.random().toString(36).slice(2, 10); // the server orders renders per page
 let renderToken = 0;
+let loadToken = 0;
 let currentObjectUrl = null;
 let viewExtent = null; // plane half-extents of the image on screen (X-View-Extent)
 let shownView = null; // view that image was rendered with
@@ -300,6 +468,14 @@ let dragState = null;
 let renderStart = 0;
 let aspectKey = "desktop";
 let aspects = [];
+let recipeListIndex = -1;
+let exportJob = null;
+let exportPollTimer = null;
+const thumbObserver = new IntersectionObserver((entries) => {
+  for (const e of entries) {
+    if (e.isIntersecting) loadThumbImg(e.target);
+  }
+}, { rootMargin: "80px" });
 
 const FIT_CHOICES = ["fill", "cover", "contain"];
 
@@ -307,8 +483,14 @@ function genSpec() {
   return catalog?.generators[state?.generator];
 }
 
-// Generator-independent op tables: `post` (finishing) and `tone` (auto-exposure).
-const OP_GROUPS = ["post", "tone"];
+// Generator-independent op tables: `post` (finishing), `tone` (auto-exposure),
+// `mask` (cut the render out with text / a shape / an image).
+const OP_GROUPS = ["post", "tone", "mask"];
+
+function maskActive(s = state) {
+  const m = s?.mask || {};
+  return Boolean(m.text || m.shape || m.image);
+}
 
 function groupOps(group) {
   return catalog?.[`${group}_ops`] || [];
@@ -335,6 +517,7 @@ function stateForApi(s) {
     if (t) o[g] = t;
     else delete o[g];
   }
+  if (o.view) o.view = sanitizeView(o.view, baseline?.view);
   return o;
 }
 
@@ -379,7 +562,7 @@ function applyFrameAspect(asp) {
 // Controls mutate `state` freely; checkpoint() diffs it against the last
 // committed snapshot and records the old one. Rapid edits of the same control
 // (slider drags, wheel zooms) merge into one undo step.
-const HISTORY_KEYS = ["recipe", "generator", "palette", "params", "view", "post", "tone"];
+const HISTORY_KEYS = ["recipe", "generator", "palette", "params", "view", "post", "tone", "mask"];
 let committed = null;
 let lastCommitKey = null;
 let lastCommitTime = 0;
@@ -517,9 +700,10 @@ function persistHash() {
       generator: state.generator,
       palette: state.palette,
       params: state.params,
-      view: state.view,
+      view: state.view ? sanitizeView(state.view, baseline?.view) : state.view,
       post: state.post,
       tone: state.tone,
+      mask: state.mask,
       aspectKey,
       previewSize: parseInt($("previewSize").value, 10),
     };
@@ -551,13 +735,15 @@ function scheduleRender() {
   debounceTimer = setTimeout(() => startRenderPass(), 60);
 }
 
-function setRenderingBadge(on, elapsed) {
+function setRenderingBadge(on, elapsed, label = "Rendering", pct = null) {
   const b = $("renderBadge");
   if (on) {
-    b.textContent = `rendering… ${elapsed.toFixed(1)}s`;
+    b.textContent = `${label}… ${pct == null ? "" : `${Math.round(100 * pct)}% · `}${elapsed.toFixed(1)}s`;
+    b.style.setProperty("--p", pct || 0);
     b.classList.add("show");
   } else {
     b.classList.remove("show");
+    b.style.setProperty("--p", 0);
   }
 }
 
@@ -569,17 +755,37 @@ async function startRenderPass() {
   const half = { ...full, width: Math.max(16, Math.round(full.width / 2)), height: Math.max(16, Math.round(full.height / 2)),
                  extent_size: [full.width, full.height] };
   renderStart = performance.now();
-  setRenderingBadge(true, 0);
+  // Progress of the request in flight: the draft, then the full preview. Polled only
+  // once a render is slow, so quick renders cost no extra requests.
+  let phase = "Quick preview", pct = null, polling = false, lastPoll = 0, waiting = false;
+  setRenderingBadge(true, 0, phase);
   const tick = setInterval(() => {
     if (token !== renderToken) { clearInterval(tick); return; }
-    setRenderingBadge(true, (performance.now() - renderStart) / 1000);
+    const now = performance.now();
+    const lbl = waiting ? "Waiting for another render" : phase;
+    setRenderingBadge(true, (now - renderStart) / 1000, lbl, waiting ? null : pct);
+    if (!polling && now - renderStart > 300 && now - lastPoll > 250) {
+      polling = true;
+      lastPoll = now;
+      const asked = phase;
+      apiJson(`/api/progress?client=${clientId}`)
+        .then((p) => {
+          if (token !== renderToken || asked !== phase) return;
+          if (p.waiting) waiting = true;
+          else { waiting = false; if (p.progress != null) pct = p.progress; }
+        })
+        .catch(() => {})
+        .finally(() => { polling = false; });
+    }
   }, 100);
 
   try {
-    // A half-size draft first for quick feedback, then the full preview.
     const draft = await apiRender(half);
     if (token !== renderToken || draft.stale) return;
     applyPreviewBlob(draft, half);
+    phase = "Rendering";
+    waiting = false;
+    pct = null;
     const fin = await apiRender(full);
     if (token !== renderToken || fin.stale) return;
     applyPreviewBlob(fin, full);
@@ -606,7 +812,17 @@ function applyPreviewBlob(res, rendered) {
   shownView = rendered.view ? deepClone(rendered.view) : null;
   if (res.ms) $("renderMs").textContent = `${res.ms} ms`;
   document.querySelectorAll(".err-panel.render").forEach((d) => d.remove());
+  const rn = state.recipe || state.generator || "preview";
+  $("previewImg").alt = `Fractal preview: ${rn}`;
+  const bg = String(rendered.mask?.background ?? "").toLowerCase();
+  $("previewFrame").classList.toggle("transparent", maskActive(rendered) && ["transparent", "none", "alpha"].includes(bg));
+  updateSimNote();
   updatePreviewTransform();
+}
+
+function updateSimNote() {
+  const cat = catalog?.generators[state?.generator]?.category;
+  $("simNote").hidden = cat !== "simulation";
 }
 
 // --- catalog / load ---
@@ -646,8 +862,56 @@ function buildGenPicker() {
   sel.innerHTML = html;
 }
 
+function recipeHaystack(r) {
+  const g = catalog.generators[r.generator];
+  const cat = g?.category || "";
+  return [r.name, r.description || "", r.generator, cat, ...(r.tags || [])].join(" ").toLowerCase();
+}
+
+function thumbOrient() {
+  return state.height > state.width ? "port" : "land";
+}
+
+function revokeThumbUrls(root) {
+  if (!root) return;
+  for (const img of root.querySelectorAll("img")) {
+    if (img._blobUrl) {
+      URL.revokeObjectURL(img._blobUrl);
+      img._blobUrl = null;
+    }
+    thumbObserver.unobserve(img);
+  }
+}
+
+async function loadThumbImg(img) {
+  if (!img.dataset.recipe || img.dataset.loaded) return;
+  const recipe = img.dataset.recipe;
+  const orient = img.dataset.orient || "land";
+  let delay = 400;
+  for (let i = 0; i < 12; i++) {
+    try {
+      const r = await fetch(`/api/thumb?recipe=${encodeURIComponent(recipe)}&orient=${orient}`);
+      if (r.status === 200) {
+        const blob = await r.blob();
+        if (!img.isConnected) return;
+        if (img._blobUrl) URL.revokeObjectURL(img._blobUrl);
+        const url = URL.createObjectURL(blob);
+        img._blobUrl = url;
+        img.src = url;
+        img.dataset.loaded = "1";
+        thumbObserver.unobserve(img);
+        return;
+      }
+      if (r.status !== 202) return;
+    } catch (_) { return; }
+    await new Promise((res) => setTimeout(res, delay));
+    delay = Math.min(delay * 1.4, 8000);
+  }
+}
+
 function buildRecipeList() {
   const list = $("recipeList");
+  revokeThumbUrls(list);
   const byCat = {};
   for (const r of catalog.recipes) {
     const g = catalog.generators[r.generator];
@@ -663,25 +927,60 @@ function buildRecipeList() {
     for (const r of byCat[cat].sort((a, b) => a.name.localeCompare(b.name))) {
       const btn = document.createElement("button");
       btn.type = "button";
-      btn.textContent = r.name;
+      btn.className = "recipe-row";
       btn.dataset.name = r.name;
+      btn.dataset.hay = recipeHaystack(r);
+      btn.setAttribute("role", "option");
+      const img = document.createElement("img");
+      img.className = "thumb";
+      img.alt = "";
+      img.dataset.recipe = r.name;
+      img.dataset.orient = "land";
+      thumbObserver.observe(img);
+      const nameEl = document.createElement("div");
+      nameEl.className = "r-name";
+      nameEl.textContent = r.name;
+      const descEl = document.createElement("div");
+      descEl.className = "r-desc";
+      descEl.textContent = r.description || `${r.generator}`;
+      const tagsEl = document.createElement("div");
+      tagsEl.className = "r-tags";
+      for (const t of (r.tags || []).slice(0, 6)) {
+        const sp = document.createElement("span");
+        sp.className = "tag";
+        sp.textContent = t;
+        tagsEl.appendChild(sp);
+      }
+      btn.append(img, nameEl, descEl, tagsEl);
       btn.onclick = () => selectRecipe(r.name);
       list.appendChild(btn);
     }
   }
+  highlightActiveRecipe();
+}
+
+function visibleRecipeRows() {
+  return [...$("recipeList").querySelectorAll(".recipe-row")].filter((b) => b.style.display !== "none");
+}
+
+function highlightActiveRecipe() {
+  for (const b of $("recipeList").querySelectorAll(".recipe-row")) {
+    b.classList.toggle("active", b.dataset.name === state?.recipe);
+  }
 }
 
 function filterRecipeList(q) {
-  const ql = q.toLowerCase();
+  const ql = q.trim().toLowerCase();
   let grp = null, any = false;
   const hideEmpty = () => { if (grp) grp.style.display = any ? "" : "none"; };
   for (const el of $("recipeList").children) {
     if (el.classList.contains("grp")) { hideEmpty(); grp = el; any = false; continue; }
-    const show = !ql || el.dataset.name.toLowerCase().includes(ql);
+    const show = !ql || (el.dataset.hay || "").includes(ql);
     el.style.display = show ? "" : "none";
     any ||= show;
   }
   hideEmpty();
+  recipeListIndex = -1;
 }
 
 function openRecipeList() {
@@ -690,13 +989,80 @@ function openRecipeList() {
   list.style.top = `${r.bottom + 2}px`;
   list.style.left = `${r.left}px`;
   list.classList.add("open");
+  $("recipeSearch").setAttribute("aria-expanded", "true");
+  highlightActiveRecipe();
+}
+
+function closeRecipeList() {
+  $("recipeList").classList.remove("open");
+  $("recipeSearch").setAttribute("aria-expanded", "false");
+}
+
+function sortedRecipeNames() {
+  return catalog.recipes.map((r) => r.name).sort((a, b) => a.localeCompare(b));
+}
+
+function exploreRecipe(delta) {
+  const names = sortedRecipeNames();
+  const cur = state.recipe || names[0];
+  let i = names.indexOf(cur);
+  if (i < 0) i = 0;
+  i = (i + delta + names.length) % names.length;
+  selectRecipe(names[i]);
+}
+
+function shuffleRecipe() {
+  const pool = catalog.recipes.filter((r) => !(r.tags || []).includes("draft"));
+  if (!pool.length) return;
+  let pick = pool[Math.floor(Math.random() * pool.length)];
+  if (pool.length > 1 && pick.name === state.recipe) {
+    pick = pool[(pool.indexOf(pick) + 1) % pool.length];
+  }
+  selectRecipe(pick.name);
+}
+
+function nudgeParams() {
+  const g = genSpec();
+  if (!g) return;
+  for (const p of g.params) {
+    if (!["int", "float"].includes(p.kind) || !p.range) continue;
+    const path = `params.${p.name}`;
+    const cur = state.params[p.name];
+    if (typeof cur !== "number") continue;
+    const [lo, hi] = p.range;
+    const span = hi - lo;
+    if (!span) continue;
+    const delta = (Math.random() * 0.2 - 0.1) * span;
+    const v = clamp(cur + delta, lo, hi);
+    state.params[p.name] = p.kind === "int" ? Math.round(v) : v;
+    markModified(path);
+  }
+  if (state.view && baseline?.view) {
+    for (const key of ["half_width", "rotation"]) {
+      const cur = state.view[key];
+      if (typeof cur !== "number") continue;
+      const ref = baseline.view[key];
+      const span = Math.max(Math.abs(ref) * 0.2, key === "half_width" ? ref * 0.2 : 20);
+      const delta = (Math.random() * 0.2 - 0.1) * span;
+      state.view[key] = key === "half_width" ? Math.max(1e-12, cur + delta) : cur + delta;
+      markModified(`view.${key}`);
+    }
+  }
+  checkpoint("nudge");
+  seq++;
+  recomputeModified();
+  rebuildSidebar();
+  persistHash();
+  scheduleRender();
 }
 
 async function selectRecipe(name) {
+  const token = ++loadToken;
   $("recipeSearch").value = name;
-  $("recipeList").classList.remove("open");
+  closeRecipeList();
   syncDimensions();
   const st = await apiJson(`/api/state?recipe=${encodeURIComponent(name)}&w=${state.width}&h=${state.height}`);
+  if (token !== loadToken) return;
   st.seq = seq;
   state = st;
   baseline = deepClone(st);
@@ -704,6 +1070,7 @@ async function selectRecipe(name) {
   modified = new Set();
   seq++;
   rebuildSidebar();
+  highlightActiveRecipe();
   persistHash();
   scheduleRender();
 }
@@ -726,6 +1093,7 @@ function generatorBlankState(genName) {
     view: g.uses_view ? { center: [0, 0], half_width: 2, rotation: 0, fit: "fill", ...deepClone(g.default_view) } : null,
     post: {},
     tone: {},
+    mask: {},
     width: state.width,
     height: state.height,
     seq,
@@ -757,14 +1125,16 @@ async function stateFromHash(h) {
   }
   if ("palette" in h) st.palette = h.palette;
   st.params = { ...st.params, ...(h.params || {}) };
-  if (h.view && st.view) st.view = h.view;
+  if (h.view && st.view) st.view = sanitizeView({ ...st.view, ...h.view }, st.view);
   st.post = h.post || {};
   st.tone = h.tone || {};
+  st.mask = h.mask || {};
   return st;
 }
 
 async function loadInitial() {
-  state = { width: 640, height: 360, params: {}, post: {}, tone: {} };
+  const token = ++loadToken;
+  state = { width: 640, height: 360, params: {}, post: {}, tone: {}, mask: {} };
   syncDimensions();
   let restored = null;
   if (location.hash.length > 1) {
@@ -774,6 +1144,7 @@ async function loadInitial() {
       showError(new Error(`Could not restore the saved view (${e.message}); loading the default recipe.`));
     }
   }
+  if (token !== loadToken) return;
   if (restored) {
     state = restored;
   } else {
@@ -781,6 +1152,7 @@ async function loadInitial() {
     $("aspectSel").value = aspectKey;
     syncDimensions();
     state = await fetchRecipeState("julia_dragon");
+    if (token !== loadToken) return;
     baseline = deepClone(state);
   }
   $("recipeSearch").value = state.recipe || "";
@@ -808,13 +1180,7 @@ function rebuildSidebar() {
 
   const paramsSec = document.createElement("div");
   paramsSec.className = "section";
-  paramsSec.innerHTML = `<h3>Parameters <label class="help-toggle"><input type="checkbox" id="helpToggle"> show help</label></h3>`;
-  const ht = paramsSec.querySelector("#helpToggle");
-  ht.checked = !document.body.classList.contains("no-help");
-  ht.onchange = () => {
-    document.body.classList.toggle("no-help", !ht.checked);
-    try { localStorage.setItem("fractalgen.help", ht.checked ? "1" : "0"); } catch (_) {}
-  };
+  paramsSec.innerHTML = `<h3>Parameters</h3>`;
   const recipeInfo = state.recipe && catalog.recipes.find((r) => r.name === state.recipe);
   const genInfo = catalog.generators[state.generator];
   const intro = document.createElement("div");
@@ -876,6 +1242,25 @@ function rebuildSidebar() {
     postSec.appendChild(opRow("post", op));
   }
   sb.appendChild(postSec);
+
+  const maskSec = document.createElement("div");
+  maskSec.className = "section";
+  maskSec.innerHTML = `<h3>Mask</h3><div class="intro">Cut the picture out with text, a shape or an image ` +
+    `(set one to turn the mask on). Drag the preview to move the fractal inside it. ` +
+    `Background: a hex color, <code>transparent</code>, <code>self</code> (the fractal, dimmed), ` +
+    `<code>recipe:NAME</code> or <code>palette:NAME</code>.</div>`;
+  if (!state.mask) state.mask = {};
+  const switches = ["text", "shape", "image"];
+  const maskOps = groupOps("mask");
+  for (const op of maskOps.filter((o) => switches.includes(o.name))) {
+    maskSec.appendChild(opRow("mask", op, "default"));
+  }
+  if (maskActive()) {
+    for (const op of maskOps.filter((o) => !switches.includes(o.name))) {
+      maskSec.appendChild(opRow("mask", op, "default"));
+    }
+  }
+  sb.appendChild(maskSec);
   refreshModifiedMarks();
   sb.scrollTop = scroll;
   if (filterFocused) {
@@ -916,10 +1301,10 @@ function buildViewSection() {
     "Shift+scroll or Alt+drag to rotate, R to reset the view.";
   sec.appendChild(intro);
   const cg = groupEl("view.center", "center", "the plane point at the middle of the image");
-  cg.appendChild(complexRow("view.center.re", "real", v.center[0], (x) => {
+  cg.appendChild(complexRow("view.center.0", "real", v.center[0], (x) => {
     v.center[0] = x; commitChange("view.center");
   }));
-  cg.appendChild(complexRow("view.center.im", "imaginary", v.center[1], (x) => {
+  cg.appendChild(complexRow("view.center.1", "imaginary", v.center[1], (x) => {
     v.center[1] = x; commitChange("view.center");
   }));
   sec.appendChild(cg);
@@ -955,8 +1340,13 @@ function buildViewSection() {
   sl.oninput = syncFromLog;
   sl.onchange = () => commitChange("view.half_width");
   num.onchange = () => {
-    v.half_width = parseFloat(num.value) || v.half_width;
-    sl.value = clamp(Math.log10(Math.max(v.half_width, 1e-14)), logMin, logMax);
+    const x = parseFloat(num.value);
+    if (!Number.isFinite(x) || x <= 0) {
+      num.value = v.half_width;
+      return;
+    }
+    v.half_width = Math.max(1e-14, x);
+    sl.value = clamp(Math.log10(v.half_width), logMin, logMax);
     commitChange("view.half_width");
   };
   hwCtrl.append(sl, num);
@@ -1192,10 +1582,10 @@ function complexRow(path, label, value, onApply) {
 
 function complexParamRow(path, label, value, doc, onApply) {
   const wrap = groupEl(path, `${label} (complex)`, doc);
-  const r1 = complexRow(path + ".re", "real", value[0], (x) => {
+  const r1 = complexRow(path + ".0", "real", value[0], (x) => {
     value[0] = x; onApply(value);
   });
-  const r2 = complexRow(path + ".im", "imaginary", value[1], (x) => {
+  const r2 = complexRow(path + ".1", "imaginary", value[1], (x) => {
     value[1] = x; onApply(value);
   });
   wrap.append(r1, r2);
@@ -1439,6 +1829,35 @@ function opRow(group, op, neutralLabel = "off at") {
   if (op.kind === "bool") return boolRow(path, op.name, val, op.doc, onSet);
   if (op.kind === "palette") return paletteRow(path, op.name, val, onSet, true, op.doc);
   if (op.kind === "color") return colorRow(path, op.name, val, op.doc, onSet, op.neutral == null);
+  if (op.kind === "choice") {
+    const sel = document.createElement("select");
+    for (const c of op.choices || []) sel.add(new Option(c || "(none)", c));
+    sel.value = val;
+    sel.onchange = () => { onSet(sel.value); rebuildSidebar(); };
+    return rowShell(path, op.name, op.doc, sel);
+  }
+  if (op.kind === "string") {
+    // Turning a mask on or off shows / hides its other controls.
+    const row = stringRow(path, op.name, val, op.doc, (v) => {
+      const was = maskActive();
+      onSet(v);
+      if (group === "mask" && was !== maskActive()) rebuildSidebar();
+    });
+    if (group === "mask" && op.name === "background") {
+      const inp = row.querySelector("input");
+      inp.setAttribute("list", "maskBackgrounds");
+      if (!$("maskBackgrounds")) {
+        const dl = document.createElement("datalist");
+        dl.id = "maskBackgrounds";
+        const opts = ["000000", "transparent", "self",
+          ...catalog.palettes.map((p) => `palette:${p.name}`),
+          ...catalog.recipes.map((r) => `recipe:${r.name}`)];
+        for (const o of opts) dl.appendChild(new Option(o));
+        document.body.appendChild(dl);
+      }
+    }
+    return row;
+  }
   const rng = op.range || [-1, 1];
   return floatRow(path, op.name, val, rng[0], rng[1], 0.01, onSet, false, [op.doc, `${neutralLabel} ${fmtVal(op.neutral)}`]);
 }
@@ -1488,7 +1907,7 @@ function planeFromEvent(e) {
 function updatePreviewTransform() {
   const img = $("previewImg");
   const s = shownView, c = state.view;
-  if (!s || !c || !viewExtent || !s.half_width || !c.half_width) { img.style.transform = ""; return; }
+  if (!s || !c || !viewExtent || !s.half_width || !c.half_width || maskActive()) { img.style.transform = ""; return; }
   const k = s.half_width / c.half_width;
   const upp = unitsPerPx();
   const { cos, sin } = frameAxes(c);
@@ -1554,6 +1973,38 @@ function setupPreviewInteraction() {
   overlay.addEventListener("pointerup", endDrag);
   overlay.addEventListener("pointercancel", endDrag);
 
+  let pinch = null;
+  overlay.addEventListener("touchstart", (e) => {
+    if (!state.view || e.touches.length !== 2) { pinch = null; return; }
+    const [a, b] = e.touches;
+    pinch = {
+      d0: Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY),
+      hw0: state.view.half_width,
+      center0: [...state.view.center],
+      mid: { x: (a.clientX + b.clientX) / 2, y: (a.clientY + b.clientY) / 2 },
+    };
+  }, { passive: true });
+  overlay.addEventListener("touchmove", (e) => {
+    if (!pinch || !state.view || e.touches.length !== 2) return;
+    e.preventDefault();
+    const [a, b] = e.touches;
+    const d = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+    const factor = pinch.d0 / Math.max(d, 1);
+    const mid = { clientX: (a.clientX + b.clientX) / 2, clientY: (a.clientY + b.clientY) / 2 };
+    const p = planeFromEvent(mid);
+    const [cx, cy] = pinch.center0;
+    state.view.half_width = pinch.hw0 * factor;
+    state.view.center = [p.re + (cx - p.re) * factor, p.im + (cy - p.im) * factor];
+    updatePreviewTransform();
+  }, { passive: false });
+  overlay.addEventListener("touchend", () => {
+    if (pinch) {
+      pinch = null;
+      commitChange("view.half_width");
+      rebuildSidebar();
+    }
+  });
+
   overlay.addEventListener("wheel", (e) => {
     if (!state.view) return;
     e.preventDefault();
@@ -1575,91 +2026,176 @@ function setupPreviewInteraction() {
 }
 
 // --- save / export ---
-async function saveRecipe() {
-  const name = prompt("Recipe name (letters, digits, _ -):");
-  if (!name) return;
+function openSaveModal() {
+  $("saveName").value = state.recipe || "";
+  $("saveOverwrite").checked = false;
+  $("saveError").textContent = "";
+  $("saveOk").textContent = "";
+  openModal("saveModal");
+}
+
+async function doSaveRecipe() {
+  const name = $("saveName").value.trim();
+  const overwrite = $("saveOverwrite").checked;
+  $("saveError").textContent = "";
+  $("saveOk").textContent = "";
   try {
-    await apiJson("/api/save", {
+    const info = await apiJson("/api/save", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, state: stateForApi(state) }),
+      body: JSON.stringify({ name, state: stateForApi(state), overwrite }),
     });
     await loadCatalog();
-    alert(`Saved as ${name}`);
+    const st = await apiJson(`/api/state?recipe=${encodeURIComponent(name)}&w=${state.width}&h=${state.height}`);
+    state = st;
+    baseline = deepClone(st);
+    $("recipeSearch").value = name;
+    modified = new Set();
+    resetHistoryBase();
+    rebuildSidebar();
+    highlightActiveRecipe();
+    persistHash();
+    scheduleRender();
+    $("saveOk").textContent = `Saved to ${info.path}`;
   } catch (e) {
-    if (e.message && e.message.includes("FileExistsError")) {
-      if (confirm("Recipe exists. Overwrite?")) {
-        await apiJson("/api/save", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name, state: stateForApi(state), overwrite: true }),
-        });
-        await loadCatalog();
-        alert(`Saved as ${name}`);
-      }
-    } else showError(e);
+    $("saveError").textContent = e.message || String(e);
   }
 }
 
 function buildExportPresets() {
   const sel = $("exportPreset");
+  const seen = new Set();
   sel.innerHTML = '<option value="">— Custom —</option>';
   for (const p of catalog.presets || []) {
-    sel.innerHTML += `<option value="${p.width}x${p.height}">${p.name} (${p.width}×${p.height})</option>`;
+    const key = `${p.width}x${p.height}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const fmt = (p.format || "png").toLowerCase();
+    sel.innerHTML += `<option value="${key}" data-format="${fmt}">${p.name} (${p.width}×${p.height}, ${fmt})</option>`;
   }
-  sel.innerHTML += '<option value="3840x2160">4K (3840×2160)</option>';
-  sel.innerHTML += '<option value="1920x1080">1080p</option>';
 }
+
+function updateExportUi(st) {
+  const bar = $("exportBar");
+  const toast = $("exportToast");
+  if (!st) {
+    bar.hidden = true;
+    toast.hidden = true;
+    return;
+  }
+  bar.hidden = st.status === "running" ? false : true;
+  bar.value = st.progress || 0;
+  if (st.status === "running") {
+    const stage = st.stage ? st.stage[0].toUpperCase() + st.stage.slice(1) : "Export";
+    const msg = `${stage}… ${Math.round(100 * (st.progress || 0))}%`;
+    $("exportStatus").textContent = msg;
+    toast.textContent = msg;
+    toast.hidden = false;
+  } else if (st.status === "done") {
+    $("exportStatus").textContent = `Saved: ${st.path}`;
+    toast.textContent = `Export done`;
+    toast.hidden = false;
+    $("exportCopyPath").hidden = false;
+    $("exportDownload").hidden = false;
+    $("exportDownload").href = `/api/export/${exportJob}/file`;
+    $("exportCopyPath").onclick = () => navigator.clipboard?.writeText(st.path);
+  } else if (st.status === "error") {
+    $("exportStatus").textContent = `Error: ${(st.error || "").split("\n")[0]}`;
+    toast.textContent = "Export failed";
+  }
+}
+
+function pollExportJob() {
+  if (!exportJob) return;
+  apiJson(`/api/export/${exportJob}`).then((st) => {
+    updateExportUi(st);
+    if (st.status === "running") exportPollTimer = setTimeout(pollExportJob, 400);
+    else exportPollTimer = null;
+  }).catch(() => { exportPollTimer = setTimeout(pollExportJob, 800); });
+}
+
+let exportStarting = false;
 
 async function runExport() {
   const preset = $("exportPreset").value;
   let w = parseInt($("exportW").value, 10);
   let h = parseInt($("exportH").value, 10);
-  if (preset) {
-    [w, h] = preset.split("x").map(Number);
-  }
-  if (!w || !h) {
-    $("exportStatus").textContent = "Set width and height.";
+  if (preset) [w, h] = preset.split("x").map(Number);
+  if (!Number.isFinite(w) || w < 16 || !Number.isFinite(h) || h < 16) {
+    $("exportStatus").textContent = "Width and height must be at least 16.";
     return;
   }
   const fmt = $("exportFmt").value;
   const name = $("exportName").value.trim();
+  exportStarting = true;
   $("exportStatus").textContent = "Starting…";
+  $("exportCopyPath").hidden = true;
+  $("exportDownload").hidden = true;
   try {
     const { job } = await apiJson("/api/export", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        state: stateForApi(state),
-        width: w,
-        height: h,
-        format: fmt,
-        name: name || undefined,
-      }),
+      body: JSON.stringify({ state: stateForApi(state), width: w, height: h, format: fmt, name: name || undefined }),
     });
-    $("exportStatus").textContent = `Job ${job}…`;
-    const poll = async () => {
-      const st = await apiJson(`/api/export/${job}`);
-      if (st.status === "running") {
-        $("exportStatus").textContent = `Rendering… ${(st.seconds || 0).toFixed(1)}s`;
-        setTimeout(poll, 400);
-      } else if (st.status === "done") {
-        $("exportStatus").textContent = `Done: ${st.path}`;
-      } else if (st.status === "error") {
-        $("exportStatus").textContent = `Error: ${st.error}`;
-      } else {
-        $("exportStatus").textContent = "Unknown job status";
-      }
-    };
-    poll();
+    exportJob = job;
+    $("exportBar").value = 0;
+    $("exportBar").hidden = false;
+    pollExportJob();
   } catch (e) {
     $("exportStatus").textContent = e.message;
+  } finally {
+    exportStarting = false;
+  }
+}
+
+async function copyCliCommand() {
+  try {
+    const { command } = await apiJson("/api/cli", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ state: stateForApi(state), width: state.width, height: state.height }),
+    });
+    await navigator.clipboard.writeText(command);
+    $("renderMs").textContent = "CLI copied";
+    setTimeout(() => { if ($("renderMs").textContent === "CLI copied") $("renderMs").textContent = "—"; }, 2000);
+  } catch (e) {
+    showError(e);
+  }
+}
+
+function buildGallery() {
+  const grid = $("galleryGrid");
+  revokeThumbUrls(grid);
+  grid.innerHTML = "";
+  const orient = thumbOrient();
+  for (const r of catalog.recipes) {
+    const card = document.createElement("div");
+    card.className = "gallery-card";
+    card.dataset.hay = recipeHaystack(r);
+    const img = document.createElement("img");
+    img.alt = r.name;
+    img.dataset.recipe = r.name;
+    img.dataset.orient = orient;
+    thumbObserver.observe(img);
+    const nm = document.createElement("div");
+    nm.className = "g-name";
+    nm.textContent = r.name;
+    card.append(img, nm);
+    card.onclick = () => { closeModal("galleryModal"); selectRecipe(r.name); };
+    grid.appendChild(card);
+  }
+}
+
+function filterGallery(q) {
+  const ql = q.trim().toLowerCase();
+  for (const c of $("galleryGrid").children) {
+    c.style.display = !ql || (c.dataset.hay || "").includes(ql) ? "" : "none";
   }
 }
 
 // --- aspect change with optional state refetch ---
 async function onAspectChange() {
-  const prev = aspectKey;
+  const token = ++loadToken;
   aspectKey = $("aspectSel").value;
   const asp = aspects.find((a) => a.id === aspectKey);
   if (asp?.preset) {
@@ -1669,6 +2205,7 @@ async function onAspectChange() {
   syncDimensions();
   if (state.recipe && baseline) {
     const fresh = await apiJson(`/api/state?recipe=${encodeURIComponent(state.recipe)}&w=${state.width}&h=${state.height}`);
+    if (token !== loadToken) return;
     if (state.view && fresh.view) {
       for (const k of ["center", "half_width", "rotation", "fit"]) {
         if (!modified.has(`view.${k}`)) state.view[k] = deepClone(fresh.view[k]);
@@ -1689,8 +2226,16 @@ async function onAspectChange() {
     // Portrait overrides change the recipe's own values: reset targets them now.
     baseline = fresh;
     recomputeModified();
+    undoStack = [];
+    redoStack = [];
     resetHistoryBase();
+    updateHistoryButtons();
     rebuildSidebar();
+  } else {
+    undoStack = [];
+    redoStack = [];
+    resetHistoryBase();
+    updateHistoryButtons();
   }
   applyFrameAspect(asp);
   persistHash();
@@ -1698,8 +2243,22 @@ async function onAspectChange() {
 }
 
 // --- wire UI ---
+function setHelpVisible(on) {
+  document.body.classList.toggle("no-help", !on);
+  $("helpToggleTop").checked = on;
+  try { localStorage.setItem("fractalgen.help", on ? "1" : "0"); } catch (_) {}
+}
+
+function toggleSidebar() {
+  const sb = $("sidebar");
+  const collapsed = sb.classList.toggle("collapsed");
+  document.body.classList.toggle("sidebar-open", !collapsed && window.innerWidth < 800);
+}
+
 function initUi() {
-  // Focusing shows every recipe and selects the current name, so typing starts a fresh search
+  if (window.innerWidth < 800) $("sidebar").classList.add("collapsed");
+  $("sidebarBackdrop").onclick = () => { $("sidebar").classList.add("collapsed"); document.body.classList.remove("sidebar-open"); };
+
   $("recipeSearch").onfocus = (e) => {
     filterRecipeList("");
     e.target.select();
@@ -1709,15 +2268,31 @@ function initUi() {
     openRecipeList();
     filterRecipeList(e.target.value);
   };
+  $("recipeSearch").onkeydown = (e) => {
+    const rows = visibleRecipeRows();
+    if (e.key === "Escape") { closeRecipeList(); return; }
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      recipeListIndex = Math.min(recipeListIndex + 1, rows.length - 1);
+      rows[recipeListIndex]?.focus();
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      recipeListIndex = Math.max(recipeListIndex - 1, 0);
+      rows[recipeListIndex]?.focus();
+    } else if (e.key === "Enter" && recipeListIndex >= 0 && rows[recipeListIndex]) {
+      e.preventDefault();
+      selectRecipe(rows[recipeListIndex].dataset.name);
+    }
+  };
   document.addEventListener("click", (e) => {
-    if (!$("recipeWrap").contains(e.target)) $("recipeList").classList.remove("open");
+    if (!$("recipeWrap").contains(e.target)) closeRecipeList();
   });
-  // the list is anchored in viewport coordinates, so close it if the topbar scrolls
-  $("topbar").addEventListener("scroll", () => $("recipeList").classList.remove("open"));
+  $("topbar").addEventListener("scroll", () => closeRecipeList());
 
   $("genPicker").onchange = () => {
     const g = $("genPicker").value;
     if (!g) return;
+    loadToken++;
     state = generatorBlankState(g);
     baseline = deepClone(state);
     checkpoint();
@@ -1752,33 +2327,76 @@ function initUi() {
     persistHash();
     scheduleRender();
   };
-  $("btnSave").onclick = () => saveRecipe();
-  $("btnExport").onclick = () => { $("exportModal").classList.add("open"); $("exportStatus").textContent = ""; };
-  $("btnSidebar").onclick = () => $("sidebar").classList.toggle("collapsed");
+  $("btnSave").onclick = () => openSaveModal();
+  $("saveCancel").onclick = () => closeModal("saveModal");
+  $("saveGo").onclick = () => doSaveRecipe();
+  $("btnCopyCli").onclick = () => copyCliCommand();
+  $("btnPrev").onclick = () => exploreRecipe(-1);
+  $("btnNext").onclick = () => exploreRecipe(1);
+  $("btnShuffle").onclick = () => shuffleRecipe();
+  $("btnNudge").onclick = () => nudgeParams();
+  $("btnGallery").onclick = () => { buildGallery(); openModal("galleryModal"); $("gallerySearch").value = ""; filterGallery(""); };
+  $("galleryClose").onclick = () => closeModal("galleryModal");
+  $("gallerySearch").oninput = (e) => filterGallery(e.target.value);
+  $("helpToggleTop").onchange = () => setHelpVisible($("helpToggleTop").checked);
+  $("btnExport").onclick = () => {
+    openModal("exportModal");
+    if (!exportJob) $("exportStatus").textContent = "";
+  };
+  $("btnSidebar").onclick = () => toggleSidebar();
   // The frame follows the stage size (window resize, sidebar toggle / drag-resize).
   new ResizeObserver(() => applyFrameAspect(aspects.find((a) => a.id === aspectKey))).observe($("previewStage"));
-  $("exportCancel").onclick = () => $("exportModal").classList.remove("open");
+  $("exportCancel").onclick = () => closeModal("exportModal");
   $("exportGo").onclick = () => runExport();
   $("exportPreset").onchange = () => {
+    const opt = $("exportPreset").selectedOptions[0];
     const v = $("exportPreset").value;
     if (v) {
       const [w, h] = v.split("x");
       $("exportW").value = w;
       $("exportH").value = h;
+      const fmt = opt?.dataset?.format;
+      if (fmt) $("exportFmt").value = fmt === "jpg" || fmt === "jpeg" ? "jpg" : "png";
     }
   };
+  for (const id of ["exportModal", "saveModal", "galleryModal"]) {
+    $(id).addEventListener("click", (e) => {
+      if (e.target === $(id)) {
+        if (id === "exportModal" && exportStarting) return;
+        closeModal(id);
+      }
+    });
+  }
+  $("shortcutsClose").onclick = () => closeModal("shortcutsOverlay");
+  $("shortcutsOverlay").addEventListener("click", (e) => {
+    if (e.target === $("shortcutsOverlay")) closeModal("shortcutsOverlay");
+  });
 
   window.addEventListener("keydown", (e) => {
+    if (e.key === "?" && !formControlFocused()) {
+      e.preventDefault();
+      $("shortcutsOverlay").classList.toggle("open");
+      return;
+    }
+    if (e.key === "Escape") {
+      closeRecipeList();
+      for (const id of ["exportModal", "saveModal", "galleryModal", "shortcutsOverlay"]) closeModal(id);
+      return;
+    }
     const mod = e.metaKey || e.ctrlKey;
+    if (formControlFocused() && (mod || ["r", "[", "]", "."].includes(e.key))) return;
     if (mod && e.key === "z" && !e.shiftKey) { e.preventDefault(); doUndo(); }
-    if (mod && e.key === "z" && e.shiftKey) { e.preventDefault(); doRedo(); }
-    if (e.key === "r" && !mod && document.activeElement?.tagName !== "INPUT" && document.activeElement?.tagName !== "TEXTAREA") {
+    if ((mod && e.key === "y") || (mod && e.key === "z" && e.shiftKey)) { e.preventDefault(); doRedo(); }
+    if (e.key === "r" && !mod) {
       if (baseline?.view && state.view) {
         Object.assign(state.view, deepClone(baseline.view));
         commitChange("view");
         rebuildSidebar();
       }
     }
+    if (e.key === "[" && !mod) { e.preventDefault(); exploreRecipe(-1); }
+    if (e.key === "]" && !mod) { e.preventDefault(); exploreRecipe(1); }
+    if (e.key === "." && !mod) { e.preventDefault(); shuffleRecipe(); }
   });
 
   window.addEventListener("resize", () => applyFrameAspect(aspects.find((a) => a.id === aspectKey)));
@@ -1786,7 +2404,15 @@ function initUi() {
 }
 
 async function boot() {
-  try { if (localStorage.getItem("fractalgen.help") === "0") document.body.classList.add("no-help"); } catch (_) {}
+  try {
+    if (!localStorage.getItem("fractalgen.helpVisited")) {
+      localStorage.setItem("fractalgen.help", "0");
+      localStorage.setItem("fractalgen.helpVisited", "1");
+    }
+    setHelpVisible(localStorage.getItem("fractalgen.help") !== "0");
+  } catch (_) {
+    setHelpVisible(false);
+  }
   initUi();
   await loadCatalog();
   await loadInitial();

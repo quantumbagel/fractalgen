@@ -17,10 +17,11 @@ from __future__ import annotations
 
 import difflib
 import inspect
+import typing
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any, Callable, Literal, get_args, get_origin, get_type_hints
 
-from ..params import coerce
+from ..params import Doc, Range, coerce
 from ..registry import Registry
 
 _EMPTY = inspect.Parameter.empty
@@ -89,6 +90,36 @@ class GeneratorSpec:
 GENERATORS: Registry[GeneratorSpec] = Registry("generator")
 
 
+def _hints_from_annotations(fn: Callable[..., Any]) -> tuple[dict[str, tuple], dict[str, Any], dict[str, str]]:
+    """Return (ranges, choices, docs) inferred from type hints (explicit decorator args win)."""
+    ranges: dict[str, tuple] = {}
+    choices: dict[str, Any] = {}
+    docs: dict[str, str] = {}
+    try:
+        hints = get_type_hints(fn, include_extras=True)
+    except Exception:
+        return ranges, choices, docs
+    for pname, hint in hints.items():
+        if pname == "return":
+            continue
+        meta = []
+        origin = get_origin(hint)
+        if origin is typing.Annotated:
+            args = get_args(hint)
+            if not args:
+                continue
+            hint = args[0]
+            meta = list(args[1:])
+        if get_origin(hint) is Literal:
+            choices[pname] = list(get_args(hint))
+        for m in meta:
+            if isinstance(m, Range):
+                ranges[pname] = m.as_tuple()
+            elif isinstance(m, Doc):
+                docs[pname] = m.text
+    return ranges, choices, docs
+
+
 def generator(
     name: str,
     *,
@@ -110,9 +141,10 @@ def generator(
     def wrap(fn: Callable[..., Any]) -> Callable[..., Any]:
         sig = inspect.signature(fn)
         params: dict[str, Param] = {}
-        docs = param_docs or {}
-        rng = ranges or {}
-        chs = choices or {}
+        inf_rng, inf_chs, inf_docs = _hints_from_annotations(fn)
+        docs = {**inf_docs, **(param_docs or {})}
+        rng = {**inf_rng, **(ranges or {})}
+        chs = {**inf_chs, **(choices or {})}
         for hint in (*docs, *rng, *chs):
             if hint not in sig.parameters:
                 raise TypeError(f"{fn.__name__}: hint for unknown parameter {hint!r}")

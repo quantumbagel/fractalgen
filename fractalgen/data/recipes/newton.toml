@@ -1,4 +1,5 @@
 [recipe.newton_cubic]
+description = "Newton cubic basin colors"
 generator = "newton"
 tags = ["keep"]
 view = { center = [0, 0], half_width = 1.7 }
@@ -6,6 +7,7 @@ params = { power = 3, style = "cinematic" }
 portrait.view = { half_width = 0.95, fit = "fill" }
 
 [recipe.newton_sextic]
+description = "Sextic Newton basin filigree"
 generator = "newton"
 tags = ["keep"]
 view = { center = [0, 0], half_width = 1.55 }
@@ -13,6 +15,7 @@ params = { power = 6, style = "cinematic" }
 portrait.view = { half_width = 0.90, fit = "fill" }
 
 [recipe.newton_quartic]
+description = "Quartic Newton root basins"
 generator = "newton"
 tags = ["keep"]
 view = { center = [0, 0], half_width = 1.6 }
@@ -20,6 +23,7 @@ params = { power = 4, style = "classic" }
 portrait.view = { half_width = 0.88, fit = "fill" }
 
 [recipe.newton_quintic]
+description = "Quintic Newton basin tapestry"
 generator = "newton"
 tags = ["keep"]
 view = { center = [0, 0], half_width = 1.55 }
@@ -27,6 +31,7 @@ params = { power = 5, style = "classic" }
 portrait.view = { half_width = 0.88, fit = "fill" }
 
 [recipe.newton_octic]
+description = "Octic Newton fractal basins"
 generator = "newton"
 tags = ["keep", "vip"]
 view = { center = [0, 0], half_width = 1.5 }
@@ -34,6 +39,7 @@ params = { power = 8, style = "cinematic" }
 portrait.view = { half_width = 0.85, fit = "fill" }
 
 [recipe.newton_shifted]
+description = "Shifted cubic Newton basins"
 generator = "newton_poly"
 tags = ["draft"]
 view = { center = [0, 0], half_width = 1.8 }

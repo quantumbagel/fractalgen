@@ -53,3 +53,66 @@ jobs = 1
 max_jobs = 1
 format = "jpg"
 tags = ["vip"]
+
+[preset."5k"]
+description = "16:9 5K display (Studio Display, iMac)"
+width = 5120
+height = 2880
+jobs = 1
+max_jobs = 2
+tags = ["keep"]
+
+[preset.macbook]
+description = "16:10-ish MacBook Pro 16\" native"
+width = 3456
+height = 2234
+jobs = 1
+max_jobs = 2
+
+[preset.ultrawide]
+description = "21:9 ultrawide (3440x1440)"
+width = 3440
+height = 1440
+jobs = 1
+max_jobs = 2
+aliases = ["uwqhd"]
+
+[preset."ultrawide-5k"]
+description = "21:9 5K2K ultrawide"
+width = 5120
+height = 2160
+jobs = 1
+max_jobs = 2
+tags = ["keep"]
+
+[preset."super-ultrawide"]
+description = "32:9 super ultrawide (dual QHD)"
+width = 5120
+height = 1440
+jobs = 1
+max_jobs = 2
+aliases = ["32x9"]
+
+[preset."dual-4k"]
+description = "Two 4K monitors side by side, one picture across both"
+width = 7680
+height = 2160
+jobs = 1
+max_jobs = 2
+tags = ["keep"]
+
+[preset."triple-4k"]
+description = "Three 4K monitors side by side, one picture across all three"
+width = 11520
+height = 2160
+jobs = 1
+max_jobs = 1
+tags = ["keep"]
+
+[preset.ipad]
+description = "iPad Pro 12.9\"/13\" portrait"
+width = 2048
+height = 2732
+jobs = 2
+max_jobs = 2
+tags = ["keep"]

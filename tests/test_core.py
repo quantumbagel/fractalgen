@@ -11,6 +11,7 @@ from pathlib import Path
 import numpy as np
 
 import fractalgen as fg
+from fractalgen import progress
 from fractalgen.expr import compile_expr
 from fractalgen.params import coerce, parse_literal, to_complex
 from fractalgen.registry import Registry
@@ -27,7 +28,7 @@ class RegistryTests(unittest.TestCase):
             r.register("a", 2)
         r.register("a", 3, replace=True)
         self.assertEqual(r.get("a"), 3)
-        with self.assertRaisesRegex(KeyError, "Known: a"):
+        with self.assertRaisesRegex(KeyError, "known"):
             r.get("b")
 
 
@@ -173,6 +174,36 @@ class LoaderTests(unittest.TestCase):
         self.assertEqual((pview.half_width, pview.fit), (0.9, "cover"))
         rgb = child.render(32, 18)
         self.assertTrue(np.isfinite(rgb).all())
+
+
+class ProgressTests(unittest.TestCase):
+    def test_spans_units_and_stages(self):
+        with progress.tracking() as t:
+            with progress.span(0.0, 0.5, "rendering"):
+                self.assertEqual(t.stage, "rendering")
+                progress.update(0.5)
+                self.assertAlmostEqual(t.fraction, 0.25)
+                with progress.span(0.5, 1.0):
+                    done = progress.units(4)
+                    done[:2] = 1  # what a kernel does row by row
+                    self.assertAlmostEqual(t.fraction, 0.375)
+                progress.update(0.1)  # never moves backwards
+                self.assertAlmostEqual(t.fraction, 0.5)
+            self.assertEqual(t.stage, "")
+            with progress.span(0.5, 1.0, "saving"):
+                pass
+            self.assertAlmostEqual(t.fraction, 1.0)
+
+    def test_render_reports_to_completion(self):
+        with progress.tracking() as t:
+            fg.RECIPES.get("julia_dragon").render(48, 27, n_strips=3)
+        self.assertAlmostEqual(t.fraction, 1.0)
+
+    def test_noop_without_tracker(self):
+        self.assertIsNone(progress.current())
+        progress.update(0.5)
+        with progress.span(0.0, 1.0, "x"):
+            self.assertEqual(progress.units(3).shape, (3,))
 
 
 if __name__ == "__main__":

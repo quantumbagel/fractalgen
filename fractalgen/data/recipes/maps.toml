@@ -1,6 +1,7 @@
 # 2D iterated-map strange attractors.
 
 [recipe.clifford_gold]
+description = "Golden Clifford strange attractor"
 generator = "map_attractor"
 palette = "bronze"
 tags = ["keep"]
@@ -14,6 +15,7 @@ seed = 1
 blur = 0.65
 
 [recipe.clifford_ice]
+description = "Cool Clifford orbit frost"
 generator = "map_attractor"
 palette = "abyss"
 tags = ["keep"]
@@ -27,6 +29,7 @@ seed = 2
 blur = 0.7
 
 [recipe.clifford_fire]
+description = "Clifford map ember attractor"
 generator = "map_attractor"
 palette = "ember"
 tags = ["keep"]
@@ -40,6 +43,7 @@ seed = 8
 blur = 0.65
 
 [recipe.dejong_ember]
+description = "De Jong map ember loops"
 generator = "map_attractor"
 palette = "ember"
 tags = ["keep"]
@@ -53,6 +57,7 @@ seed = 4
 blur = 0.6
 
 [recipe.dejong_ice]
+description = "Icy De Jong orbit filaments"
 generator = "map_attractor"
 palette = "abyss"
 tags = ["keep"]
@@ -66,6 +71,7 @@ seed = 9
 blur = 0.6
 
 [recipe.ikeda]
+description = "Ikeda map laser caustics"
 generator = "map_attractor"
 palette = "neon"
 tags = ["draft"]
@@ -85,6 +91,7 @@ xlim = [0.15, 1.20]
 ylim = [-1.10, 0.25]
 
 [recipe.hopalong]
+description = "Hopalong map scattered dust"
 generator = "map_attractor"
 palette = "plasma"
 tags = ["keep"]
@@ -98,6 +105,7 @@ seed = 6
 blur = 0.5
 
 [recipe.hopalong_alt]
+description = "Alternate Hopalong orbit spray"
 generator = "map_attractor"
 palette = "aurora"
 tags = ["keep", "vip"]
@@ -112,6 +120,7 @@ seed = 14
 blur = 0.5
 
 [recipe.gumowski_mira]
+description = "Gumowski-Mira pearled orbits"
 generator = "map_attractor"
 palette = "forest"
 tags = ["keep"]
@@ -125,6 +134,7 @@ seed = 7
 blur = 0.7
 
 [recipe.svensson]
+description = "Svensson map orbit webs"
 generator = "map_attractor"
 palette = "plasma"
 tags = ["keep"]
@@ -138,6 +148,7 @@ seed = 10
 blur = 0.55
 
 [recipe.bedhead]
+description = "Bedhead map chaotic dust"
 generator = "map_attractor"
 palette = "twilight"
 tags = ["keep"]
@@ -151,6 +162,7 @@ seed = 11
 blur = 0.6
 
 [recipe.fractal_dream]
+description = "Dreamlike map orbit mist"
 generator = "map_attractor"
 palette = "cosmic"
 tags = ["keep", "vip"]
@@ -163,6 +175,7 @@ seed = 13
 blur = 0.6
 
 [recipe.clifford_neon]
+description = "Neon Clifford orbit glow"
 generator = "map_attractor"
 palette = "neon"
 tags = ["keep"]
@@ -176,6 +189,7 @@ seed = 4
 blur = 0.6
 
 [recipe.clifford_ribbon]
+description = "Ribbon-like Clifford swirls"
 generator = "map_attractor"
 palette = "twilight"
 tags = ["keep"]
@@ -189,6 +203,7 @@ seed = 3
 blur = 0.6
 
 [recipe.dejong_smoke]
+description = "Smoky De Jong attractor haze"
 generator = "map_attractor"
 palette = "mercury"
 tags = ["keep", "vip"]
@@ -202,6 +217,7 @@ seed = 5
 blur = 0.6
 
 [recipe.dejong_lantern]
+description = "Lantern glow De Jong orbits"
 generator = "map_attractor"
 palette = "biolum"
 tags = ["keep"]

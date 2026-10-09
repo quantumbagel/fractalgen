@@ -20,7 +20,7 @@ from typing import Any
 import numpy as np
 from scipy.ndimage import gaussian_filter
 
-from .. import tone
+from .. import progress, tone
 from .base import generator
 from .density import palette_lut
 
@@ -124,6 +124,7 @@ def symplectic(
     cov_box = np.array(box, dtype=np.float64)
     chunk = max(1, 20_000_000 // n_steps)
     for s in range(0, orbits, chunk):
+        progress.update(s / orbits)
         e = min(orbits, s + chunk)
         ox = np.empty((e - s, n_steps))
         oy = np.empty((e - s, n_steps))

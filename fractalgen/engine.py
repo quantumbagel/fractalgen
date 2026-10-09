@@ -4,12 +4,17 @@ from __future__ import annotations
 
 import multiprocessing
 import os
+import shutil
+import sys
+import threading
 import time
 import traceback
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
+from . import progress
 from .registry import Registry
 
 # Pin BLAS in this process and (via inheritance) in spawned workers.
@@ -97,19 +102,27 @@ class Job:
     loads: list[str] = field(default_factory=list)
 
 
-def run_job(job: Job) -> dict[str, Any]:
-    """Render and save one recipe in *this* process."""
+# Share of a job's progress bar spent rendering; the rest is encoding and writing the file.
+RENDER_SHARE = 0.9
+
+
+def run_job(job: Job, tracker: progress.Tracker | None = None) -> dict[str, Any]:
+    """Render and save one recipe in *this* process, reporting into ``tracker``."""
     from .color import save_image
     from .loader import bootstrap
     from .recipe import RECIPES
+    from .tomlout import image_meta
 
     t0 = time.perf_counter()
     try:
-        bootstrap(job.loads)
-        rgb = RECIPES.get(job.name).render(
-            job.width, job.height, overrides=job.overrides, n_strips=job.n_strips
-        )
-        save_image(job.out_path, rgb, job.fmt, jpeg_quality=job.jpeg_quality)
+        with progress.tracking(tracker):
+            bootstrap(job.loads)
+            with progress.span(0.0, RENDER_SHARE):
+                recipe = RECIPES.get(job.name)
+                rgb = recipe.render(job.width, job.height, overrides=job.overrides, n_strips=job.n_strips)
+            with progress.span(RENDER_SHARE, 1.0, "saving"):
+                meta = image_meta(recipe.with_overrides(job.overrides), job.width, job.height)
+                save_image(job.out_path, rgb, job.fmt, jpeg_quality=job.jpeg_quality, meta=meta)
         return {"status": "ok", "sec": time.perf_counter() - t0}
     except MemoryError:
         return {"status": "oom", "sec": time.perf_counter() - t0, "detail": "MemoryError"}
@@ -117,9 +130,65 @@ def run_job(job: Job) -> dict[str, Any]:
         return {"status": "fail", "sec": time.perf_counter() - t0, "detail": traceback.format_exc()}
 
 
-def _worker(job: Job, q) -> None:
+def _worker(job: Job, q, fraction, stage) -> None:
     os.environ.setdefault("NUMBA_NUM_THREADS", str(max(1, (os.cpu_count() or 2) // 2)))
-    q.put(run_job(job))
+    tracker = progress.Tracker()
+
+    def publish() -> None:  # kernels release the GIL, so this runs mid-render
+        while True:
+            fraction.value = tracker.fraction
+            stage.value = tracker.stage.encode()[:31]
+            time.sleep(0.25)
+
+    threading.Thread(target=publish, daemon=True).start()
+    q.put(run_job(job, tracker))
+
+
+class _StatusLine:
+    """One self-overwriting line of live progress, on a terminal only."""
+
+    def __init__(self, stream=sys.stdout) -> None:
+        self.stream = stream
+        self.on = stream.isatty()
+        self.shown = False
+
+    def show(self, parts: list[tuple[str, str, float, float]]) -> None:
+        """``parts``: (recipe, stage, fraction, seconds) per running job."""
+        if not self.on or not parts:
+            return
+        text = "   ".join(f"{name} {stage or 'starting'} {f:.0%} {sec:.0f}s" for name, stage, f, sec in parts)
+        width = shutil.get_terminal_size().columns - 1
+        self.stream.write("\r\033[K" + text[:width])
+        self.stream.flush()
+        self.shown = True
+
+    def clear(self) -> None:
+        if self.shown:
+            self.stream.write("\r\033[K")
+            self.stream.flush()
+            self.shown = False
+
+
+@contextmanager
+def live_status(name: str, status: _StatusLine | None = None) -> Iterator[progress.Tracker]:
+    """A tracker whose progress a status line shows (on a terminal) until the block ends."""
+    status = status or _StatusLine()
+    tracker = progress.Tracker()
+    stop = threading.Event()
+    t0 = time.perf_counter()
+
+    def watch() -> None:
+        while not stop.wait(0.5):
+            status.show([(name, tracker.stage, tracker.fraction, time.perf_counter() - t0)])
+
+    watcher = threading.Thread(target=watch, daemon=True)
+    watcher.start()
+    try:
+        yield tracker
+    finally:
+        stop.set()
+        watcher.join()
+        status.clear()
 
 
 def _unlink(path: str) -> None:
@@ -127,6 +196,19 @@ def _unlink(path: str) -> None:
         Path(path).unlink(missing_ok=True)
     except OSError:
         pass
+
+
+def _output_stem(name: str) -> str:
+    """Recipe name as a safe filename stem (no path components)."""
+    if "/" in name or "\\" in name or name in (".", ".."):
+        raise ValueError(f"recipe name {name!r} is not a valid output filename stem")
+    parts = Path(name).parts
+    if ".." in parts:
+        raise ValueError(f"recipe name {name!r} is not a valid output filename stem")
+    stem = Path(name).name
+    if stem in (".", "..", ""):
+        raise ValueError(f"recipe name {name!r} is not a valid output filename stem")
+    return stem
 
 
 def render_batch(
@@ -160,7 +242,8 @@ def render_batch(
     total = len(names)
     done = 0
     for n in names:
-        path = out_dir / f"{n}{'@' + suffix if suffix else ''}.{ext}"
+        stem = _output_stem(n)
+        path = out_dir / f"{stem}{'@' + suffix if suffix else ''}.{ext}"
         if skip_existing and path.exists():
             done += 1
             print(f"[{done}/{total}] {n}  (skip existing)", flush=True)
@@ -171,9 +254,11 @@ def render_batch(
     print(f"{head}  jobs={jobs}  format={ext}  strips={strips}  -> {out_dir}", flush=True)
     t_all = time.perf_counter()
     failed = 0
+    status = _StatusLine()
 
     def report(job: Job, res: dict[str, Any]) -> None:
         nonlocal done, failed
+        status.clear()
         done += 1
         if res["status"] == "ok":
             print(f"[{done}/{total}] {job.name}  saved {Path(job.out_path).name}  ({res['sec']:.1f}s)", flush=True)
@@ -187,20 +272,24 @@ def render_batch(
 
     if not isolate:
         for job in pending:
-            report(job, run_job(job))
+            with live_status(job.name, status) as tracker:
+                res = run_job(job, tracker)
+            report(job, res)
     else:
         ctx = multiprocessing.get_context("spawn")
-        live: list[tuple[Any, Any, Job, float]] = []
+        live: list[tuple[Any, Any, Job, float, Any, Any]] = []
         queue = list(pending)
         while queue or live:
             while queue and len(live) < max(1, jobs):
                 job = queue.pop(0)
                 q = ctx.Queue(1)
-                proc = ctx.Process(target=_worker, args=(job, q), daemon=True)
+                fraction = ctx.Value("d", 0.0, lock=False)
+                stage = ctx.Array("c", 32, lock=False)
+                proc = ctx.Process(target=_worker, args=(job, q, fraction, stage), daemon=True)
                 proc.start()
-                live.append((proc, q, job, time.perf_counter()))
+                live.append((proc, q, job, time.perf_counter(), fraction, stage))
             still = []
-            for proc, q, job, t0 in live:
+            for proc, q, job, t0, fraction, stage in live:
                 elapsed = time.perf_counter() - t0
                 try:
                     res = q.get(timeout=0.2)
@@ -221,8 +310,12 @@ def render_batch(
                     reason = "OOM-killed" if code in (-9, 9, -6, 137) else f"worker exit {code}"
                     report(job, {"status": "fail", "sec": elapsed, "detail": reason})
                 else:
-                    still.append((proc, q, job, t0))
+                    still.append((proc, q, job, t0, fraction, stage))
             live = still
+            status.show([
+                (job.name, stage.value.decode(), fraction.value, time.perf_counter() - t0)
+                for _, _, job, t0, fraction, stage in live
+            ])
 
     print(f"=== done in {time.perf_counter() - t_all:.1f}s  failed={failed}", flush=True)
     return failed

@@ -7,6 +7,9 @@ from typing import Any, Callable
 
 import numpy as np
 
+from .. import progress
+from ..fieldcache import cached as field_cached
+from ..fieldcache import ctx_key as field_ctx_key
 from ..expr import compile_expr
 from ..loader import section
 from ..registry import Registry
@@ -170,6 +173,7 @@ def iterate_map(
     denom = max(steps - 1, 1)
     for i in range(steps):
         x, y = chunked(step, x, y)
+        progress.update((warmup + i) / (warmup + steps))
         bad = chunked(_bad, x, y)
         if np.any(bad):
             x[bad], y[bad] = _seed(int(bad.sum()))
@@ -252,45 +256,72 @@ def map_attractor(
     n_particles = ctx.scale_particles(n, particle_cap)
     fill = "cover" if ctx.portrait else "contain"
 
-    if xlim is not None and ylim is not None:
-        xmin, xmax = float(xlim[0]), float(xlim[1])
-        ymin, ymax = float(ylim[0]), float(ylim[1])
-    else:
-        probe = min(n_particles, 80_000)
-        xs, ys, hs = iterate_map(
+    norm = ctx.density_norm(n_particles, ctx.reference().scale_particles(n, particle_cap))
+    fkey = field_ctx_key(
+        ctx,
+        "map_attractor",
+        map=map,
+        coeffs=coeffs or {},
+        n=n,
+        n_particles=n_particles,
+        warmup=warmup,
+        steps=steps,
+        seed=seed,
+        init=init,
+        init_sigma=init_sigma,
+        explode=explode,
+        xlim=xlim,
+        ylim=ylim,
+        tight=tight,
+        percentiles=percentiles,
+        pad=pad,
+        particle_cap=particle_cap,
+        fill=fill,
+    )
+
+    def _fields() -> tuple[np.ndarray, np.ndarray]:
+        if xlim is not None and ylim is not None:
+            xmin, xmax = float(xlim[0]), float(xlim[1])
+            ymin, ymax = float(ylim[0]), float(ylim[1])
+        else:
+            probe = min(n_particles, 80_000)
+            xs, ys, hs = iterate_map(
+                step,
+                probe,
+                warmup,
+                steps,
+                seed=seed,
+                init=init,
+                init_sigma=init_sigma,
+                explode=explode,
+            )
+            if tight:
+                xmin, xmax, ymin, ymax = dense_window(xs, ys)
+            else:
+                xmin, xmax, ymin, ymax = auto_window(xs, ys, pad=pad, percentiles=percentiles)
+        xmin, xmax, ymin, ymax = fit_window(xmin, xmax, ymin, ymax, w, h, fill=fill)
+        density = np.zeros((h, w), dtype=np.float64)
+        hue_acc = np.zeros((h, w), dtype=np.float64)
+
+        def _on_step(x, y, t):
+            deposit(density, hue_acc, x, y, xmin, xmax, ymin, ymax, hue_val=t)
+
+        iterate_map(
             step,
-            probe,
+            n_particles,
             warmup,
             steps,
             seed=seed,
             init=init,
             init_sigma=init_sigma,
             explode=explode,
+            collect=False,
+            on_step=_on_step,
         )
-        if tight:
-            xmin, xmax, ymin, ymax = dense_window(xs, ys)
-        else:
-            xmin, xmax, ymin, ymax = auto_window(xs, ys, pad=pad, percentiles=percentiles)
-        del xs, ys, hs
+        return density, hue_acc
 
-    xmin, xmax, ymin, ymax = fit_window(xmin, xmax, ymin, ymax, w, h, fill=fill)
-    density = np.zeros((h, w), dtype=np.float64)
-    hue_acc = np.zeros((h, w), dtype=np.float64)
-
-    def _on_step(x, y, t):
-        deposit(density, hue_acc, x, y, xmin, xmax, ymin, ymax, hue_val=t)
-
-    iterate_map(
-        step,
-        n_particles,
-        warmup,
-        steps,
-        seed=seed,
-        init=init,
-        init_sigma=init_sigma,
-        explode=explode,
-        collect=False,
-        on_step=_on_step,
+    density, hue_acc = field_cached(fkey, _fields)
+    return tone_map_density(
+        np.array(density, copy=False), np.array(hue_acc, copy=False),
+        palette, blur=blur, gamma=gamma, norm=norm,
     )
-    norm = ctx.density_norm(n_particles, ctx.reference().scale_particles(n, particle_cap))
-    return tone_map_density(density, hue_acc, palette, blur=blur, gamma=gamma, norm=norm)

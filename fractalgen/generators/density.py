@@ -8,6 +8,7 @@ import numpy as np
 from scipy.ndimage import gaussian_filter, label
 
 from ..color import log_tone
+from ..fieldcache import cached as field_cached
 from ..tone import levels, stat
 from ..palette import sample_palette
 from ..view import fit_window
@@ -50,6 +51,10 @@ def deposit(
             np.add.at(hue, (iy, ix), hue_val[valid])
 
 
+def _default_plane_window() -> tuple[float, float, float, float]:
+    return -1.0, 1.0, -1.0, 1.0
+
+
 def auto_window(
     xs: Sequence[np.ndarray],
     ys: Sequence[np.ndarray],
@@ -57,10 +62,14 @@ def auto_window(
     percentiles: tuple[float, float] = (0.4, 99.6),
 ) -> tuple[float, float, float, float]:
     """Percentile bounding box with padding."""
+    if not xs or not ys:
+        return _default_plane_window()
     x = np.concatenate(xs)
     y = np.concatenate(ys)
     finite = np.isfinite(x) & np.isfinite(y)
     x, y = x[finite], y[finite]
+    if x.size == 0:
+        return _default_plane_window()
     x0, x1 = np.percentile(x, list(percentiles))
     y0, y1 = np.percentile(y, list(percentiles))
     dx = x1 - x0
@@ -80,6 +89,8 @@ def dense_window(
     mass_frac: float = 0.55,
 ) -> tuple[float, float, float, float]:
     """Crop to the high-mass core (e.g. Ikeda whirlpool), not a thin tail."""
+    if not xs or not ys:
+        return auto_window(xs, ys)
     x = np.concatenate(xs)
     y = np.concatenate(ys)
     finite = np.isfinite(x) & np.isfinite(y)
@@ -146,6 +157,36 @@ def tone_map_density(
     return np.clip(rgb, 0.0, 1.0)
 
 
+def accumulate_density(
+    width: int,
+    height: int,
+    xs: Sequence[np.ndarray],
+    ys: Sequence[np.ndarray],
+    hs: Sequence[np.ndarray],
+    percentiles: tuple[float, float] = (0.4, 99.6),
+    tight: bool = False,
+    xlim: tuple[float, float] | None = None,
+    ylim: tuple[float, float] | None = None,
+    pad: float = 0.06,
+    fill: str = "auto",
+) -> tuple[np.ndarray, np.ndarray, float, float, float, float]:
+    """Deposit trajectories; return density, hue buffer, and plane bounds."""
+    density = np.zeros((height, width), dtype=np.float64)
+    hue_acc = np.zeros((height, width), dtype=np.float64)
+    if xlim is not None and ylim is not None:
+        xmin, xmax = float(xlim[0]), float(xlim[1])
+        ymin, ymax = float(ylim[0]), float(ylim[1])
+    elif tight:
+        xmin, xmax, ymin, ymax = dense_window(xs, ys)
+    else:
+        xmin, xmax, ymin, ymax = auto_window(xs, ys, pad=pad, percentiles=percentiles)
+    xmin, xmax, ymin, ymax = fit_window(xmin, xmax, ymin, ymax, width, height, fill=fill)
+
+    for x, y, h in zip(xs, ys, hs):
+        deposit(density, hue_acc, x, y, xmin, xmax, ymin, ymax, hue_val=h)
+    return density, hue_acc, xmin, xmax, ymin, ymax
+
+
 def paint_density(
     width: int,
     height: int,
@@ -162,23 +203,28 @@ def paint_density(
     pad: float = 0.06,
     fill: str = "auto",
     norm: float = 1.0,
+    cache_key: Any | None = None,
 ) -> np.ndarray:
     """Deposit trajectories into a frame and tone-map (full in-memory path)."""
-    density = np.zeros((height, width), dtype=np.float64)
-    hue_acc = np.zeros((height, width), dtype=np.float64)
-    if xlim is not None and ylim is not None:
-        xmin, xmax = float(xlim[0]), float(xlim[1])
-        ymin, ymax = float(ylim[0]), float(ylim[1])
-    elif tight:
-        xmin, xmax, ymin, ymax = dense_window(xs, ys)
+    if cache_key is not None:
+
+        def _acc() -> tuple[np.ndarray, np.ndarray]:
+            d, h, *_ = accumulate_density(
+                width, height, xs, ys, hs, percentiles=percentiles, tight=tight,
+                xlim=xlim, ylim=ylim, pad=pad, fill=fill,
+            )
+            return d, h
+
+        density, hue_acc = field_cached(cache_key, _acc)
     else:
-        xmin, xmax, ymin, ymax = auto_window(xs, ys, pad=pad, percentiles=percentiles)
-    xmin, xmax, ymin, ymax = fit_window(xmin, xmax, ymin, ymax, width, height, fill=fill)
-
-    for x, y, h in zip(xs, ys, hs):
-        deposit(density, hue_acc, x, y, xmin, xmax, ymin, ymax, hue_val=h)
-
-    return tone_map_density(density, hue_acc, palette, blur=blur, gamma=gamma, norm=norm)
+        density, hue_acc, *_ = accumulate_density(
+            width, height, xs, ys, hs, percentiles=percentiles, tight=tight,
+            xlim=xlim, ylim=ylim, pad=pad, fill=fill,
+        )
+    return tone_map_density(
+        np.array(density, copy=False), np.array(hue_acc, copy=False),
+        palette, blur=blur, gamma=gamma, norm=norm,
+    )
 
 
 def palette_lut(palette: Any, n: int = 1024) -> np.ndarray:

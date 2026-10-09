@@ -27,6 +27,7 @@ params = { formula = "mandelbrot", max_iter = 900 }
 portrait.view = { center = [-0.74315, 0.13145], half_width = 0.00072, fit = "fill" }
 
 [recipe.mandelbrot_spiral]
+description = "Mandelbrot spiral tendrils"
 generator = "escape_time"
 palette = "aurora"
 tags = ["keep", "vip"]
@@ -35,6 +36,7 @@ params = { formula = "mandelbrot", max_iter = 1100 }
 portrait.view = { center = [-0.7614, -0.08472], fit = "cover" }
 
 [recipe.mandelbrot_antenna]
+description = "Mandelbrot antenna valley"
 generator = "escape_time"
 palette = "plasma"
 tags = ["keep", "vip"]
@@ -43,6 +45,7 @@ params = { formula = "mandelbrot", max_iter = 700 }
 portrait.view = { center = [-0.16, 1.04045], half_width = 0.013, fit = "fill" }
 
 [recipe.mandelbrot_minibrot]
+description = "Deep Mandelbrot minibrot"
 generator = "escape_time"
 palette = "plasma"
 tags = ["keep", "vip"]
@@ -50,6 +53,7 @@ view = { center = [-1.25066, 0.02012], half_width = 0.0018 }
 params = { formula = "mandelbrot", max_iter = 800 }
 
 [recipe.mandelbrot_tendril]
+description = "Fine Mandelbrot seahorse tendril"
 generator = "escape_time"
 palette = "cosmic"
 tags = ["keep", "vip"]
@@ -66,6 +70,7 @@ params = { formula = "julia", c = [-0.123, 0.745], max_iter = 360 }
 portrait.view = { center = [0.08, -0.12], half_width = 0.7, fit = "fill" }
 
 [recipe.julia_swirl]
+description = "Swirling Julia bulb tendrils"
 generator = "escape_time"
 palette = "cosmic"
 tags = ["keep", "vip"]
@@ -74,6 +79,7 @@ params = { formula = "julia", c = [-0.7269, 0.1889], max_iter = 400 }
 portrait.view = { center = [-0.52, 0.1], half_width = 0.48, fit = "fill" }
 
 [recipe.julia_san_marco]
+description = "San Marco Julia spirals"
 generator = "escape_time"
 palette = "abyss"
 tags = ["keep"]
@@ -82,6 +88,7 @@ params = { formula = "julia", c = [-0.75, 0.0], max_iter = 320 }
 portrait.view = { center = [0.0, 0.0], half_width = 0.78, fit = "fill" }
 
 [recipe.julia_dragon]
+description = "Classic Julia dragon curves"
 generator = "escape_time"
 palette = "ember"
 tags = ["keep", "vip"]
@@ -90,6 +97,7 @@ params = { formula = "julia", c = [-0.8, 0.156], max_iter = 480 }
 portrait.view = { center = [-0.18, 0.24], half_width = 0.6, fit = "fill" }
 
 [recipe.julia_snowflake]
+description = "Snowflake Julia crystal arms"
 generator = "escape_time"
 palette = "aurora"
 tags = ["keep", "vip"]
@@ -107,6 +115,7 @@ params = { formula = "julia", c = [-0.391, -0.587], max_iter = 420 }
 portrait.view = { center = [0.06, -0.18], half_width = 0.68, fit = "fill" }
 
 [recipe.julia_dendrite]
+description = "Electric Julia dendrite branches"
 generator = "escape_time"
 palette = "ember"
 tags = ["keep"]
@@ -115,6 +124,7 @@ params = { formula = "julia", c = [0.0, 1.0], max_iter = 380 }
 portrait.view = { center = [0.0, 0.2], half_width = 0.7, fit = "fill" }
 
 [recipe.julia_spirals]
+description = "Tight Julia spiral maze"
 generator = "escape_time"
 palette = "cosmic"
 tags = ["keep", "vip"]
@@ -123,6 +133,7 @@ params = { formula = "julia", c = [-0.4, 0.6], max_iter = 440 }
 portrait.view = { center = [-0.1, 0.4], half_width = 0.56, fit = "fill" }
 
 [recipe.julia_golden]
+description = "Golden Julia spiral arms"
 generator = "escape_time"
 palette = "bronze"
 tags = ["keep", "vip"]
@@ -131,6 +142,7 @@ params = { formula = "julia", c = [0.355, 0.355], max_iter = 480 }
 portrait.view = { center = [0.16, 0.24], half_width = 0.52, fit = "fill" }
 
 [recipe.julia_airplane]
+description = "Julia set airplane silhouette"
 generator = "escape_time"
 palette = "abyss"
 tags = ["keep"]
@@ -139,6 +151,7 @@ params = { formula = "julia", c = [-1.75, 0.0], max_iter = 340 }
 portrait.view = { center = [-0.22, 0.0], half_width = 0.52, fit = "fill" }
 
 [recipe.burning_ship]
+description = "Burning Ship silhouette coast"
 generator = "escape_time"
 palette = "bronze"
 tags = ["keep"]
@@ -147,6 +160,7 @@ params = { formula = "burning_ship", max_iter = 380 }
 portrait.view = { center = [-0.78, -0.58], half_width = 0.52, fit = "fill" }
 
 [recipe.burning_ship_cathedral]
+description = "Ship fractal cathedral spires"
 generator = "escape_time"
 palette = "bronze"
 tags = ["keep", "vip"]
@@ -155,6 +169,7 @@ params = { formula = "burning_ship", max_iter = 700 }
 portrait.view = { center = [-1.769, -0.026], half_width = 0.02, fit = "fill" }
 
 [recipe.phoenix]
+description = "Phoenix fractal flame shapes"
 generator = "escape_time"
 palette = "twilight"
 tags = ["keep"]
@@ -163,6 +178,7 @@ params = { formula = "phoenix", c = [0.5667, 0.0], max_iter = 280, k = -0.5 }
 portrait.view = { center = [0.0, 0.62], half_width = 0.5, fit = "fill" }
 
 [recipe.phoenix_close]
+description = "Close-up Phoenix filaments"
 generator = "escape_time"
 palette = "twilight"
 tags = ["keep", "vip"]
@@ -171,6 +187,7 @@ params = { formula = "phoenix", c = [0.5667, 0.0], max_iter = 320, k = -0.5 }
 portrait.view = { center = [0.0, 0.66], half_width = 0.42, fit = "fill" }
 
 [recipe.tricorn]
+description = "Tricorn fractal three-lobed bulbs"
 generator = "escape_time"
 palette = "abyss"
 tags = ["keep"]
@@ -179,6 +196,7 @@ params = { formula = "tricorn", max_iter = 360 }
 portrait.view = { center = [0.58, 0.0], half_width = 0.82, fit = "fill" }
 
 [recipe.multibrot3]
+description = "Cubic multibrot bulb shapes"
 generator = "escape_time"
 palette = "plasma"
 tags = ["keep"]
@@ -187,6 +205,7 @@ params = { formula = "multibrot3", max_iter = 280 }
 portrait.view = { center = [-0.12, 0.0], half_width = 0.7, fit = "fill" }
 
 [recipe.multibrot4]
+description = "Quartic multibrot symmetries"
 generator = "escape_time"
 palette = "twilight"
 tags = ["keep"]
@@ -195,6 +214,7 @@ params = { formula = "multibrot4", max_iter = 240 }
 portrait.view = { center = [0.0, 0.0], half_width = 0.6, fit = "fill" }
 
 [recipe.celtic]
+description = "Celtic multibrot knot filaments"
 generator = "escape_time"
 palette = "forest"
 tags = ["keep", "vip"]
@@ -203,6 +223,7 @@ params = { formula = "celtic", max_iter = 340 }
 portrait.view = { center = [-0.88, 0.0], half_width = 0.7, fit = "fill" }
 
 [recipe.buffalo]
+description = "Buffalo fractal burning folds"
 generator = "escape_time"
 palette = "bronze"
 tags = ["keep", "vip"]
@@ -211,6 +232,7 @@ params = { formula = "buffalo", max_iter = 360 }
 portrait.view = { center = [-0.65, -0.52], half_width = 0.55, fit = "fill" }
 
 [recipe.mandelbrot_orbit_trap]
+description = "Orbit-trap Mandelbrot jewels"
 generator = "orbit_trap"
 palette = "neon"
 tags = ["keep"]
@@ -235,6 +257,7 @@ view = { center = [-0.7453, 0.1127], half_width = 0.0065 }
 params = { formula = "mandelbrot", max_iter = 1200, coloring = "smooth", density = 0.03 }
 
 [recipe.julia_frost]
+description = "Pale frosted Julia filaments"
 generator = "escape_time"
 palette = "abyss"
 tags = ["keep"]
@@ -266,6 +289,7 @@ view = { center = [-0.7435, 0.1314], half_width = 0.02 }
 params = { trap = "cross", max_iter = 400 }
 
 [recipe.mandelbrot_point_trap]
+description = "Point-trap Mandelbrot glints"
 generator = "orbit_trap"
 palette = "biolum"
 tags = ["keep"]

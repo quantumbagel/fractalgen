@@ -38,7 +38,25 @@ def angle(value: Any) -> float:
 def _eval_pi(s: str) -> float:
     if not re.fullmatch(r"[0-9.eE+\-*/()pi]+", s):
         raise ValueError(f"Bad angle expression {s!r}")
-    return float(eval(s, {"__builtins__": {}}, {"pi": math.pi}))  # noqa: S307 - charset-restricted
+    expr = re.sub(r"(\d)(pi)", r"\1*\2", s)
+    expr = re.sub(r"\)(pi)", r")*\1", expr)
+    try:
+        return float(eval(expr, {"__builtins__": {}}, {"pi": math.pi}))  # noqa: S307 - charset-restricted
+    except (SyntaxError, NameError, TypeError, ZeroDivisionError, OverflowError, ValueError) as exc:
+        raise ValueError(f"Bad angle expression {s!r}") from exc
+
+
+def _pos_finite(value: Any, name: str) -> float:
+    v = float(value)
+    if not math.isfinite(v) or v <= 0:
+        raise ValueError(f"{name} must be finite and > 0, got {value!r}")
+    return v
+
+
+def _axis_linspace(center: float, half: float, n: int) -> np.ndarray:
+    if n < 2:
+        return np.array([center], dtype=np.float64)
+    return np.linspace(center - half, center + half, n, dtype=np.float64)
 
 
 @dataclass(frozen=True)
@@ -68,9 +86,9 @@ class View:
         if "center" in d:
             kw["center"] = to_complex(d.pop("center"))
         if "zoom" in d:  # zoom = 1 / half_width, handy on the CLI
-            kw["half_width"] = 1.0 / float(d.pop("zoom"))
+            kw["half_width"] = 1.0 / _pos_finite(d.pop("zoom"), "zoom")
         if "half_width" in d:
-            kw["half_width"] = float(d.pop("half_width"))
+            kw["half_width"] = _pos_finite(d.pop("half_width"), "half_width")
         if "rotation" in d:
             rot = d.pop("rotation")
             kw["rotation"] = float(rot) if isinstance(rot, (int, float)) else math.degrees(angle(rot))
@@ -110,11 +128,17 @@ class View:
         hw, hh = self.extents(width, height)
         c = self.center
         if not self.rotation:
-            re_ = np.linspace(c.real - hw, c.real + hw, width, dtype=np.float64)
-            im_ = np.linspace(c.imag + hh, c.imag - hh, height, dtype=np.float64)
+            re_ = _axis_linspace(c.real, hw, width) if width < 2 else np.linspace(
+                c.real - hw, c.real + hw, width, dtype=np.float64
+            )
+            im_ = (
+                _axis_linspace(c.imag, hh, height)
+                if height < 2
+                else np.linspace(c.imag + hh, c.imag - hh, height, dtype=np.float64)
+            )
             return np.meshgrid(re_, im_)
-        u = np.linspace(-hw, hw, width, dtype=np.float64)
-        v = np.linspace(hh, -hh, height, dtype=np.float64)
+        u = _axis_linspace(0.0, hw, width) if width < 2 else np.linspace(-hw, hw, width, dtype=np.float64)
+        v = _axis_linspace(0.0, hh, height) if height < 2 else np.linspace(hh, -hh, height, dtype=np.float64)
         U, V = np.meshgrid(u, v)
         th = math.radians(self.rotation)
         ct, st = math.cos(th), math.sin(th)
@@ -126,8 +150,9 @@ class View:
         hw, hh = self.extents(width, height)
         th = math.radians(self.rotation)
         ct, st = math.cos(th), math.sin(th)
-        sx = (width - 1) / (2.0 * hw)
-        sy = (height - 1) / (2.0 * hh)
+        # n==1 would make (n-1)/… = 0 and a singular inverse (caustics / symplectic).
+        sx = max(width - 1, 1) / (2.0 * hw)
+        sy = max(height - 1, 1) / (2.0 * hh)
         x0, y0 = self.center.real, self.center.imag
         # u = (x-x0) ct + (y-y0) st;  v = -(x-x0) st + (y-y0) ct;  px = (u+hw) sx;  py = (hh-v) sy
         return (

@@ -7,7 +7,7 @@ stops = ["000000", "ff5500", "ffd27f", "ffffff"]
 positions = [0, 0.3, 0.8, 1]
 
 # --- escape-time formula compiled to numba --------------------------------
-[formula.sine_julia]
+[formula.sine_bloom]
 z = "c * sin(z)"
 julia = true
 degree = 1.0
@@ -17,7 +17,7 @@ bailout = 50.0
 generator = "escape_time"
 palette = "sunset"
 view = { center = [0, 0], half_width = 3.5, rotation = 30 }
-params = { formula = "sine_julia", c = [1.0, 0.1], max_iter = 120 }
+params = { formula = "sine_bloom", c = [1.0, 0.1], max_iter = 120 }
 post = { vignette = 0.3 }
 
 [recipe.sine_glow.variants.cold]

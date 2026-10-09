@@ -4,7 +4,32 @@ from __future__ import annotations
 
 import ast
 import math
+import re
+from dataclasses import dataclass
 from typing import Any
+
+_IMAG_I = re.compile(r"(?<=[0-9.])[+-]?i\b|^[+-]?i\b")
+
+
+@dataclass(frozen=True)
+class Range:
+    """Slider hint for annotated generator parameters: ``(lo, hi)`` or ``(lo, hi, step)``."""
+
+    lo: float
+    hi: float
+    step: float | None = None
+
+    def as_tuple(self) -> tuple:
+        if self.step is not None:
+            return (self.lo, self.hi, self.step)
+        return (self.lo, self.hi)
+
+
+@dataclass(frozen=True)
+class Doc:
+    """Documentation marker for annotated generator parameters."""
+
+    text: str
 
 
 def to_complex(value: Any) -> complex:
@@ -18,7 +43,12 @@ def to_complex(value: Any) -> complex:
     if isinstance(value, dict) and "re" in value:
         return complex(float(value["re"]), float(value.get("im", 0.0)))
     if isinstance(value, str):
-        return complex(value.replace(" ", "").replace("i", "j"))
+        s = value.replace(" ", "")
+        try:
+            return complex(s)
+        except ValueError:
+            pass
+        return complex(_IMAG_I.sub(lambda m: m.group(0).replace("i", "j"), s))
     raise TypeError(f"Cannot interpret {value!r} as a complex number")
 
 
@@ -30,6 +60,8 @@ def parse_literal(text: str) -> Any:
         return low == "true"
     if low in ("none", "null"):
         return None
+    if low in ("inf", "+inf", "-inf", "nan", "+nan", "-nan"):
+        return float(s)
     try:
         return ast.literal_eval(s)
     except (ValueError, SyntaxError):
@@ -50,13 +82,12 @@ def coerce(value: Any, like: Any) -> Any:
         return bool(value)
     if isinstance(like, complex):
         return to_complex(value)
-    if isinstance(like, int) and not isinstance(value, bool):
-        if isinstance(value, float) and not value.is_integer():
-            return value
-        if isinstance(value, (int, float)):
-            return int(value)
-        if isinstance(value, str):
-            return int(float(value))
+    if isinstance(like, int) and not isinstance(value, bool) and isinstance(value, (int, float, str)):
+        # Integer knobs round to the nearest integer (GUI nudges and slider math send floats).
+        fv = float(value)
+        if not math.isfinite(fv):
+            raise ValueError(f"integer parameter cannot be {value!r}")
+        return int(round(fv))
     if isinstance(like, float) and isinstance(value, (int, str)) and not isinstance(value, bool):
         return float(value)
     if isinstance(like, tuple) and isinstance(value, list):

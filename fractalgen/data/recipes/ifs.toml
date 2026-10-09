@@ -1,6 +1,7 @@
 # Iterated function systems.
 
 [recipe.barnsley_fern]
+description = "Classic Barnsley fern fronds"
 generator = "ifs"
 palette = "forest"
 tags = ["keep", "vip"]
@@ -32,6 +33,7 @@ gamma = 0.55
 blur = 0.5
 
 [recipe.maple_leaf]
+description = "Maple leaf IFS silhouette"
 generator = "ifs"
 palette = "bronze"
 tags = ["keep", "vip"]

@@ -9,7 +9,7 @@ from scipy.ndimage import gaussian_filter, zoom
 
 from ..color import histogram_index
 from ..palette import sample_palette
-from .. import simcache, tone
+from .. import progress, simcache, tone
 from .base import generator
 
 
@@ -93,7 +93,7 @@ def gray_scott(
         u = np.clip(u, 0, 1)
         v = np.clip(v, 0, 1)
 
-        u, v = kernels.gray_scott_kernel(u, v, float(F), float(k), int(steps), Du, Dv, dt)
+        u, v = kernels.gray_scott_kernel(u, v, float(F), float(k), int(steps), Du, Dv, dt, progress.units(steps))
         u = np.clip(u, 0.0, 1.0)
         v = np.clip(v, 0.0, 1.0)
         return u, v
@@ -157,6 +157,8 @@ def sandpile(
         n = max(n_ref, int(round(min(ref_w, ref_h) * n_ref / ref_short)))
     if grains is None:
         grains = n * n * 2
+    if int(n) < 1:
+        raise ValueError("grid_n must be >= 1")
 
     def _topple() -> np.ndarray:
         g = np.zeros((n, n), dtype=np.int32)

@@ -108,7 +108,10 @@ def _contrast(rgb, amount, ctx):
 
 @post_op("gamma", "Gamma (>1 brightens shadows, <1 deepens them)", neutral=1.0, range=(0.2, 3.0))
 def _gamma(rgb, g, ctx):
-    return np.power(np.clip(rgb, 0.0, 1.0), 1.0 / float(g))
+    gv = float(g)
+    if gv <= 0:
+        raise ValueError("post gamma must be > 0")
+    return np.power(np.clip(rgb, 0.0, 1.0), 1.0 / gv)
 
 
 @post_op("tint", "Multiply by an RGB color: hex string or [r, g, b] in 0..1", kind="color")
@@ -141,10 +144,15 @@ def _flip_y(rgb, on, ctx):
 def apply_post(rgb: np.ndarray, post: dict[str, Any] | None, ctx: Any = None) -> np.ndarray:
     if not post:
         return rgb
+    if post.get("palette_mix") is not None and "palette" not in post:
+        raise ValueError("post.palette_mix requires post.palette")
     unknown = [k for k in post if k not in POST_OPS]
     if unknown:
         raise KeyError(f"Unknown post op(s) {unknown}. Known: {POST_OPS.names()}")
-    out = np.asarray(rgb, dtype=np.float64)
+    rgb = np.asarray(rgb, dtype=np.float64)
+    if rgb.ndim == 3 and rgb.shape[-1] == 4:  # transparent mask output: finish the color, keep alpha
+        return np.concatenate([apply_post(rgb[..., :3], post, ctx), rgb[..., 3:]], axis=-1)
+    out = rgb
     for name in POST_OPS:
         if name not in post or post[name] is None or name == "palette_mix":
             continue

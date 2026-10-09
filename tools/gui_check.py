@@ -197,7 +197,8 @@ try:
         print("recipe search / generator picker / aspect / reset")
         page.click("#recipeSearch")
         page.fill("#recipeSearch", "clifford")
-        page.locator("#recipeList >> text=/clifford/").first.click()
+        js(page, "() => { filterRecipeList('clifford'); openRecipeList(); }")
+        page.locator("#recipeList button.recipe-row", has_text="clifford").first.click(force=True)
         idle(page)
         check("clifford" in (js(page, "state.recipe") or ""), f"picked {js(page, 'state.recipe')}")
         page.select_option("#genPicker", "domain_color")
@@ -235,27 +236,145 @@ try:
         name = "_e2e_tmp"
         target = ROOT / "custom" / f"{name}.toml"
         target.unlink(missing_ok=True)
-        page.once("dialog", lambda d: d.accept(name))
-        page.on("dialog", lambda d: d.accept() if d.type == "alert" else None)
         page.click("#btnSave")
+        page.fill("#saveName", name)
+        page.click("#saveGo")
         page.wait_for_timeout(1500)
         check(target.exists() and "max_iter = 321" in target.read_text(), "save writes custom recipe with the edit")
         check(js(page, f"catalog.recipes.some(r => r.name === '{name}')"), "saved recipe appears in catalog")
         target.unlink(missing_ok=True)
+        page.click("#saveCancel")  # the dialog stays open to show where it saved
         page.click("#btnExport")
         page.fill("#exportW", "160")
         page.fill("#exportH", "90")
         page.fill("#exportName", "_e2e")
         page.click("#exportGo")
-        page.wait_for_function("document.getElementById('exportStatus').textContent.startsWith('Done') || "
+        page.wait_for_function("document.getElementById('exportStatus').textContent.startsWith('Saved') || "
                                "document.getElementById('exportStatus').textContent.startsWith('Error')", timeout=60000)
         st = page.inner_text("#exportStatus")
-        check(st.startswith("Done"), f"export: {st[:120]}")
-        if st.startswith("Done"):
-            out = Path(st.split("Done: ", 1)[1].strip())
+        check(st.startswith("Saved"), f"export: {st[:120]}")
+        if st.startswith("Saved"):
+            out = Path(st.split("Saved: ", 1)[1].strip())
             check(out.exists() and Image.open(out).size == (160, 90), "export file is 160x90")
             out.unlink(missing_ok=True)
         page.click("#exportCancel")
+
+        print("mask")
+        n_rows = page.locator(".row[data-path^='mask.']").count()
+        before = frame_shot(page)
+        text = page.locator(".row:has(> label.lbl:text-is('text')) input[type=text]").first
+        text.fill("HI")
+        text.press("Enter")
+        idle(page)
+        check(js(page, "state.mask.text") == "HI", "typing text turns the mask on")
+        check(page.locator(".row[data-path^='mask.']").count() > n_rows, "mask controls appear once it is on")
+        check(rankdiff(before, frame_shot(page)) > 0.02, "masked preview differs")
+        bg = page.locator(".row:has(> label.lbl:text-is('background')) input[type=text]").first
+        bg.fill("transparent")
+        bg.press("Enter")
+        idle(page)
+        check(js(page, "document.getElementById('previewFrame').classList.contains('transparent')"),
+              "transparent background shows the checkerboard")
+        page.click("#btnUndo")
+        page.click("#btnUndo")
+        idle(page)
+        check(not js(page, "maskActive()"), "undo turns the mask off again")
+
+        print("last-click-wins load token")
+        delayed = {"n": 0}
+
+        def delay_first_state(route):
+            delayed["n"] += 1
+            if delayed["n"] == 1:
+                resp = route.fetch()
+                page.wait_for_timeout(1100)
+                try:
+                    route.fulfill(response=resp)
+                except Exception:
+                    pass
+            else:
+                route.continue_()
+
+        page.route("**/api/state*", delay_first_state)
+        try:
+            js(page, "() => { void selectRecipe('julia_dragon'); void selectRecipe('mandelbrot_spiral'); }")
+            idle(page)
+            page.wait_for_timeout(1300)
+            check(js(page, "state.recipe") == "mandelbrot_spiral",
+                  f"last recipe click wins (got {js(page, 'state.recipe')})")
+            js(page, "() => selectRecipe('julia_dragon')")
+            idle(page)
+            delayed["n"] = 0
+            js(page, """() => {
+              document.getElementById('aspectSel').value = 'phone';
+              void onAspectChange();
+              document.getElementById('aspectSel').value = 'desktop';
+              void onAspectChange();
+            }""")
+            idle(page)
+            page.wait_for_timeout(1300)
+            vw = js(page, "({a: aspectKey, c: state.view.center, hw: state.view.half_width, w: state.width, h: state.height})")
+            check(vw["a"] == "desktop" and vw["w"] > vw["h"], f"last aspect wins framing ({vw})")
+            check(abs(vw["c"][0]) < 0.05 and abs(vw["c"][1] - 0.05) < 0.05 and abs(vw["hw"] - 1.45) < 0.05,
+                  f"desktop view not stale phone ({vw})")
+        finally:
+            page.unroute("**/api/state*")
+
+        print("nudge is undoable and keeps ints")
+        mi0 = js(page, "state.params.max_iter")
+        js(page, "() => { undoStack = []; redoStack = []; resetHistoryBase(); updateHistoryButtons(); }")
+        page.click("#btnNudge")
+        idle(page)
+        mi1 = js(page, "state.params.max_iter")
+        check(mi1 != mi0, f"nudge changed max_iter ({mi0} -> {mi1})")
+        check(js(page, "Number.isInteger(state.params.max_iter)"), f"nudge keeps max_iter as int (got {mi1})")
+        check(js(page, "undoStack.length > 0"), "nudge pushed an undo step")
+        page.click("#btnUndo")
+        idle(page)
+        check(js(page, "state.params.max_iter") == mi0, f"undo restores pre-nudge max_iter (got {js(page, 'state.params.max_iter')})")
+
+        print("complex sub-row reset")
+        js(page, "() => { state.view.center = [0.5, 0.25]; commitChange('view.center'); }")
+        idle(page)
+        page.locator(".row[data-path='view.center.0'] .reset-row").click()
+        idle(page)
+        c = js(page, "state.view.center")
+        b0 = js(page, "baseline.view.center[0]")
+        check(abs(c[0] - b0) < 1e-12, f"reset real restores baseline ({c[0]} vs {b0})")
+        check(abs(c[1] - 0.25) < 1e-12, f"reset real leaves imag ({c[1]})")
+
+        print("export rejects negative size")
+        page.click("#btnExport")
+        page.fill("#exportW", "-32")
+        page.fill("#exportH", "48")
+        page.click("#exportGo")
+        page.wait_for_timeout(300)
+        est = page.inner_text("#exportStatus")
+        check("at least 16" in est.lower(), f"export rejects negative size ({est[:120]})")
+        page.click("#exportCancel")
+
+        print("half_width rejects non-positive")
+        hw0 = js(page, "state.view.half_width")
+        js(page, """() => {
+          const num = document.querySelector('[data-path="view.half_width"] input[type=number]');
+          num.value = '-2';
+          num.dispatchEvent(new Event('change'));
+        }""")
+        page.wait_for_timeout(100)
+        check(js(page, "state.view.half_width") == hw0 and hw0 > 0,
+              f"negative half_width ignored (still {js(page, 'state.view.half_width')})")
+
+        print("phone-width topbar sizes to content")
+        page.set_viewport_size({"width": 390, "height": 700})
+        page.wait_for_timeout(250)
+        top = js(page, """() => {
+          const el = document.getElementById('topbar');
+          const cs = getComputedStyle(el);
+          return {h: el.getBoundingClientRect().height, sh: el.scrollHeight, basis: cs.flexBasis, overflow: cs.overflow};
+        }""")
+        check(top["h"] + 1 >= top["sh"], f"phone topbar not clipped (h={top['h']:.0f} scroll={top['sh']})")
+        page.set_viewport_size({"width": 1500, "height": 900})
+        page.wait_for_timeout(200)
 
         if ALL:
             print("every recipe renders in the GUI")
@@ -276,6 +395,11 @@ try:
         if args.screenshot:
             page.screenshot(path=str(args.screenshot))
         b.close()
+except Exception:  # a crash mid-run is a failure, not a silent pass (sys.exit below would hide it)
+    import traceback
+
+    traceback.print_exc()
+    failures.append("crashed: " + traceback.format_exc().strip().splitlines()[-1])
 finally:
     srv.terminate()
     out = srv.stdout.read().decode()

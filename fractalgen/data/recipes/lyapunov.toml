@@ -2,12 +2,14 @@
 # at every aspect. Zoom like any other plane.
 
 [recipe.lyapunov_logistic]   # generator default view: a, b around 3.4..4.0
+description = "Logistic Lyapunov stability map"
 generator = "lyapunov"
 palette = "icefire"
 tags = ["keep"]
 portrait.view = { center = [3.772, 3.7] }
 
 [recipe.lyapunov_ab]   # b spans 2..4
+description = "Lyapunov (a,b) stability mosaic"
 generator = "lyapunov"
 palette = "icefire"
 tags = ["keep", "vip"]
@@ -16,6 +18,7 @@ params = { sequence = "AB" }
 portrait.view = { center = [3.24, 3.0] }
 
 [recipe.lyapunov_baba]   # b spans 3..4
+description = "Lyapunov baba feather chaos"
 generator = "lyapunov"
 palette = "icefire"
 tags = ["keep", "vip"]

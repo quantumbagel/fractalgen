@@ -22,6 +22,7 @@ from typing import Any, Callable
 import numpy as np
 from scipy.ndimage import gaussian_filter
 
+from .. import progress
 from ..color import histogram_index, log_tone
 from ..expr import compile_expr
 from ..loader import section
@@ -53,7 +54,13 @@ def register_vector_field(
 
     ``defaults`` names the field's tunable params; recipes override them via ``coeffs``.
     """
-    vf = VectorField(name, step, description=description, defaults=dict(defaults or {}))
+    defaults = dict(defaults or {})
+    clash = set(defaults) & {"px", "py"}
+    if clash:
+        raise ValueError(
+            f"vectorfield {name!r} params must not use state names {sorted(clash)} (reserved for px, py)"
+        )
+    vf = VectorField(name, step, description=description, defaults=defaults)
     return VECTOR_FIELDS.register(name, vf, replace=replace)
 
 
@@ -186,6 +193,7 @@ def flow_field(
     )
     for i in range(steps):
         vx, vy = chunked(field_step, x, y)
+        progress.update(i / steps)
         x = x + vx * dt * speed
         y = y + vy * dt * speed
         if wrap:
@@ -200,7 +208,7 @@ def flow_field(
         ix, iy, ang = chunked(pixel_index, x, y, vx, vy)
         valid = (ix >= 0) & (ix < width) & (iy >= 0) & (iy < height)
         kernels.scatter_add2(density, hue, iy[valid], ix[valid], ang[valid])
-        if i % respawn_period == respawn_period - 1:
+        if respawn_period > 0 and respawn_divisor > 0 and i % respawn_period == respawn_period - 1:
             n_die = n_particles // respawn_divisor
             idx = rng.integers(0, n_particles, size=n_die)
             x[idx] = rng.uniform(-aspect, aspect, size=n_die)
@@ -279,7 +287,8 @@ def cymatics(
         sx = rng.uniform(-aspect * source_span, aspect * source_span)
         sy = rng.uniform(-source_span, source_span)
         phase = rng.uniform(0, 2 * np.pi)
-        k = freq * rng.uniform(freq_jitter[0], freq_jitter[1])
+        fj_lo, fj_hi = sorted(freq_jitter)
+        k = freq * rng.uniform(fj_lo, fj_hi)
         r = np.sqrt((X - sx) ** 2 + (Y - sy) ** 2)
         amp += np.sin(k * r + phase) / (1.0 + falloff * r)
     t = histogram_index(np.abs(amp), np.ones_like(amp, dtype=bool))
@@ -376,6 +385,8 @@ def worley(
     hist_gamma: float = 0.9,
 ):
     """Worley (cellular) noise from scattered feature points."""
+    if mode not in ("F1", "F2-F1"):
+        raise ValueError(f"worley mode must be 'F1' or 'F2-F1', got {mode!r}")
     width, height = ctx.width, ctx.height
     rng = np.random.default_rng(seed)
     aspect = ctx.aspect

@@ -8,6 +8,7 @@ from typing import Any, Callable
 
 import numpy as np
 
+from . import progress
 from .view import View
 
 REF_4K = 3840 * 2160
@@ -134,7 +135,8 @@ class RenderContext:
             return fn(*arrays, **kwargs)
         full: Any = None
         for y0, y1 in bounds:
-            piece = fn(*(a[y0:y1] for a in arrays), **kwargs)
+            with progress.span(y0 / height, y1 / height):
+                piece = fn(*(a[y0:y1] for a in arrays), **kwargs)
             if full is None:
                 full = _alloc(height, piece)
             _place(full, y0, y1, piece)

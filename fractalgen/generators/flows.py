@@ -7,13 +7,16 @@ from typing import Any, Callable
 
 import numpy as np
 
+from .. import progress
 from ..expr import compile_expr
 from ..loader import section
 from ..registry import Registry
 from ..view import oblique_projection
 from .base import generator
 from ..parallel import chunked
-from .density import paint_density
+from ..fieldcache import cached as field_cached
+from ..fieldcache import ctx_key as field_ctx_key
+from .density import accumulate_density, tone_map_density
 
 
 @dataclass(frozen=True)
@@ -36,7 +39,13 @@ def register_flow(
     replace: bool = False,
 ) -> FlowSpec:
     """Register ``deriv(x, y, z, **params) -> (dx, dy, dz)``."""
-    spec = FlowSpec(name, deriv, dict(defaults or {}), description=description)
+    defaults = dict(defaults or {})
+    clash = set(defaults) & {"x", "y", "z"}
+    if clash:
+        raise ValueError(
+            f"flow {name!r} params must not use state names {sorted(clash)} (reserved for x, y, z)"
+        )
+    spec = FlowSpec(name, deriv, defaults, description=description)
     return FLOWS.register(name, spec, replace=replace)
 
 
@@ -206,6 +215,17 @@ def flow_attractor(
 ):
     """3D ODE attractor (Lorenz, Rössler, …) projected to a 2D density cloud."""
     spec = FLOWS.get(flow)
+    unknown = set(coeffs or {}) - set(spec.defaults)
+    if unknown:
+        raise ValueError(
+            f"flow {flow!r} has no params {sorted(unknown)} (has {sorted(spec.defaults)})"
+        )
+    if len(init_mean) != 3:
+        raise ValueError(f"init_mean must have length 3, got {len(init_mean)}")
+    if len(init_sigma) != 3:
+        raise ValueError(f"init_sigma must have length 3, got {len(init_sigma)}")
+    if len(percentiles) != 2:
+        raise ValueError(f"percentiles must have length 2, got {len(percentiles)}")
     params = {**spec.defaults, **(coeffs or {})}
     deriv = lambda x, y, z: spec.deriv(x, y, z, **params)
 
@@ -219,49 +239,74 @@ def flow_attractor(
         return c.scale_particles(particle_base, particle_cap)
 
     n = count(ctx)
-
-    x = rng.normal(init_mean[0], init_sigma[0], size=n)
-    y = rng.normal(init_mean[1], init_sigma[1], size=n)
-    if init_z_uniform is not None:
-        z = rng.uniform(float(init_z_uniform[0]), float(init_z_uniform[1]), size=n)
-    else:
-        z = rng.normal(init_mean[2], init_sigma[2], size=n)
-
-    xs, ys, zs = [], [], []
-    rk4 = lambda x, y, z: _rk4_step(deriv, x, y, z, dt)  # noqa: E731
-    for i in range(steps):
-        x, y, z = chunked(rk4, x, y, z)
-        if i > skip:
-            xs.append(x.copy())
-            ys.append(y.copy())
-            zs.append(z.copy())
-
-    px: list[np.ndarray] = []
-    py: list[np.ndarray] = []
-    hs: list[np.ndarray] = []
-    denom = max(len(xs) - 1, 1)
-    for i, (xx, yy, zz) in enumerate(zip(xs, ys, zs)):
-        pxi, pyi = chunked(lambda a, b, c: oblique_projection(a, b, c, angle_deg=angle_deg, z_scale=z_scale, tilt=tilt), xx, yy, zz)
-        px.append(pxi)
-        py.append(pyi)
-        hs.append(np.full(n, i / denom, dtype=np.float64))
-
     portrait_fill = "cover" if ctx.portrait else "contain"
     if fill == "auto":
         fill = portrait_fill
 
-    return paint_density(
-        ctx.width,
-        ctx.height,
-        px,
-        py,
-        hs,
-        palette,
-        blur=blur,
-        gamma=gamma,
+    norm = ctx.density_norm(n, count(ctx.reference()))
+    fkey = field_ctx_key(
+        ctx,
+        "flow_attractor",
+        flow=flow,
+        coeffs=params,
+        seed=seed,
+        particle_base=particle_base,
+        particle_cap=particle_cap,
+        rossler_particles=rossler_particles,
+        rossler_base=rossler_base,
+        rossler_area_exp=rossler_area_exp,
+        rossler_area_cap=rossler_area_cap,
+        steps=steps,
+        dt=dt,
+        skip=skip,
+        angle_deg=angle_deg,
+        z_scale=z_scale,
+        tilt=tilt,
         tight=tight,
         percentiles=percentiles,
         pad=pad,
+        init_mean=init_mean,
+        init_sigma=init_sigma,
+        init_z_uniform=init_z_uniform,
         fill=fill,
-        norm=ctx.density_norm(n, count(ctx.reference())),
+        n=n,
+    )
+
+    def _fields() -> tuple[np.ndarray, np.ndarray]:
+        x = rng.normal(init_mean[0], init_sigma[0], size=n)
+        y = rng.normal(init_mean[1], init_sigma[1], size=n)
+        if init_z_uniform is not None:
+            z = rng.uniform(float(init_z_uniform[0]), float(init_z_uniform[1]), size=n)
+        else:
+            z = rng.normal(init_mean[2], init_sigma[2], size=n)
+        xs, ys, zs = [], [], []
+        rk4 = lambda a, b, c: _rk4_step(deriv, a, b, c, dt)  # noqa: E731
+        for i in range(steps):
+            x, y, z = chunked(rk4, x, y, z)
+            progress.update(i / steps)
+            if i > skip:
+                xs.append(x.copy())
+                ys.append(y.copy())
+                zs.append(z.copy())
+        px: list[np.ndarray] = []
+        py: list[np.ndarray] = []
+        hs: list[np.ndarray] = []
+        denom = max(len(xs) - 1, 1)
+        for i, (xx, yy, zz) in enumerate(zip(xs, ys, zs)):
+            pxi, pyi = chunked(
+                lambda a, b, c: oblique_projection(a, b, c, angle_deg=angle_deg, z_scale=z_scale, tilt=tilt),
+                xx, yy, zz,
+            )
+            px.append(pxi)
+            py.append(pyi)
+            hs.append(np.full(n, i / denom, dtype=np.float64))
+        return accumulate_density(
+            ctx.width, ctx.height, px, py, hs,
+            tight=tight, percentiles=percentiles, pad=pad, fill=fill,
+        )[:2]
+
+    density, hue_acc = field_cached(fkey, _fields)
+    return tone_map_density(
+        np.array(density, copy=False), np.array(hue_acc, copy=False),
+        palette, blur=blur, gamma=gamma, norm=norm,
     )

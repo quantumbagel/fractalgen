@@ -8,51 +8,60 @@ tags = ["keep", "vip"]
 params = { F = 0.0545, k = 0.062, steps = 10000, seed = 8 }
 
 [recipe.gray_scott_worms]
+description = "Gray-Scott wormy Turing stripes"
 generator = "gray_scott"
 palette = "abyss"
 tags = ["keep"]
 params = { F = 0.046, k = 0.063, steps = 11000, seed = 9 }
 
 [recipe.gray_scott_maze]
+description = "Gray-Scott labyrinth corridors"
 generator = "gray_scott"
 palette = "cosmic"
 tags = ["keep", "vip"]
 params = { F = 0.029, k = 0.057, steps = 11000, seed = 17 }
 
 [recipe.gray_scott_bubbles]
+description = "Gray-Scott foamy bubbles"
 generator = "gray_scott"
 palette = "ember"
 tags = ["keep"]
 params = { F = 0.012, k = 0.050, steps = 12000, seed = 18 }
 
 [recipe.sandpile]
+description = "Abelian sandpile avalanche peaks"
 generator = "sandpile"
 palette = "ember"
 tags = ["keep", "vip"]
 
 [recipe.magnetic_pendulum_tri]
+description = "Triple pendulum magnetic trails"
 generator = "magnetic_pendulum"
 tags = ["keep", "vip"]
 params = { n_magnets = 3, steps = 130, seed = 4, framing = "wide" }
 
 [recipe.gray_scott_fingerprint]
+description = "Gray-Scott ridge fingerprints"
 generator = "gray_scott"
 palette = "mercury"
 tags = ["keep"]
 params = { F = 0.037, k = 0.06, steps = 11000, seed = 6 }
 
 [recipe.gray_scott_solitons]
+description = "Gray-Scott pulsing solitons"
 generator = "gray_scott"
 palette = "biolum"
 tags = ["keep"]
 params = { F = 0.03, k = 0.062, steps = 11000, seed = 7 }
 
 [recipe.sandpile_ice]
+description = "Icy sandpile gradient ridges"
 generator = "sandpile"
 palette = "abyss"
 tags = ["keep"]
 
 [recipe.magnetic_pendulum_quad]
+description = "Quad magnetic pendulum chaos"
 generator = "magnetic_pendulum"
 tags = ["keep"]
 params = { n_magnets = 4, steps = 140, framing = "wide", friction = 0.12 }

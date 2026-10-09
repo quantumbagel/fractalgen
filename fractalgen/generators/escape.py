@@ -29,6 +29,8 @@ from typing import Any, Callable
 import numpy as np
 
 from ..color import histogram_index
+from ..fieldcache import cached as field_cached
+from ..fieldcache import ctx_key as field_ctx_key
 from ..loader import section
 from ..palette import sample_palette
 from ..registry import Registry
@@ -73,6 +75,11 @@ def register_formula(
     replace: bool = False,
 ) -> Formula:
     """Register a numba-jitted ``step(z, c, zp, k) -> complex``."""
+    if float(degree) > 1.0 and float(bailout) <= 1.0:
+        raise ValueError(
+            f"bailout must be > 1 when degree > 1 (smooth coloring needs log(bailout) > 0), "
+            f"got bailout={bailout!r}, degree={degree!r}"
+        )
     f = Formula(name, step=step, julia=julia, degree=degree, bailout=bailout, description=description)
     return FORMULAS.register(name, f, replace=replace)
 
@@ -108,16 +115,19 @@ class _Rewrite(ast.NodeTransformer):
 def compile_formula_expr(expr: str) -> Callable[..., Any]:
     from numba import njit
 
+    from ..expr import _check
+
     tree = ast.parse(expr.strip(), mode="eval")
     for node in ast.walk(tree):
         if isinstance(node, ast.Attribute) or (isinstance(node, ast.Name) and node.id not in _ALLOWED_NAMES):
             bad = getattr(node, "id", getattr(node, "attr", "?"))
             raise ValueError(f"Formula {expr!r}: unknown name {bad!r}; allowed {sorted(_ALLOWED_NAMES)}")
+    _check(tree, set(_ALLOWED_NAMES), expr)
     body = ast.fix_missing_locations(_Rewrite().visit(tree)).body
     fn_def = ast.parse("def step(z, c, zp, k):\n    return 0").body[0]
     fn_def.body[0].value = body  # type: ignore[attr-defined]
     module = ast.fix_missing_locations(ast.Module(body=[fn_def], type_ignores=[]))
-    ns: dict[str, Any] = {"cmath": cmath}
+    ns: dict[str, Any] = {"__builtins__": {}, "cmath": cmath, "abs": abs, "complex": complex}
     exec(compile(module, f"<formula {expr!r}>", "exec"), ns)  # noqa: S102 - AST-checked
     return njit(fastmath=True)(ns["step"])
 
@@ -143,17 +153,19 @@ def escape_field(
     cr: np.ndarray, ci: np.ndarray, max_iter: int, formula: str, c: complex, k: float
 ) -> tuple[np.ndarray, np.ndarray]:
     """Return (smooth_iteration, escaped_mask). Interior pixels are 0 / False."""
-    from .. import kernels
+    from .. import kernels, progress
 
     f = FORMULAS.get(formula)
     cr = np.ascontiguousarray(cr, dtype=np.float64)
     ci = np.ascontiguousarray(ci, dtype=np.float64)
     if f.kind_id is not None:
-        n, esc = kernels.escape_kernel(cr, ci, int(max_iter), f.kind_id, float(c.real), float(c.imag), float(k))
+        n, esc = kernels.escape_kernel(
+            cr, ci, int(max_iter), f.kind_id, float(c.real), float(c.imag), float(k), progress.units(cr.shape[0])
+        )
     else:
         n, esc = kernels.escape_kernel_generic(
             cr, ci, int(max_iter), f.step, f.julia, complex(c), float(k),
-            float(f.bailout) ** 2, math.log(f.degree) if f.degree > 1.0 else 0.0,
+            float(f.bailout) ** 2, math.log(f.degree) if f.degree > 1.0 else 0.0, progress.units(cr.shape[0]),
         )
     return n, esc.astype(bool)
 
@@ -192,9 +204,16 @@ def escape_time(
     interior: tuple = (0.0, 0.0, 0.0),
 ):
     """Mandelbrot / Julia family: each pixel colored by how fast its orbit escapes."""
-    cr, ci = ctx.plane()
-    n, esc = ctx.strips(lambda a, b: escape_field(a, b, max_iter, formula, c, k), cr, ci)
-    del cr, ci
+    if int(max_iter) < 1:
+        raise ValueError(f"max_iter must be >= 1, got {max_iter!r}")
+    fkey = field_ctx_key(ctx, "escape_field", formula=formula, max_iter=max_iter, c=c, k=k)
+
+    def _field() -> tuple[np.ndarray, np.ndarray]:
+        cr, ci = ctx.plane()
+        return ctx.strips(lambda a, b: escape_field(a, b, max_iter, formula, c, k), cr, ci)
+
+    n, esc = field_cached(fkey, _field)
+    esc = np.asarray(esc, dtype=bool)
     if coloring == "smooth":
         t = np.where(esc, n * density, 0.0)
         cyclic = True
@@ -236,19 +255,24 @@ def orbit_trap(
     floor: float = 0.12,
 ):
     """Mandelbrot colored by how close each orbit comes to a trap shape."""
-    from .. import kernels
+    from .. import kernels, progress
 
     if trap not in TRAPS:
         raise ValueError(f"trap must be one of {sorted(TRAPS)}")
-    cr, ci = ctx.plane()
+    fkey = field_ctx_key(ctx, "orbit_trap", max_iter=max_iter, trap=trap)
 
-    def run(a, b):
-        return kernels.orbit_trap_kernel(
-            np.ascontiguousarray(a, dtype=np.float64), np.ascontiguousarray(b, dtype=np.float64),
-            int(max_iter), TRAPS[trap],
-        )
+    def _field() -> np.ndarray:
+        cr, ci = ctx.plane()
 
-    d = ctx.strips(run, cr, ci)
+        def run(a, b):
+            return kernels.orbit_trap_kernel(
+                np.ascontiguousarray(a, dtype=np.float64), np.ascontiguousarray(b, dtype=np.float64),
+                int(max_iter), TRAPS[trap], progress.units(a.shape[0]),
+            )
+
+        return ctx.strips(run, cr, ci)
+
+    d = field_cached(fkey, _field)
     t = histogram_index(-np.log(d), np.ones_like(d, dtype=bool))
     rgb = sample_palette(palette, np.power(t, gamma), cyclic=True)
     rgb *= floor + (1.0 - floor) * np.power(t, shade_gamma)[..., None]

@@ -6,8 +6,11 @@ from typing import Any, Sequence
 
 import numpy as np
 
+from .. import progress
 from ..view import fit_window
 from .base import generator
+from ..fieldcache import cached as field_cached
+from ..fieldcache import ctx_key as field_ctx_key
 from .density import deposit, tone_map_density
 
 # [a, b, c, d, e, f, p]: x' = a x + b y + e, y' = c x + d y + f, picked with probability p.
@@ -68,41 +71,71 @@ def ifs(
     warmup_steps: int = 8,
 ):
     """Chaos-game iterated function system from affine maps (Barnsley fern, etc.)."""
+    p = int(batch)
+    if p <= 0:
+        raise ValueError("batch must be positive")
+    if not maps:
+        raise ValueError("maps must not be empty")
     rng = np.random.default_rng(seed)
     w, h = ctx.width, ctx.height
     def count(c) -> int:
         return int(n * max(1.0, c.pixels / (3840.0 * 2160.0)))
 
     total = count(ctx)
-    p = batch
     xs = np.zeros(p, dtype=np.float64)
     ys = np.zeros(p, dtype=np.float64)
     steps = max(1, total // p)
+    # Deposit only when s > warmup_steps; bump so that happens at least once.
+    need = int(warmup_steps) + 2
+    if steps < need:
+        steps = need
     wx0, wx1, wy0, wy1 = fit_window(xmin, xmax, ymin, ymax, w, h, fill=window_fill)
-    density = np.zeros((h, w), dtype=np.float64)
-    hue_acc = np.zeros((h, w), dtype=np.float64)
-    denom = max(steps - 1, 1)
+    fkey = field_ctx_key(
+        ctx,
+        "ifs",
+        maps=maps,
+        seed=seed,
+        n=n,
+        batch=batch,
+        warmup_steps=warmup_steps,
+        xmin=xmin,
+        xmax=xmax,
+        ymin=ymin,
+        ymax=ymax,
+        window_fill=window_fill,
+    )
 
-    # Cumulative probability thresholds (maps sorted by old barnsley order in recipe).
-    probs = [float(m[6]) for m in maps]
-    bounds = np.cumsum(probs)
+    def _fields() -> tuple[np.ndarray, np.ndarray]:
+        density = np.zeros((h, w), dtype=np.float64)
+        hue_acc = np.zeros((h, w), dtype=np.float64)
+        denom = max(steps - 1, 1)
+        probs = [float(m[6]) for m in maps]
+        bounds = np.cumsum(probs)
+        lx, ly = xs.copy(), ys.copy()
+        for s in range(steps):
+            progress.update(s / steps)
+            u = rng.random(p)
+            nx, ny = np.empty_like(lx), np.empty_like(ly)
+            for i, m in enumerate(maps):
+                a, b, c, d, e, f, _prob = m
+                if len(maps) == 1:
+                    mask = np.ones(p, dtype=bool)
+                elif i == 0:
+                    mask = u < bounds[i]
+                elif i == len(maps) - 1:
+                    mask = u >= bounds[i - 1]
+                else:
+                    mask = (u >= bounds[i - 1]) & (u < bounds[i])
+                nx[mask] = a * lx[mask] + b * ly[mask] + e
+                ny[mask] = c * lx[mask] + d * ly[mask] + f
+            lx, ly = nx, ny
+            if s > warmup_steps:
+                deposit(density, hue_acc, lx, ly, wx0, wx1, wy0, wy1, hue_val=s / denom)
+        return density, hue_acc
 
-    for s in range(steps):
-        u = rng.random(p)
-        nx, ny = np.empty_like(xs), np.empty_like(ys)
-        for i, m in enumerate(maps):
-            a, b, c, d, e, f, _prob = m
-            if i == 0:
-                mask = u < bounds[i]
-            elif i == len(maps) - 1:
-                mask = u >= bounds[i - 1]
-            else:
-                mask = (u >= bounds[i - 1]) & (u < bounds[i])
-            nx[mask] = a * xs[mask] + b * ys[mask] + e
-            ny[mask] = c * xs[mask] + d * ys[mask] + f
-        xs, ys = nx, ny
-        if s > warmup_steps:
-            deposit(density, hue_acc, xs, ys, wx0, wx1, wy0, wy1, hue_val=s / denom)
-
+    density, hue_acc = field_cached(fkey, _fields)
     norm = ctx.density_norm(total, count(ctx.reference()))
-    return tone_map_density(density, hue_acc, palette, blur=blur, gamma=gamma, norm=norm)
+    return tone_map_density(
+        np.array(density, copy=False), np.array(hue_acc, copy=False),
+        palette, blur=blur, gamma=gamma, norm=norm,
+    )

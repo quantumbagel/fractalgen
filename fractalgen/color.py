@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import numpy as np
@@ -82,27 +83,58 @@ def to_uint8(rgb: np.ndarray) -> np.ndarray:
 
 
 def to_image(rgb: np.ndarray) -> Image.Image:
-    return Image.fromarray(to_uint8(rgb), mode="RGB")
+    """RGB, or RGBA when the array has an alpha channel (a transparent mask background)."""
+    return Image.fromarray(to_uint8(rgb), mode="RGBA" if rgb.shape[-1] == 4 else "RGB")
 
 
-def save_image(path: str | Path, rgb: np.ndarray, fmt: str | None = None, jpeg_quality: int = 95) -> Path:
-    """Save float RGB in [0, 1]. ``fmt`` defaults to the file extension."""
+def save_image(
+    path: str | Path, rgb: np.ndarray, fmt: str | None = None, jpeg_quality: int = 95,
+    meta: dict[str, str] | None = None,
+) -> Path:
+    """Save float RGB in [0, 1]. ``fmt`` defaults to the file extension.
+
+    ``meta`` (text keys -> text) is embedded in the file: PNG text chunks, or a
+    JSON comment in a JPEG. :func:`read_meta` reads it back.
+    """
     Image.MAX_IMAGE_PIXELS = None
     dest = Path(path)
     dest.parent.mkdir(parents=True, exist_ok=True)
     fmt = (fmt or dest.suffix.lstrip(".") or "png").lower()
+    if fmt in ("jpg", "jpeg") and rgb.shape[-1] == 4:  # no alpha in JPEG: flatten onto black
+        rgb = rgb[..., :3] * rgb[..., 3:]
     img = to_image(rgb)
     # Write beside the target and rename, so a killed render never leaves a
     # truncated file that --skip-existing would then accept.
     tmp = dest.with_name(f".{dest.name}.partial")
     try:
         if fmt in ("jpg", "jpeg"):
-            img.save(tmp, format="JPEG", quality=jpeg_quality, optimize=False)
+            extra = {"comment": json.dumps(meta).encode()} if meta else {}
+            img.save(tmp, format="JPEG", quality=jpeg_quality, optimize=False, **extra)
         else:
             # optimize=True is RAM-heavy on 8K/16K; keep it for smaller frames only.
             optimize = img.size[0] * img.size[1] < 8_000_000
-            img.save(tmp, format="PNG", optimize=optimize, compress_level=6)
+            info = None
+            if meta:
+                from PIL.PngImagePlugin import PngInfo
+
+                info = PngInfo()
+                for k, v in meta.items():
+                    info.add_itxt(k, str(v), zip=True)
+            img.save(tmp, format="PNG", optimize=optimize, compress_level=6, pnginfo=info)
         tmp.replace(dest)
     finally:
         tmp.unlink(missing_ok=True)
     return dest
+
+
+def read_meta(path: str | Path) -> dict[str, str]:
+    """Text metadata :func:`save_image` embedded (empty when there is none)."""
+    with Image.open(path) as im:
+        if im.format == "JPEG":
+            raw = im.info.get("comment")
+            try:
+                data = json.loads(raw) if raw else {}
+            except ValueError:
+                return {}
+            return {str(k): str(v) for k, v in data.items()} if isinstance(data, dict) else {}
+        return {str(k): str(v) for k, v in getattr(im, "text", {}).items()}

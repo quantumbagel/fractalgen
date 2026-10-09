@@ -1,6 +1,7 @@
 # 3D ODE flow attractors.
 
 [recipe.lorenz_butterfly]
+description = "Lorenz butterfly wings"
 generator = "flow_attractor"
 palette = "ember"
 tags = ["keep"]
@@ -21,6 +22,7 @@ init_mean = [0.0, 1.0, 20.0]
 init_sigma = [0.4, 0.4, 2.0]
 
 [recipe.rossler]
+description = "Rössler attractor folded ribbon"
 generator = "flow_attractor"
 palette = "aurora"
 tags = ["draft"]
@@ -44,6 +46,7 @@ init_sigma = [1.4, 1.2, 1.0]
 init_z_uniform = [0.05, 4.0]
 
 [recipe.aizawa]
+description = "Swirling Aizawa attractor trails"
 generator = "flow_attractor"
 palette = "twilight"
 tags = ["keep"]
@@ -64,6 +67,7 @@ init_mean = [0.1, 0.0, 0.0]
 init_sigma = [0.15, 0.15, 0.15]
 
 [recipe.thomas]
+description = "Thomas attractor cyclic loops"
 generator = "flow_attractor"
 palette = "abyss"
 tags = ["keep"]
@@ -105,6 +109,7 @@ init_mean = [0.0, 1.0, 20.0]
 init_sigma = [0.4, 0.4, 2.0]
 
 [recipe.thomas_gilded]
+description = "Gilded Thomas cyclic spirals"
 generator = "flow_attractor"
 palette = "rydberg"
 tags = ["keep"]
@@ -126,6 +131,7 @@ init_mean = [0.0, 0.0, 0.0]
 init_sigma = [0.6, 0.6, 0.6]
 
 [recipe.halvorsen_loop]
+description = "Halvorsen attractor braided loop"
 generator = "flow_attractor"
 palette = "cosmic"
 tags = ["keep"]

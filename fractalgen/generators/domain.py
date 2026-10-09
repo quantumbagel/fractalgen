@@ -104,6 +104,22 @@ def _eval_domain(
     return d.fn(z, **{**d.defaults, **expr_params})
 
 
+def _infinite_magnitude_rgb(
+    *,
+    contour_lo: float,
+    contour_hi: float,
+    checker_lo: float,
+    mag_scale: float,
+    sat_lo: float,
+    sat_hi: float,
+) -> np.ndarray:
+    """HSV color of |w| → ∞: mid contour, no checker oscillation, phase 0."""
+    ridges = contour_lo + 0.5 * contour_hi
+    v = float(np.clip(ridges * checker_lo * mag_scale, 0.0, 1.0))
+    s = float(np.clip(sat_lo + sat_hi, 0.35, 1.0))
+    return hsv_to_rgb(np.array([0.5]), np.array([s]), np.array([v]))[0]
+
+
 def _color_domain(
     w: np.ndarray,
     *,
@@ -119,15 +135,32 @@ def _color_domain(
     sat_hi: float,
     sat_mag_scale: float,
 ) -> np.ndarray:
-    mag = np.abs(w)
-    phase = np.angle(w)
+    if not np.isfinite(float(contour_period)) or float(contour_period) <= 0.0:
+        raise ValueError(f"contour_period must be > 0, got {contour_period!r}")
+    finite = np.isfinite(w)
+    w_work = w if np.all(finite) else np.where(finite, w, 1.0)
+    mag = np.abs(w_work)
+    phase = np.angle(w_work)
     h = (phase + np.pi) / (2.0 * np.pi)
     logm = np.log(mag + 1e-12)
     ridges = contour_lo + contour_hi * (0.5 + 0.5 * np.cos(2.0 * np.pi * logm / contour_period))
-    checker = checker_lo + checker_hi * np.sign(np.sin(checker_scale * w.real) * np.sin(checker_scale * w.imag))
+    checker = checker_lo + checker_hi * np.sign(np.sin(checker_scale * w_work.real) * np.sin(checker_scale * w_work.imag))
     v = np.clip(ridges * checker * (mag**mag_pow / (1.0 + mag**mag_pow) * mag_scale), 0.0, 1.0)
     s = np.clip(sat_lo + sat_hi * (1.0 - 1.0 / (1.0 + mag * sat_mag_scale)), 0.35, 1.0)
-    return hsv_to_rgb(h, s, v)
+    rgb = hsv_to_rgb(h, s, v)
+    fill = (~finite) | ~np.all(np.isfinite(rgb), axis=-1)
+    if np.any(fill):
+        inf_rgb = _infinite_magnitude_rgb(
+            contour_lo=contour_lo,
+            contour_hi=contour_hi,
+            checker_lo=checker_lo,
+            mag_scale=mag_scale,
+            sat_lo=sat_lo,
+            sat_hi=sat_hi,
+        )
+        rgb = np.array(rgb, copy=True)
+        rgb[fill] = inf_rgb
+    return rgb
 
 
 @generator(
@@ -184,6 +217,8 @@ def domain_color(
     sat_mag_scale: float = 1.0,
 ):
     """Paints a complex function by hue = phase and brightness = magnitude."""
+    if not np.isfinite(float(contour_period)) or float(contour_period) <= 0.0:
+        raise ValueError(f"contour_period must be > 0, got {contour_period!r}")
     zr, zi = ctx.plane()
     kw = dict(expr_params or {})
     w = _eval_domain(zr, zi, kind, expr, kw)
@@ -235,7 +270,7 @@ def popcorn(
     val_gamma: float = 0.75,
 ):
     """Warped wave field from Pickover's popcorn map; hue from drift direction."""
-    from .. import kernels
+    from .. import kernels, progress
 
     zr, zi = ctx.plane()
 
@@ -245,6 +280,7 @@ def popcorn(
             np.ascontiguousarray(b, dtype=np.float64),
             int(steps),
             float(hstep),
+            progress.units(a.shape[0]),
         )
 
     dx, dy = ctx.strips(run, zr, zi)

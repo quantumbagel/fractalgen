@@ -13,7 +13,10 @@ from http.server import ThreadingHTTPServer
 from pathlib import Path
 from urllib import error, request
 
-from fractalgen.gui.server import Exports, Renderer, make_handler
+import shlex
+
+from fractalgen.cli import _parser
+from fractalgen.gui.server import Exports, Renderer, ThumbQueue, cli_command, make_handler, thumb_fingerprint
 from fractalgen.loader import bootstrap
 from fractalgen.recipe import RECIPES
 
@@ -48,7 +51,12 @@ class GuiApiTests(unittest.TestCase):
         cls._orig_custom, cls._orig_out = srv.CUSTOM_DIR, srv.OUT_ROOT
         srv.CUSTOM_DIR = Path(cls._custom_tmp.name)
         srv.OUT_ROOT = Path(cls._out_tmp.name)
-        cls._httpd = ThreadingHTTPServer(("127.0.0.1", 0), make_handler(Renderer(), Exports()))
+        cls._renderer = Renderer()
+        cls._exports = Exports()
+        cls._thumbs = ThumbQueue(cls._renderer, cls._exports)
+        cls._httpd = ThreadingHTTPServer(
+            ("127.0.0.1", 0), make_handler(cls._renderer, cls._exports, cls._thumbs),
+        )
         host, port = cls._httpd.server_address
         cls._base = f"http://{host}:{port}"
         threading.Thread(target=cls._httpd.serve_forever, daemon=True).start()
@@ -180,7 +188,10 @@ class GuiApiTests(unittest.TestCase):
         _, p_port, v_port = r.resolve(36, 64)
         self.assertEqual((v_port.half_width, p_port["max_iter"]), (0.123, 77))
         _, p_land, v_land = r.resolve(64, 36)
-        self.assertEqual((v_land.half_width, p_land["max_iter"]), (0.123, 77))
+        # The other orientation zooms by the same factor relative to its own framing.
+        ratio = 0.123 / base.resolve(36, 64)[2].half_width
+        self.assertAlmostEqual(v_land.half_width, base.resolve(64, 36)[2].half_width * ratio)
+        self.assertEqual(p_land["max_iter"], 77)
         # Untouched portrait framing stays portrait-only.
         self.assertEqual(v_land.center, base.resolve(64, 36)[2].center)
         self.assertEqual(v_port.center, base.resolve(36, 64)[2].center)
@@ -226,6 +237,7 @@ class GuiApiTests(unittest.TestCase):
                 break
             time.sleep(0.2)
         self.assertEqual(status, "done")
+        self.assertEqual(info["progress"], 1.0)
         p = Path(info["path"])
         self.assertTrue(p.is_file() and str(p).endswith(".jpg"))
         try:
@@ -235,8 +247,50 @@ class GuiApiTests(unittest.TestCase):
                 self.assertEqual(im.size, (80, 45))
         except ImportError:
             pass
+        self.assertEqual(self._json("/api/progress?client=nobody")["progress"], None)
         _, _, body = self._get("/api/export/nope", code=404)
         self.assertIn(b"unknown", body)
+        _, hdrs, file_body = self._get(f"/api/export/{job}/file")
+        self.assertGreater(len(file_body), 100)
+        self.assertIn("attachment", hdrs.get("Content-Disposition", hdrs.get("content-disposition", "")))
+
+    def test_catalog_preset_format(self) -> None:
+        for p in self._json("/api/catalog")["presets"]:
+            self.assertIn("format", p)
+
+    def test_cli_command_roundtrip(self) -> None:
+        st = self._json("/api/state?recipe=julia_dragon&w=640&h=360")
+        st["params"] = {**st["params"], "max_iter": 222}
+        cmd = cli_command(st, 640, 360)
+        self.assertIn("render", cmd)
+        self.assertIn("julia_dragon", cmd)
+        args = _parser().parse_args(shlex.split(cmd)[3:])
+        self.assertEqual(args.names, ["julia_dragon"])
+        self.assertEqual(args.sets, [("max_iter", 222)])
+
+    def test_cli_api(self) -> None:
+        st = self._json("/api/state?recipe=julia_dragon&w=64&h=36")
+        _, _, raw = self._post_json("/api/cli", {"state": st, "width": 64, "height": 36})
+        info = json.loads(raw)
+        self.assertIn("command", info)
+        self.assertIn("julia_dragon", info["command"])
+
+    def test_thumb_endpoint(self) -> None:
+        name = self._json("/api/catalog")["recipes"][0]["name"]
+        w, h = (192, 108)
+        _ = thumb_fingerprint(name, w, h)
+        req = request.Request(self._url(f"/api/thumb?recipe={name}&orient=land"))
+        try:
+            with request.urlopen(req) as r:
+                code, body = r.status, r.read()
+        except error.HTTPError as e:
+            with e:
+                code, body = e.code, e.read()
+        self.assertIn(code, (200, 202))
+        if code == 200:
+            self.assertEqual(body[:8], b"\x89PNG\r\n\x1a\n")
+        _, _, body = self._get("/api/thumb?recipe=__nope__&orient=land", code=404)
+        self.assertIn(b"not found", body)
 
 
 if __name__ == "__main__":

@@ -13,7 +13,9 @@ from typing import Any, Sequence
 import numpy as np
 
 from ..kernels import KIND
-from .. import tone
+from .. import progress, tone
+from ..fieldcache import cached as field_cached
+from ..fieldcache import ctx_key as field_ctx_key
 from .base import generator
 
 FORMULAS = ("mandelbrot", "burning_ship", "buffalo", "tricorn", "celtic", "multibrot3", "multibrot4")
@@ -78,35 +80,51 @@ def buddhabrot(
     x0, x1, y0, y1 = (float(v) for v in sample_window)
     key = np.uint64(seed * 0x9E3779B1 + 0xB5297A4D)
 
-    acc = np.zeros((len(channels), h * w))
     total = int(samples * ctx.pixels)
-    batch = 1 << 20
-    budget = 24_000_000  # orbit points replayed per splat pass
-    for i0 in range(0, total, batch):
-        n = min(batch, total - i0)
-        cr, ci, esc = kernels.buddhabrot_escape(n, key, i0, x0, x1, y0, y1, max_iter, bailout * bailout, kind)
-        mask = np.zeros(n, dtype=np.int64)
-        for ch in range(len(channels)):
-            mask |= ((esc >= lo_it[ch]) & (esc <= hi_it[ch])).astype(np.int64) << ch
-        keep = mask > 0
-        cr, ci, steps, mask = cr[keep], ci[keep], esc[keep], mask[keep]
-        start = 0
-        while start < steps.size:
-            csum = np.cumsum(steps[start:])
-            end = start + max(1, int(np.searchsorted(csum, budget)))
-            st = np.ascontiguousarray(steps[start:end])
-            offsets = np.concatenate(([0], np.cumsum(st)[:-1])).astype(np.int64)
-            pix = np.empty(int(st.sum()), dtype=np.int64)
-            kernels.buddhabrot_orbits(cr[start:end], ci[start:end], st, offsets, kind, *aff, w, h, pix)
-            kernels.buddhabrot_splat(acc, pix, st, offsets, mask[start:end])
-            start = end
+    fkey = field_ctx_key(
+        ctx,
+        "buddhabrot",
+        formula=formula,
+        channels=channels,
+        samples=samples,
+        sample_window=sample_window,
+        bailout=bailout,
+        seed=seed,
+    )
+
+    def _accumulate() -> np.ndarray:
+        acc = np.zeros((len(channels), h * w))
+        batch = 1 << 20
+        budget = 24_000_000
+        for i0 in range(0, total, batch):
+            n = min(batch, total - i0)
+            cr, ci, esc = kernels.buddhabrot_escape(n, key, i0, x0, x1, y0, y1, max_iter, bailout * bailout, kind)
+            mask = np.zeros(n, dtype=np.int64)
+            for ch in range(len(channels)):
+                mask |= ((esc >= lo_it[ch]) & (esc <= hi_it[ch])).astype(np.int64) << ch
+            keep = mask > 0
+            cr, ci, steps, mask = cr[keep], ci[keep], esc[keep], mask[keep]
+            start = 0
+            while start < steps.size:
+                csum = np.cumsum(steps[start:])
+                end = start + max(1, int(np.searchsorted(csum, budget)))
+                st = np.ascontiguousarray(steps[start:end])
+                offsets = np.concatenate(([0], np.cumsum(st)[:-1])).astype(np.int64)
+                pix = np.empty(int(st.sum()), dtype=np.int64)
+                kernels.buddhabrot_orbits(cr[start:end], ci[start:end], st, offsets, kind, *aff, w, h, pix)
+                kernels.buddhabrot_splat(acc, pix, st, offsets, mask[start:end])
+                start = end
+            progress.update((i0 + n) / total)
+        return acc
+
+    acc = field_cached(fkey, _accumulate)
 
     # zoom_gain: zoomed in, fewer orbit hits land per pixel; keep the anchor's exposure.
     norm = ctx.density_norm(total, samples * ctx.reference().pixels) * ctx.zoom_gain(2.0)
     sigma = ctx.ref_px(blur)
     rgb = np.zeros((h, w, 3))
     for ch, tint in enumerate(colors):
-        d = acc[ch].reshape(h, w) * norm
+        d = np.array(acc[ch], copy=False).reshape(h, w) * norm
         if sigma > 0:
             d = gaussian_filter(d, sigma=sigma)
         pos = d[d > 0]

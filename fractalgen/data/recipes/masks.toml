@@ -1,0 +1,21 @@
+# Masked looks: a fractal cut out with text or a shape (see fractalgen/mask.py,
+# `python -m fractalgen mask`). Any recipe can take a `mask` table; these are examples.
+
+[recipe.seahorse_porthole]
+extends = "mandelbrot_seahorse"
+description = "Seahorse valley through a round porthole over its own blurred glow"
+tags = ["keep"]
+mask = { shape = "circle", size = 0.82, outline = 6, outline_color = "ffe2b8", shadow = 0.8, background = "self", background_dim = 0.22, background_blur = 60 }
+portrait.mask = { size = 0.9 }
+
+[recipe.snowflake_star]
+extends = "julia_snowflake"
+description = "Snowflake Julia arms inside a glowing five-point star"
+tags = ["keep"]
+mask = { shape = "star", size = 0.86, glow = 0.9, glow_radius = 70, bevel = 0.6, background = "self", background_dim = 0.2, background_blur = 40 }
+
+[recipe.dragon_lettering]
+extends = "julia_dragon"
+description = "The word FRACTAL cut from the Julia dragon, glowing over a dimmed copy"
+mask = { text = "FRACTAL", size = 0.86, glow = 0.7, bevel = 0.5, shadow = 0.6, background = "self", background_dim = 0.12, background_blur = 24 }
+portrait.mask = { text = "FRAC\nTAL" }

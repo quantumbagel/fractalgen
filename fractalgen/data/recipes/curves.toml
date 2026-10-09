@@ -1,11 +1,13 @@
 # Harmonograph.
 
 [recipe.harmonograph]
+description = "Harmonograph pendulum Lissajous"
 generator = "harmonograph"
 palette = "twilight"
 tags = ["keep"]
 
 [recipe.harmonograph_gold]
+description = "Gilded harmonograph curves"
 generator = "harmonograph"
 palette = "goldsmoke"
 tags = ["keep"]

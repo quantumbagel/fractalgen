@@ -7,7 +7,7 @@ from typing import Any
 import numpy as np
 
 from ..color import hsv_to_rgb
-from .. import tone
+from .. import progress, tone
 from .base import generator
 
 _CINEMATIC_HUES: dict[int, np.ndarray] = {
@@ -51,7 +51,9 @@ def _color_newton_power(
     tmax = tone.stat("newton.tmax", lambda: max(float(iters.max()), 1.0))
     if style == "cinematic":
         if hues is not None:
-            h = hues[root_ix]
+            if hues.size < 1:
+                raise ValueError("hues must be a non-empty list")
+            h = hues[root_ix % hues.size]
         elif power in _CINEMATIC_HUES:
             h = _CINEMATIC_HUES[power][root_ix]
         else:
@@ -74,7 +76,7 @@ def _color_newton_power(
 
 
 def _newton_basins(zr0: np.ndarray, zi0: np.ndarray, power: int, max_iter: int, tol: float):
-    from .. import kernels
+    from .. import kernels, progress
 
     return kernels.newton_kernel(
         np.ascontiguousarray(zr0, dtype=np.float64),
@@ -82,6 +84,7 @@ def _newton_basins(zr0: np.ndarray, zi0: np.ndarray, power: int, max_iter: int, 
         int(power),
         int(max_iter),
         float(tol),
+        progress.units(zr0.shape[0]),
     )
 
 
@@ -170,6 +173,11 @@ def newton(
     cine_hue_span: float = 0.38,
 ):
     """Colored basins of attraction for the nth roots of unity (z^n = 1)."""
+    power = int(power)
+    if power < 2:
+        raise ValueError(f"power must be >= 2, got {power}")
+    if hues is not None and len(hues) < 1:
+        raise ValueError("hues must be a non-empty list")
     zr, zi = ctx.plane()
 
     def run(a, b):
@@ -215,6 +223,7 @@ def _poly_newton(zr0: np.ndarray, zi0: np.ndarray, coeffs: np.ndarray, max_iter:
     dcoeffs = np.polyder(coeffs)
     for k in range(1, max_iter + 1):
         live = ~done
+        progress.update(k / max_iter)
         if not np.any(live):
             break
         z = zr + 1j * zi
@@ -291,6 +300,8 @@ def newton_poly(
     cine_sat_hi: float = 0.22,
 ):
     """Colored basins for a custom polynomial's roots."""
+    if hues is not None and len(hues) < 1:
+        raise ValueError("hues must be a non-empty list")
     zr, zi = ctx.plane()
     coeff_arr = np.array([complex(c) for c in coeffs], dtype=np.complex128)
     if hues is None:

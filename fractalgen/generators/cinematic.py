@@ -16,7 +16,7 @@ from scipy.ndimage import gaussian_filter, zoom
 
 from ..color import histogram_index, log_tone
 from ..palette import sample_palette
-from .. import simcache
+from .. import progress, simcache
 from ..view import angle, rotate_yaw_pitch
 from .base import generator
 
@@ -147,6 +147,8 @@ def gray_scott_blend(
     """Spatial blend of Gray–Scott phases (maze → coral → spots)."""
     from .. import kernels
 
+    if len(phases) != 3:
+        raise ValueError("gray_scott_blend requires exactly three phases")
     w, h = ctx.width, ctx.height
     sw, sh = sim_size(ctx, sim_scale, min_s=sim_min)
     phase_fields = []
@@ -156,13 +158,14 @@ def gray_scott_blend(
 
         def _phase(fv=f_val, kv=k_val, ps=phase_seed) -> np.ndarray:
             u, v = _gs_seed(sh, sw, ps)
-            u, v = kernels.gray_scott_kernel(u, v, fv, kv, int(steps), du, dv, dt)
+            u, v = kernels.gray_scott_kernel(u, v, fv, kv, int(steps), du, dv, dt, progress.units(steps))
             field = np.clip(v, 0.0, 1.0)
             field = field / (field.max() + 1e-12)
             return gaussian_filter(field, sigma=blur_sigma)
 
         pkey = ("gs_blend_phase", sw, sh, f_val, k_val, steps, phase_seed, du, dv, dt, blur_sigma)
-        phase_fields.append(simcache.cached(pkey, _phase))
+        with progress.span(i / len(phases), (i + 1) / len(phases)):
+            phase_fields.append(simcache.cached(pkey, _phase))
     xs = np.linspace(0.0, 1.0, sw)
     w0 = np.clip(1.0 - xs / 0.45, 0.0, 1.0)
     w0 = w0 * w0 * (3.0 - 2.0 * w0)
@@ -290,9 +293,11 @@ def physarum(
         tie_seed = int(rng.integers(1, 2**31 - 1))
         for c in range(int(chunks)):
             trail += food * 0.05
-            kernels.physarum_steps(
-                x, y, heading, trail, sa, ra, sensor_distance, step, deposit, inner_steps, tie_seed + c * inner_steps
-            )
+            with progress.span(c / chunks, (c + 1) / chunks):
+                kernels.physarum_steps(
+                    x, y, heading, trail, sa, ra, sensor_distance, step, deposit, inner_steps,
+                    tie_seed + c * inner_steps, progress.units(inner_steps),
+                )
             trail = gaussian_filter(trail, sigma=0.40) * 0.88
         return gaussian_filter(trail, sigma=0.28)
 
@@ -372,7 +377,7 @@ def hyperbolic_tiling(
     from .. import kernels
 
     w, h = ctx.width, ctx.height
-    depth, edge, sector = kernels.poincare_kernel(h, w, int(p), int(q), int(max_fold))
+    depth, edge, sector = kernels.poincare_kernel(h, w, int(p), int(q), int(max_fold), progress.units(h))
     outside = depth < 0
     depth = np.where(outside, 0.0, depth)
     t = np.clip(depth / depth_norm, 0.0, 1.0)
@@ -493,6 +498,7 @@ def bokeh_attractor(
         ys: list[np.ndarray] = []
         zs: list[np.ndarray] = []
         for i in range(int(steps)):
+            progress.update(i / steps)
             dx = -a * x - 4.0 * y - 4.0 * z - y * y
             dy = -a * y - 4.0 * z - 4.0 * x - z * z
             dz = -a * z - 4.0 * x - 4.0 * y - x * x

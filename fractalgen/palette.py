@@ -24,12 +24,16 @@ from .registry import Registry
 
 
 def hex_to_rgb(c: str) -> tuple[float, float, float]:
+    raw = c
     c = c.strip().lstrip("#")
     if len(c) == 3:
         c = "".join(ch * 2 for ch in c)
     if len(c) != 6:
-        raise ValueError(f"Bad hex color {c!r}")
-    return (int(c[0:2], 16) / 255.0, int(c[2:4], 16) / 255.0, int(c[4:6], 16) / 255.0)
+        raise ValueError(f"Bad hex color {raw!r}")
+    try:
+        return (int(c[0:2], 16) / 255.0, int(c[2:4], 16) / 255.0, int(c[4:6], 16) / 255.0)
+    except ValueError:
+        raise ValueError(f"Bad hex color {raw!r}") from None
 
 
 def _rgb_to_hex(rgb: Sequence[float]) -> str:
@@ -66,6 +70,10 @@ class Palette:
             pos = np.asarray(positions, dtype=np.float64)
             if pos.shape != (rgb.shape[0],) or np.any(np.diff(pos) < 0):
                 raise ValueError(f"Palette {name!r}: positions must be increasing, one per stop")
+            if np.any(pos < 0) or np.any(pos > 1):
+                raise ValueError(f"Palette {name!r}: positions must lie in [0, 1]")
+            if pos[0] != 0.0 or pos[-1] != 1.0:
+                raise ValueError(f"Palette {name!r}: positions must start at 0 and end at 1")
         return cls(name=name, stops=rgb, positions=pos, description=desc, tags=tags)
 
     def reversed(self) -> "Palette":

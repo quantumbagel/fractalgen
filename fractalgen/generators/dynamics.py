@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 
+from .. import progress
 from ..color import hsv_to_rgb
 from .base import generator
 
@@ -72,6 +73,8 @@ def magnetic_pendulum(
     falloff_r0_scale: float = 0.72,
 ):
     """Which magnet a damped pendulum settles on, colored as basins from every start point."""
+    if n_magnets < 1:
+        raise ValueError("n_magnets must be at least 1")
     preset = _FRAMING.get(framing, _FRAMING["wide"])
     mag_r = preset["mag_r"] if mag_r is None else mag_r
     strength = preset["strength"] if strength is None else strength
@@ -95,7 +98,8 @@ def magnetic_pendulum(
     vx = np.zeros_like(X)
     vy = np.zeros_like(Y)
 
-    for _ in range(steps):
+    for s in range(steps):
+        progress.update(s / steps)
         ax = -g * X - friction * vx
         ay = -g * Y - friction * vy
         for i in range(n_magnets):

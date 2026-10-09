@@ -19,15 +19,23 @@ def _lyapunov_field(
     warmup: int,
     samples: int,
 ) -> np.ndarray:
-    from .. import kernels
+    from .. import kernels, progress
 
-    seq = np.array([1 if ch == "B" else 0 for ch in sequence], dtype=np.uint8)
+    if not isinstance(sequence, str) or not sequence:
+        raise ValueError(f"sequence must be a non-empty string of A's and B's, got {sequence!r}")
+    seq = np.empty(len(sequence), dtype=np.uint8)
+    for i, ch in enumerate(sequence):
+        u = ch.upper()
+        if u not in ("A", "B"):
+            raise ValueError(f"sequence must contain only A and B, got {ch!r} in {sequence!r}")
+        seq[i] = 1 if u == "B" else 0
     return kernels.lyapunov_kernel(
         np.ascontiguousarray(a, dtype=np.float64),
         np.ascontiguousarray(b, dtype=np.float64),
         seq,
         int(warmup),
         int(samples),
+        progress.units(a.shape[0]),
     )
 
 

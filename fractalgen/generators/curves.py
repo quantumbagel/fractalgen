@@ -77,6 +77,10 @@ def harmonograph(
     rgb_floor: float = 0.05,
 ):
     """Multi-pendulum harmonograph traces with log tone mapping."""
+    if n_curves < 1:
+        raise ValueError("n_curves must be at least 1")
+    if not ratios:
+        raise ValueError("ratios must not be empty")
     width, height = ctx.width, ctx.height
     ref_w, _ = ctx.ref_size
     ref_ctx = ctx.reference()

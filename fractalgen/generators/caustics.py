@@ -14,7 +14,7 @@ from typing import Any
 import numpy as np
 from scipy.ndimage import gaussian_filter
 
-from .. import tone
+from .. import progress, tone
 from ..palette import sample_palette
 from .base import generator
 
@@ -77,11 +77,14 @@ def caustics(
     """Pool-floor caustics: light rays bent by a wavy surface, density as brightness."""
     from .. import kernels
 
+    if k_lo <= 0.0 or k_hi <= 0.0:
+        raise ValueError("k_lo and k_hi must be positive")
     rng = np.random.default_rng(seed)
     w, h = ctx.width, ctx.height
     view = ctx.view
 
-    k = np.exp(rng.uniform(np.log(k_lo), np.log(k_hi), waves))
+    k_min, k_max = sorted((float(k_lo), float(k_hi)))
+    k = np.exp(rng.uniform(np.log(k_min), np.log(k_max), waves))
     ang = rng.uniform(0.0, 2 * np.pi, waves)
     amp = k ** (-spectrum) * rng.uniform(0.5, 1.0, waves)
     wave_tab = np.stack([k * np.cos(ang), k * np.sin(ang), amp, rng.uniform(0, 2 * np.pi, waves), np.zeros(waves)], axis=1)
@@ -113,6 +116,7 @@ def caustics(
     dens = np.zeros((3, h, w))
     band = max(1, 4_000_000 // ((w + 2 * margin) * ss * ss))
     for y0 in range(-margin, h + margin, band):
+        progress.update((y0 + margin) / (h + 2 * margin))
         y1 = min(h + margin, y0 + band)
         ox = np.empty((3, (y1 - y0) * ss, (w + 2 * margin) * ss))
         oy = np.empty_like(ox)

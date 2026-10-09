@@ -19,6 +19,7 @@ from typing import Any, Sequence
 
 import numpy as np
 
+from .. import progress
 from ..view import View, fit_window
 from .base import generator
 from .density import auto_window, palette_lut, tone_map_rgb_acc
@@ -33,9 +34,12 @@ _WARMUP = 20
 
 
 def _random_xforms(rng: np.random.Generator, n: int, pool: Sequence[str]) -> list[dict[str, Any]]:
+    if len(pool) == 0:
+        raise ValueError("pool must not be empty")
     out = []
     for i in range(n):
-        picks = rng.choice(len(pool), size=int(rng.integers(1, 3)), replace=False)
+        n_pick = min(int(rng.integers(1, 3)), len(pool))
+        picks = rng.choice(len(pool), size=n_pick, replace=False)
         w = rng.dirichlet(np.ones(len(picks)))
         out.append({
             "affine": rng.uniform(-1.0, 1.0, 6).tolist(),
@@ -70,7 +74,7 @@ def _pack(xforms: Sequence[dict[str, Any]]):
 def _run(coefs, varw, cum, color, color_speed, symmetry, seed, walkers, steps, on_chunk, chunk=96):
     from .. import kernels
 
-    key = np.uint64(seed * 0x9E3779B1 + 0x632BE5AB)
+    key = np.uint64((int(seed) * 0x9E3779B1 + 0x632BE5AB) & 0xFFFFFFFFFFFFFFFF)
     x = np.array([kernels._rand01(key, i, 1 << 40) * 2.0 - 1.0 for i in range(walkers)])
     y = np.array([kernels._rand01(key, i, (1 << 40) + 1) * 2.0 - 1.0 for i in range(walkers)])
     c = np.full(walkers, 0.5)
@@ -85,6 +89,7 @@ def _run(coefs, varw, cum, color, color_speed, symmetry, seed, walkers, steps, o
         if skip < n:
             on_chunk(ox[skip:].ravel(), oy[skip:].ravel(), oc[skip:].ravel())
         t += n
+        progress.update(t / steps)
 
 
 @generator(
@@ -151,6 +156,9 @@ def flame(
     """Fractal flame: nonlinear IFS with log-density tone mapping and palette color."""
     from .. import kernels
 
+    n_walk = int(walkers)
+    if n_walk <= 0:
+        raise ValueError("walkers must be positive")
     rng = np.random.default_rng(seed)
     xfs = list(xforms) or _random_xforms(rng, int(n_xforms), list(pool))
     coefs, varw, cum, color = _pack(xfs)
@@ -158,8 +166,9 @@ def flame(
 
     # Frame from a short pilot run.
     pilot: dict[str, list] = {"x": [], "y": []}
-    _run(coefs, varw, cum, color, color_speed, symmetry, seed + 1, 4000, 80,
-         lambda x, y, c: (pilot["x"].append(x), pilot["y"].append(y)))
+    with progress.span(0.0, 0.01):
+        _run(coefs, varw, cum, color, color_speed, symmetry, seed + 1, 4000, 80,
+             lambda x, y, c: (pilot["x"].append(x), pilot["y"].append(y)))
     x0, x1, y0, y1 = auto_window(pilot["x"], pilot["y"], pad=pad, percentiles=tuple(percentiles))
     x0, x1, y0, y1 = fit_window(x0, x1, y0, y1, w, h, fill="cover" if ctx.portrait else "contain")
     span_h = (y1 - y0) / max(zoom, 1e-6)
@@ -170,10 +179,10 @@ def flame(
     lut = palette_lut(palette)
     acc = np.zeros((h, w, 4))
     total = quality * ctx.pixels
-    n_walk = int(walkers)
     steps = _WARMUP + max(1, total // n_walk)
-    _run(coefs, varw, cum, color, color_speed, symmetry, seed, n_walk, steps,
-         lambda x, y, c: kernels.splat_rgb(acc, x, y, c, lut, *aff))
+    with progress.span(0.01, 1.0):
+        _run(coefs, varw, cum, color, color_speed, symmetry, seed, n_walk, steps,
+             lambda x, y, c: kernels.splat_rgb(acc, x, y, c, lut, *aff))
 
     norm = ctx.density_norm(total, quality * ctx.reference().pixels)
     return tone_map_rgb_acc(acc, gamma=gamma, blur=ctx.ref_px(blur), norm=norm, vibrancy=vibrancy)

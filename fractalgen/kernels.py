@@ -4,12 +4,34 @@ Kernels deliberately do NOT use numba's on-disk cache (``cache=True``): with
 ``fastmath`` a cache-loaded kernel can round differently from a fresh compile,
 flipping chaotic boundary pixels, so the same recipe rendered differently
 depending on cache state. Compiling costs ~1-4 s per worker process.
+
+Kernels are ``nogil`` so other threads (progress pollers, the GUI server) run
+while they do; parallel ones still run one at a time (see ``_exclusive``). Long ones take a ``done`` array from ``progress.units`` and set
+``done[y] = 1`` per finished row (or step); see progress.py.
 """
 
 from __future__ import annotations
 
+import functools
+import threading
+
 import numpy as np
 from numba import njit, prange
+
+# numba's default (workqueue) threading layer aborts the process if two threads
+# run parallel kernels at once. The GIL used to prevent that; nogil kernels
+# take this lock instead, so e.g. a GUI preview waits for an export's kernel.
+_PARALLEL = threading.Lock()
+
+
+def _exclusive(kernel):
+    @functools.wraps(kernel)
+    def call(*args):
+        with _PARALLEL:
+            return kernel(*args)
+
+    return call
+
 
 KIND = {
     "mandelbrot": 0,
@@ -24,8 +46,9 @@ KIND = {
 }
 
 
-@njit(parallel=True, fastmath=True)
-def escape_kernel(cr, ci, max_iter, kind, jcr, jci, pk):
+@_exclusive
+@njit(parallel=True, fastmath=True, nogil=True)
+def escape_kernel(cr, ci, max_iter, kind, jcr, jci, pk, done):
     h, w = cr.shape
     escaped_n = np.zeros((h, w), dtype=np.float64)
     escaped = np.zeros((h, w), dtype=np.uint8)
@@ -98,11 +121,13 @@ def escape_kernel(cr, ci, max_iter, kind, jcr, jci, pk):
                 zi = ni
             escaped_n[y, x] = n_esc
             escaped[y, x] = did
+        done[y] = 1
     return escaped_n, escaped
 
 
-@njit(parallel=True, fastmath=True)
-def orbit_trap_kernel(cr, ci, max_iter, trap_id):
+@_exclusive
+@njit(parallel=True, fastmath=True, nogil=True)
+def orbit_trap_kernel(cr, ci, max_iter, trap_id, done):
     h, w = cr.shape
     trap_d = np.empty((h, w), dtype=np.float64)
     for y in prange(h):
@@ -139,14 +164,16 @@ def orbit_trap_kernel(cr, ci, max_iter, trap_id):
             trap_d[y, x] = best if best > 1e-8 else 1e-8
             if trap_d[y, x] > 10.0:
                 trap_d[y, x] = 10.0
+        done[y] = 1
     return trap_d
 
 
-@njit(parallel=True, fastmath=True)
-def newton_kernel(zr0, zi0, power, max_iter, tol):
+@_exclusive
+@njit(parallel=True, fastmath=True, nogil=True)
+def newton_kernel(zr0, zi0, power, max_iter, tol, done):
     h, w = zr0.shape
     root_ix = np.zeros((h, w), dtype=np.int32)
-    done_n = np.zeros((h, w), dtype=np.float64)
+    iters = np.zeros((h, w), dtype=np.float64)
     n = power
     nm1 = n - 1
     for y in prange(h):
@@ -191,12 +218,14 @@ def newton_kernel(zr0, zi0, power, max_iter, tol):
                     best = d2
                     bi = i
             root_ix[y, x] = bi
-            done_n[y, x] = it
-    return root_ix, done_n
+            iters[y, x] = it
+        done[y] = 1
+    return root_ix, iters
 
 
-@njit(parallel=True, fastmath=True)
-def lyapunov_kernel(a, b, seq, warmup, samples):
+@_exclusive
+@njit(parallel=True, fastmath=True, nogil=True)
+def lyapunov_kernel(a, b, seq, warmup, samples, done):
     h, w = a.shape
     out = np.zeros((h, w), dtype=np.float64)
     slen = seq.shape[0]
@@ -220,11 +249,13 @@ def lyapunov_kernel(a, b, seq, warmup, samples):
                     acc += np.log(deriv + 1e-12)
                     count += 1
             out[y, x] = acc / count if count else 0.0
+        done[y] = 1
     return out
 
 
-@njit(parallel=True, fastmath=True)
-def popcorn_kernel(zr, zi, steps, hstep):
+@_exclusive
+@njit(parallel=True, fastmath=True, nogil=True)
+def popcorn_kernel(zr, zi, steps, hstep, done):
     h, w = zr.shape
     dx = np.empty((h, w), dtype=np.float64)
     dy = np.empty((h, w), dtype=np.float64)
@@ -250,11 +281,13 @@ def popcorn_kernel(zr, zi, steps, hstep):
             else:
                 dx[y, x] = 0.0
                 dy[y, x] = 0.0
+        done[y] = 1
     return dx, dy
 
 
-@njit(fastmath=True, parallel=True)
-def gray_scott_kernel(u, v, F, k, steps, Du, Dv, dt):
+@_exclusive
+@njit(parallel=True, fastmath=True, nogil=True)
+def gray_scott_kernel(u, v, F, k, steps, Du, Dv, dt, done):
     sh, sw = u.shape
     u2 = np.empty_like(u)
     v2 = np.empty_like(v)
@@ -281,10 +314,11 @@ def gray_scott_kernel(u, v, F, k, steps, Du, Dv, dt):
                 u2[y, x] = nu
                 v2[y, x] = nv
         u, v, u2, v2 = u2, v2, u, v
+        done[_i] = 1
     return u, v
 
 
-@njit(fastmath=True)
+@njit(fastmath=True, nogil=True)
 def scatter_add2(a, b, iy, ix, wb):
     """a[iy, ix] += 1 and b[iy, ix] += wb, in input order (same sums as np.add.at, much faster)."""
     for i in range(iy.shape[0]):
@@ -292,7 +326,7 @@ def scatter_add2(a, b, iy, ix, wb):
         b[iy[i], ix[i]] += wb[i]
 
 
-@njit(fastmath=True)
+@njit(fastmath=True, nogil=True)
 def deposit_kernel(density, hue, x, y, xmin, xmax, ymin, ymax, hue_t):
     """Serial hit-count deposit. Not parallel: many particles share pixels."""
     h, w = density.shape
@@ -311,7 +345,7 @@ def deposit_kernel(density, hue, x, y, xmin, xmax, ymin, ymax, hue_t):
             hue[iy, ix] += hue_t
 
 
-@njit(fastmath=True)
+@njit(fastmath=True, nogil=True)
 def sandpile_topple(g, max_iter):
     """In-place abelian sandpile relaxation. Grains that fall off the edge are lost."""
     n = g.shape[0]
@@ -337,8 +371,9 @@ def sandpile_topple(g, max_iter):
     return g
 
 
-@njit(fastmath=True, parallel=True)
-def gray_scott_field_kernel(u, v, F, k, steps, Du, Dv, dt):
+@_exclusive
+@njit(parallel=True, fastmath=True, nogil=True)
+def gray_scott_field_kernel(u, v, F, k, steps, Du, Dv, dt, done):
     """Gray-Scott with spatially varying feed / kill."""
     sh, sw = u.shape
     u2 = np.empty_like(u)
@@ -368,6 +403,7 @@ def gray_scott_field_kernel(u, v, F, k, steps, Du, Dv, dt):
                 u2[y, x] = nu
                 v2[y, x] = nv
         u, v, u2, v2 = u2, v2, u, v
+        done[_i] = 1
     return u, v
 
 
@@ -377,8 +413,9 @@ def _wrap_cell(v, n):
     return i + n if i < 0 else i
 
 
-@njit(parallel=True, fastmath=True)
-def physarum_steps(x, y, heading, trail, sa, ra, sd, step, deposit, n_steps, seed):
+@_exclusive
+@njit(parallel=True, fastmath=True, nogil=True)
+def physarum_steps(x, y, heading, trail, sa, ra, sd, step, deposit, n_steps, seed, done):
     """Jeff Jones slime-mold agents (positions in pixel coordinates).
 
     Synchronous update so agents run on all cores: every agent senses the same
@@ -425,10 +462,12 @@ def physarum_steps(x, y, heading, trail, sa, ra, sd, step, deposit, n_steps, see
         flat = trail.reshape(-1)
         for i in range(n):
             flat[cells[i]] += deposit
+        done[s] = 1
 
 
-@njit(parallel=True, fastmath=True)
-def poincare_kernel(h, w, p_gon, q_star, max_fold):
+@_exclusive
+@njit(parallel=True, fastmath=True, nogil=True)
+def poincare_kernel(h, w, p_gon, q_star, max_fold, done):
     """Fold the Poincaré disk into a {p,q} fundamental domain."""
     depth = np.zeros((h, w), dtype=np.float64)
     edge = np.zeros((h, w), dtype=np.float64)
@@ -448,10 +487,12 @@ def poincare_kernel(h, w, p_gon, q_star, max_fold):
     r_c = np.sqrt(max(t_c * t_c - 1.0, 1e-8))
     # fill the short axis with the disk
     scale = 1.06 * (aspect if aspect < 1.0 else 1.0)
+    dw = max(w - 1.0, 1.0)
+    dh = max(h - 1.0, 1.0)
     for y in prange(h):
         for x in range(w):
-            u = (2.0 * x / (w - 1.0) - 1.0) * aspect / scale
-            v = (1.0 - 2.0 * y / (h - 1.0)) / scale
+            u = (2.0 * x / dw - 1.0) * aspect / scale
+            v = (1.0 - 2.0 * y / dh) / scale
             rr = u * u + v * v
             if rr >= 0.999:
                 depth[y, x] = -1.0
@@ -483,10 +524,11 @@ def poincare_kernel(h, w, p_gon, q_star, max_fold):
             depth[y, x] = folds
             edge[y, x] = last_edge
             sector[y, x] = sec_acc
+        done[y] = 1
     return depth, edge, sector
 
 
-@njit(fastmath=True)
+@njit(fastmath=True, nogil=True)
 def splat_bokeh(img, px, py, depth, z_focus, aperture, weight, cr, cg, cb, keep):
     """Variable-CoC splat with a hint of chromatic aberration."""
     h, w = img.shape[0], img.shape[1]
@@ -530,8 +572,9 @@ def splat_bokeh(img, px, py, depth, z_focus, aperture, weight, cr, cg, cb, keep)
                         img[iy, ixb, 2] += wr * cb[i]
 
 
-@njit(parallel=True, fastmath=True)
-def escape_kernel_generic(cr, ci, max_iter, step, julia, jc, k, bailout2, log_degree):
+@_exclusive
+@njit(parallel=True, fastmath=True, nogil=True)
+def escape_kernel_generic(cr, ci, max_iter, step, julia, jc, k, bailout2, log_degree, done):
     """Escape time for any registered ``step(z, c, z_prev, k) -> z`` formula."""
     h, w = cr.shape
     escaped_n = np.zeros((h, w), dtype=np.float64)
@@ -566,6 +609,7 @@ def escape_kernel_generic(cr, ci, max_iter, step, julia, jc, k, bailout2, log_de
                 zn = step(z, c, zp, k)
                 zp = z
                 z = zn
+        done[y] = 1
     return escaped_n, escaped
 
 
@@ -586,7 +630,7 @@ def _rand01(key, i, t):
     return float(h >> np.uint64(11)) * (1.0 / 9007199254740992.0)
 
 
-@njit(fastmath=True)
+@njit(fastmath=True, nogil=True)
 def splat_rgb(acc, x, y, c, lut, ax, bx, cx, ay, by, cy):
     """Serial nearest-pixel splat of plane points into acc[H, W, 4] = (hits, r, g, b).
     ``c`` is a 0..1 palette coordinate per point, looked up in ``lut`` (N, 3)."""
@@ -677,7 +721,8 @@ def _flame_variation(v, x, y, key, i, t):
     return x, y
 
 
-@njit(parallel=True, fastmath=True)
+@_exclusive
+@njit(parallel=True, fastmath=True, nogil=True)
 def flame_chunk(x, y, col, t0, n_steps, coefs, varw, cum, xcol, cspeed, sym, key, out_x, out_y, out_c):
     """Advance flame walkers ``n_steps`` chaos-game steps, recording every point.
 
@@ -755,7 +800,8 @@ def _bb_step(zr, zi, cr, ci, kind):
     return nr + cr, ni + ci
 
 
-@njit(parallel=True, fastmath=True)
+@_exclusive
+@njit(parallel=True, fastmath=True, nogil=True)
 def buddhabrot_escape(n, key, i0, x0, x1, y0, y1, max_iter, bailout2, kind):
     """Pick ``n`` random c in the window and return (cr, ci, escape iteration or -1)."""
     cr = np.empty(n)
@@ -780,7 +826,8 @@ def buddhabrot_escape(n, key, i0, x0, x1, y0, y1, max_iter, bailout2, kind):
     return cr, ci, out
 
 
-@njit(parallel=True, fastmath=True)
+@_exclusive
+@njit(parallel=True, fastmath=True, nogil=True)
 def buddhabrot_orbits(cr, ci, steps, offsets, kind, ax, bx, cx, ay, by, cy, w, h, pix):
     """Replay each orbit's first ``steps[k]`` points into flat pixel indices (-1 = off frame)."""
     for k in prange(cr.shape[0]):
@@ -797,7 +844,7 @@ def buddhabrot_orbits(cr, ci, steps, offsets, kind, ax, bx, cx, ay, by, cy, w, h
                 pix[o + s] = -1
 
 
-@njit(fastmath=True)
+@njit(fastmath=True, nogil=True)
 def buddhabrot_splat(acc, pix, steps, offsets, chan_mask):
     """acc (n_chan, H*W): add each orbit's pixels to the channels in its bitmask."""
     nch = acc.shape[0]
@@ -815,7 +862,8 @@ def buddhabrot_splat(acc, pix, steps, offsets, chan_mask):
 
 # ---- area-preserving maps (standard map, Henon) ----------------------------------
 
-@njit(parallel=True, fastmath=True)
+@_exclusive
+@njit(parallel=True, fastmath=True, nogil=True)
 def symplectic_orbits(x0, y0, steps, kind, k, cov_box, cov_n, out_x, out_y):
     """Iterate orbits of an area-preserving map; return per-orbit coverage of a
     cov_n x cov_n grid over cov_box (chaotic orbits wander, regular ones trace curves).
@@ -864,7 +912,7 @@ def symplectic_orbits(x0, y0, steps, kind, k, cov_box, cov_n, out_x, out_y):
     return cov
 
 
-@njit(fastmath=True)
+@njit(fastmath=True, nogil=True)
 def splat_periodic(acc, xs, ys, rgb, period, i0, i1, j0, j1, ax, bx, cx, ay, by, cy):
     """Splat orbits (n_orbits, steps) with one color each into acc[H, W, 4],
     repeating every ``period`` in x and y for tile offsets i0..i1, j0..j1."""
@@ -896,7 +944,8 @@ def splat_periodic(acc, xs, ys, rgb, period, i0, i1, j0, j1, ax, bx, cx, ay, by,
 
 # ---- caustics ------------------------------------------------------------------
 
-@njit(parallel=True, fastmath=True)
+@_exclusive
+@njit(parallel=True, fastmath=True, nogil=True)
 def caustic_rays(py0, py1, w_lo, w_hi, ss, inv, fwd, waves, drops, depths, out_x, out_y):
     """Bend a ss x ss-per-pixel grid of vertical light rays through a wavy surface.
 
@@ -938,7 +987,7 @@ def caustic_rays(py0, py1, w_lo, w_hi, ss, inv, fwd, waves, drops, depths, out_x
                 out_y[m, r, cidx] = fwd[3] * lx + fwd[4] * ly + fwd[5]
 
 
-@njit(fastmath=True)
+@njit(fastmath=True, nogil=True)
 def splat_bilinear(dens, px, py, weight):
     """Serial bilinear splat of pixel-space points into dens (H, W)."""
     h, w = dens.shape
@@ -964,3 +1013,41 @@ def splat_bilinear(dens, px, py, weight):
                     continue
                 wx = tx if ox else 1.0 - tx
                 dens[yy, xx] += weight * wx * wy
+
+
+def warmup(names: list[str] | None = None) -> None:
+    """Compile numba kernels on tiny inputs (safe from a background thread).
+
+    ``names`` is reserved for future per-generator warmup; ``None`` warms the
+    common escape / orbit / Newton / Lyapunov / Buddhabrot / caustic kernels.
+    """
+    from . import progress
+
+    h, w = 4, 4
+    cr = np.zeros((h, w), dtype=np.float64)
+    ci = np.zeros((h, w), dtype=np.float64)
+    done = progress.units(h)
+    escape_kernel(cr, ci, 2, 0, 0.0, 0.0, 0.0, done)
+    orbit_trap_kernel(cr, ci, 2, 0, done)
+    newton_kernel(cr, ci, 3, 2, 1e-6, done)
+    seq = np.zeros(2, dtype=np.int8)
+    lyapunov_kernel(cr, ci, seq, 1, 1, done)
+    popcorn_kernel(cr, ci, 1, 0.01, done)
+    u = np.ones((h, w), dtype=np.float64) * 0.5
+    v = np.ones((h, w), dtype=np.float64) * 0.25
+    gray_scott_kernel(u, v, 0.04, 0.06, 1, 0.16, 0.08, 1.0, progress.units(1))
+    buddhabrot_escape(4, np.uint64(1), 0, -2.0, 1.0, -1.5, 1.5, 8, 4.0, 0)
+    cr1 = np.zeros(2)
+    ci1 = np.zeros(2)
+    st = np.array([2, 2], dtype=np.int64)
+    off = np.array([0, 2], dtype=np.int64)
+    pix = np.zeros(4, dtype=np.int64)
+    buddhabrot_orbits(cr1, ci1, st, off, 0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, w, h, pix)
+    acc = np.zeros((1, w * h))
+    buddhabrot_splat(acc, pix, st, off, np.array([1, 1], dtype=np.int64))
+    ss = 2
+    caustic_rays(
+        0, h, 0, w, ss, np.zeros(6), np.zeros(6),
+        np.zeros((1, 5)), np.zeros((0, 5)), np.array([0.5]),
+        np.zeros((1, h * ss, w * ss)), np.zeros((1, h * ss, w * ss)),
+    )
