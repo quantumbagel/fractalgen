@@ -1,6 +1,7 @@
 // fractalgen GUI: top bar, side panel tabs, preview, dialogs and keyboard shortcuts.
 
 import { html, render, useEffect } from "../vendor/preact-htm.js";
+import { Icon } from "./icons.js";
 import {
   BrowseOverlay, ExportDialog, KeysOverlay, Menu, SaveDialog, Thumb, Toasts, VariationsOverlay,
 } from "./overlays.js";
@@ -44,11 +45,11 @@ function TopBar() {
         ${st?.recipe ? html`<${Thumb} recipe=${st.recipe} orient="land" key=${st.recipe} />` : html`<span class="thumb land"></span>`}
         <span class="look-btn-text"><span class="look-btn-name">${st?.recipe?.replace(/_/g, " ") || st?.generator || "…"}</span>
           <span class="look-btn-sub">${changed ? "edited" : "Browse looks"}</span></span>
-        <span class="chev">▾</span>
+        <span class="chev"><${Icon} name="chevron-down" /></span>
       </button>
-      <button type="button" class="icon-btn big" title="Previous look ([)" onClick=${() => stepRecipe(-1)}>‹</button>
-      <button type="button" class="icon-btn big" title="Next look (])" onClick=${() => stepRecipe(1)}>›</button>
-      <button type="button" class="icon-btn big" title="Surprise me (.)" onClick=${surprise}>⚄</button>
+      <button type="button" class="icon-btn big step-btn" title="Previous look ([)" onClick=${() => stepRecipe(-1)}><${Icon} name="chevron-left" size=${18} /></button>
+      <button type="button" class="icon-btn big step-btn" title="Next look (])" onClick=${() => stepRecipe(1)}><${Icon} name="chevron-right" size=${18} /></button>
+      <button type="button" class="icon-btn big" title="Surprise me (.)" onClick=${surprise}><${Icon} name="dice" size=${18} /></button>
       <span class="grow"></span>
       <label class="screen-pick" title="The screen you are making this for">
         <span class="lbl">Screen</span>
@@ -58,15 +59,15 @@ function TopBar() {
         </select>
       </label>
       <div class="btn-group">
-        <button type="button" class="icon-btn big" title="Undo (⌘Z)" disabled=${!S.history.undo.length} onClick=${undo}>↶</button>
-        <button type="button" class="icon-btn big" title="Redo (⇧⌘Z)" disabled=${!S.history.redo.length} onClick=${redo}>↷</button>
+        <button type="button" class="icon-btn big" title="Undo (⌘Z)" disabled=${!S.history.undo.length} onClick=${undo}><${Icon} name="undo" size=${18} /></button>
+        <button type="button" class="icon-btn big redo-btn" title="Redo (⇧⌘Z)" disabled=${!S.history.redo.length} onClick=${redo}><${Icon} name="redo" size=${18} /></button>
         <button type="button" class="btn ghost" title="Undo every change to this look" disabled=${!changed} onClick=${resetAll}>Reset</button>
       </div>
       <div class="menu-wrap">
         <button type="button" class="icon-btn big" title="More" onClick=${(e) => {
           S.ui.menu = S.ui.menu ? false : e.currentTarget.getBoundingClientRect();
           emit();
-        }}>⋯</button>
+        }}><${Icon} name="more" size=${18} /></button>
       </div>
       <button type="button" class="btn primary" title="Render at full size and save (S)"
         onClick=${() => { S.ui.overlay = "export"; emit(); }}><span class="long">Save wallpaper</span><span class="short">Save</span></button>
@@ -84,7 +85,7 @@ function Sidebar() {
           <span class="tab-label">${t.label}</span>
           ${counts[t.id] ? html`<span class="badge">${counts[t.id]}</span>` : null}
         </button>`)}
-        <button type="button" class="tab sheet-close" onClick=${() => { S.ui.sheet = false; emit(); }}>✕</button>
+        <button type="button" class="tab sheet-close" aria-label="Close panel" onClick=${() => { S.ui.sheet = false; emit(); }}><${Icon} name="x" /></button>
       </nav>
       <div class="panel-scroll"><${Panel} /></div>
     </aside>`;

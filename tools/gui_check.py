@@ -178,7 +178,7 @@ try:
         page.locator(".pal:has(.pal-name:text-is('aurora'))").click()
         idle(page)
         check(st(page, "palette") == "aurora", f"palette tile -> {st(page, 'palette')}")
-        page.locator("button:text('⇄ Reverse')").click()
+        page.locator("button:has-text('Reverse')").click()
         idle(page)
         check(st(page, "palette") == "aurora_r", f"reverse -> {st(page, 'palette')}")
         page.locator("button:text('Custom colors…')").click()

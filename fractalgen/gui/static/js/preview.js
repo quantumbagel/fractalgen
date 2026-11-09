@@ -2,6 +2,7 @@
 // and moves / resizes layers directly on the picture.
 
 import { html, useEffect, useRef, useState } from "../vendor/preact-htm.js";
+import { Icon } from "./icons.js";
 import {
   S, commit, currentAspect, emit, layerLabel, layerValue, resetView, scheduleRender, selectLayer, setPath, setPreviewSize,
   startCompare, stopCompare, useStore,
@@ -75,7 +76,7 @@ export function Stage() {
       const el = stageRef.current;
       if (!el) return;
       const asp = currentAspect();
-      const sw = el.clientWidth - 32, sh = el.clientHeight - 32;
+      const sw = el.clientWidth - 64, sh = el.clientHeight - 64; // room for the crop marks
       if (sw < 10 || sh < 10 || !asp) return;
       const ar = asp.w / asp.h;
       setBox(sw / sh > ar ? { w: sh * ar, h: sh } : { w: sw, h: sw / ar });
@@ -207,6 +208,7 @@ export function Stage() {
 
   return html`
     <div class="stage" ref=${stageRef}>
+      <div class="frame-wrap" style=${{ width: `${box.w}px`, height: `${box.h}px` }}>
       <div class=${`frame${S.view.transparent ? " transparent" : ""}`} ref=${frameRef}
         style=${{ width: `${box.w}px`, height: `${box.h}px` }}>
         ${img ? html`<img src=${img} alt=${`Preview of ${S.state.recipe || S.state.generator}`}
@@ -230,6 +232,7 @@ export function Stage() {
           }) : null}
         </div>
         ${S.ui.compare ? html`<div class="compare-badge">Original look</div>` : null}
+      </div>
       </div>
       ${S.view.hints?.length && !S.view.busy ? html`<${Hints} hints=${S.view.hints} />` : null}
       <${StageTools} />
@@ -264,9 +267,9 @@ function StageTools() {
     <div class="stage-tools">
       <${PreviewQuality} />
       ${v ? html`
-        <button type="button" class="tool" title="Zoom in" onClick=${() => zoom(0.5)}>+</button>
-        <button type="button" class="tool" title="Zoom out" onClick=${() => zoom(2)}>−</button>
-        <button type="button" class="tool" title="Reset framing (R)" onClick=${resetView}>⟲</button>` : null}
+        <button type="button" class="tool" title="Zoom in" onClick=${() => zoom(0.5)}><${Icon} name="plus" /></button>
+        <button type="button" class="tool" title="Zoom out" onClick=${() => zoom(2)}><${Icon} name="minus" /></button>
+        <button type="button" class="tool" title="Reset framing (R)" onClick=${resetView}><${Icon} name="reset-view" /></button>` : null}
       <button type="button" class="tool wide" title="Hold to see the look as it was before your changes (\\)"
         onPointerDown=${startCompare} onPointerUp=${stopCompare} onPointerLeave=${() => S.ui.compare && stopCompare()}>
         Compare

@@ -1,6 +1,7 @@
 // Dialogs and popovers: Browse looks, Save wallpaper, Variations, Save recipe, menu, shortcuts, toasts.
 
 import { html, useEffect, useRef, useState } from "../vendor/preact-htm.js";
+import { Icon } from "./icons.js";
 import { Segmented, Slider, Toggle } from "./controls.js";
 import {
   S, closeOverlay, commit, downloadExport, exportDestination, isSlowLook, setExportDestination, copyCli, currentAspect, dismissToast, emit, loadRecipe, makeVariations, orient,
@@ -21,7 +22,7 @@ export function Modal({ title, children, onClose, wide = false, tall = false, fo
     <div class="backdrop" onClick=${(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div class=${`modal${wide ? " wide" : ""}${tall ? " tall" : ""}`} role="dialog" aria-modal="true" aria-label=${title}>
         <header class="modal-head"><h2>${title}</h2>
-          <button type="button" class="icon-btn close" title="Close (Esc)" onClick=${onClose}>✕</button></header>
+          <button type="button" class="icon-btn close" title="Close (Esc)" onClick=${onClose}><${Icon} name="x" /></button></header>
         <div class="modal-body">${children}</div>
         ${footer ? html`<footer class="modal-foot">${footer}</footer>` : null}
       </div>
@@ -161,7 +162,7 @@ function ExportStatus({ job }) {
     const secs = job.seconds || 0;
     const eta = job.progress > 0.05 ? Math.max(0, secs / job.progress - secs) : null;
     return html`<div class="export-progress">
-      <div class="bar"><div class="fill" style=${{ width: `${pct}%` }}></div></div>
+      <div class="bar"><div class="fill" style=${{ transform: `scaleX(${pct / 100})` }}></div></div>
       <div class="muted small">${stage}, ${pct}% done${eta != null ? `, about ${Math.ceil(eta)} seconds left` : ""}</div>
     </div>`;
   }
@@ -274,7 +275,7 @@ export function Toasts() {
     <div class=${`toast ${t.kind}`} key=${t.id}>
       <span>${t.text}</span>
       ${t.detail ? html`<details><summary>Details</summary><pre>${t.detail}</pre></details>` : null}
-      <button type="button" class="icon-btn" onClick=${() => dismissToast(t.id)}>✕</button>
+      <button type="button" class="icon-btn" aria-label="Dismiss" onClick=${() => dismissToast(t.id)}><${Icon} name="x" /></button>
     </div>`)}</div>`;
 }
 

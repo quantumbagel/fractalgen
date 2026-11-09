@@ -1,6 +1,7 @@
 // Form controls. `Control` renders any schema'd value (generator params, layer / effect / background keys).
 
 import { html, useEffect, useRef, useState } from "../vendor/preact-htm.js";
+import { Icon } from "./icons.js";
 import { S, isSlowLook, pickLook, showError } from "./store.js";
 import { Thumb } from "./thumbs.js";
 import { apiUpload, fmtNum, hexOf, paletteGradient } from "./util.js";
@@ -27,7 +28,7 @@ export function Section({ title, children, open = true, count = null, actions = 
   return html`
     <section class=${`section${isOpen ? "" : " closed"}`} id=${id}>
       <header class="section-head" onClick=${() => setOpen(!isOpen)}>
-        <span class="chev">${isOpen ? "▾" : "▸"}</span>
+        <span class="chev"><${Icon} name=${isOpen ? "chevron-down" : "chevron-right"} size=${14} /></span>
         <h3>${title}</h3>
         ${count != null ? html`<span class="count">${count}</span>` : null}
         <span class="grow"></span>
@@ -169,7 +170,7 @@ export function PaletteGrid({ value, onChange, allowNone = false }) {
         </button>`)}
     </div>
     <div class="row-actions">
-      <button type="button" class="btn small" disabled=${value == null} onClick=${reverse}>⇄ Reverse</button>
+      <button type="button" class="btn small" disabled=${value == null} onClick=${reverse}><${Icon} name="swap" size=${14} />Reverse</button>
       <${StopsEditor} value=${value} onChange=${onChange} />
     </div>`;
 }
@@ -191,9 +192,9 @@ function StopsEditor({ value, onChange }) {
         <div class="stop">
           <input type="color" value=${hexOf(hex)} onInput=${(e) => edit((s) => { s[i] = e.currentTarget.value.slice(1); })} />
           <button type="button" class="icon-btn" title="Remove" disabled=${stops.length <= 2}
-            onClick=${() => edit((s) => s.splice(i, 1))}>−</button>
+            onClick=${() => edit((s) => s.splice(i, 1))}><${Icon} name="minus" /></button>
           <button type="button" class="icon-btn" title="Add a color after this one"
-            onClick=${() => edit((s) => s.splice(i + 1, 0, s[i]))}>+</button>
+            onClick=${() => edit((s) => s.splice(i + 1, 0, s[i]))}><${Icon} name="plus" /></button>
         </div>`)}
       <button type="button" class="btn small" onClick=${() => setOpen(false)}>Done</button>
     </div>`;
@@ -206,7 +207,7 @@ export function PaletteField({ value, onChange, allowNone = false }) {
   return html`
     <div class="palette-field">
       <button type="button" class="palette-current" onClick=${() => setOpen(!open)}>
-        <${PaletteSwatch} value=${value} /><span>${name}</span><span class="chev">${open ? "▴" : "▾"}</span>
+        <${PaletteSwatch} value=${value} /><span>${name}</span><span class="chev"><${Icon} name=${open ? "chevron-up" : "chevron-down"} size=${14} /></span>
       </button>
       ${open ? html`<${PaletteGrid} value=${value} onChange=${onChange} allowNone=${allowNone} />` : null}
     </div>`;

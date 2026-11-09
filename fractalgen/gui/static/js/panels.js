@@ -1,6 +1,7 @@
 // The side panel's tabs: Look, Frame, Color, Layers, Effects.
 
 import { html, useRef, useState } from "../vendor/preact-htm.js";
+import { Icon } from "./icons.js";
 import {
   Control, Field, FillPicker, PaletteGrid, Section, Segmented, Select, Slider, Toggle,
 } from "./controls.js";
@@ -113,8 +114,8 @@ export function FramePanel() {
       <${Field} label="Zoom" doc="Smaller numbers zoom in further." modified=${isModified("view.half_width")}
         onReset=${() => resetPath("view.half_width")}
         extra=${html`<span class="grow"></span>
-          <button type="button" class="icon-btn" title="Zoom in 2×" onClick=${() => setPath("view.half_width", v.half_width / 2)}>+</button>
-          <button type="button" class="icon-btn" title="Zoom out 2×" onClick=${() => setPath("view.half_width", v.half_width * 2)}>−</button>`}>
+          <button type="button" class="icon-btn" title="Zoom in 2×" onClick=${() => setPath("view.half_width", v.half_width / 2)}><${Icon} name="plus" /></button>
+          <button type="button" class="icon-btn" title="Zoom out 2×" onClick=${() => setPath("view.half_width", v.half_width * 2)}><${Icon} name="minus" /></button>`}>
         <${Slider} value=${v.half_width} min=${1e-13} max=${10} log=${true}
           onInput=${(x) => setPath("view.half_width", Math.max(1e-14, x))} />
       </${Field}>
@@ -242,10 +243,10 @@ function LayerList({ layers }) {
           <span class="item-name">${layerLabel(l)}</span>
           <span class="kind">${KIND[l.type] || l.type}${isCutout(l) ? ", cut-out" : ""}</span>
           <span class="item-actions" onClick=${(e) => e.stopPropagation()}>
-            <button type="button" class="icon-btn" title="Bring forward" disabled=${i === layers.length - 1} onClick=${() => moveLayer(l.id, 1)}>↑</button>
-            <button type="button" class="icon-btn" title="Send backward" disabled=${i === 0} onClick=${() => moveLayer(l.id, -1)}>↓</button>
-            <button type="button" class="icon-btn" title="Duplicate" onClick=${() => duplicateLayer(l.id)}>⧉</button>
-            <button type="button" class="icon-btn danger" title="Delete" onClick=${() => removeLayer(l.id)}>✕</button>
+            <button type="button" class="icon-btn" title="Bring forward" disabled=${i === layers.length - 1} onClick=${() => moveLayer(l.id, 1)}><${Icon} name="arrow-up" /></button>
+            <button type="button" class="icon-btn" title="Send backward" disabled=${i === 0} onClick=${() => moveLayer(l.id, -1)}><${Icon} name="arrow-down" /></button>
+            <button type="button" class="icon-btn" title="Duplicate" onClick=${() => duplicateLayer(l.id)}><${Icon} name="copy" /></button>
+            <button type="button" class="icon-btn danger" title="Delete" onClick=${() => removeLayer(l.id)}><${Icon} name="x" /></button>
           </span>
         </li>`)}
     </ul>`;
@@ -368,10 +369,10 @@ function EffectList({ post }) {
             checked=${it.enabled !== false} onChange=${() => setEffect(it.id, "enabled", it.enabled === false)} />
           <span class="item-name" title=${spec?.doc}>${spec?.label || it.op}</span>
           <span class="item-actions">
-            <button type="button" class="icon-btn" title="Earlier" disabled=${i === 0} onClick=${() => moveEffect(it.id, -1)}>↑</button>
-            <button type="button" class="icon-btn" title="Later" disabled=${i === post.length - 1} onClick=${() => moveEffect(it.id, 1)}>↓</button>
-            <button type="button" class="icon-btn" title="Duplicate" onClick=${() => duplicateEffect(it.id)}>⧉</button>
-            <button type="button" class="icon-btn danger" title="Remove" onClick=${() => removeEffect(it.id)}>✕</button>
+            <button type="button" class="icon-btn" title="Earlier" disabled=${i === 0} onClick=${() => moveEffect(it.id, -1)}><${Icon} name="arrow-up" /></button>
+            <button type="button" class="icon-btn" title="Later" disabled=${i === post.length - 1} onClick=${() => moveEffect(it.id, 1)}><${Icon} name="arrow-down" /></button>
+            <button type="button" class="icon-btn" title="Duplicate" onClick=${() => duplicateEffect(it.id)}><${Icon} name="copy" /></button>
+            <button type="button" class="icon-btn danger" title="Remove" onClick=${() => removeEffect(it.id)}><${Icon} name="x" /></button>
           </span>
         </div>
         ${spec && it.enabled !== false ? html`<div class="card-body">
