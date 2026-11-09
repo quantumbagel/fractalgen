@@ -255,8 +255,11 @@ Complex numbers: `[re, im]` or `"-0.8+0.156j"`.
 
 `python -m fractalgen gui` opens a local page built for making a wallpaper quickly:
 
+<p align="center"><img src="docs/assets/gui.jpg" width="100%" alt="The fractalgen GUI: settings on the left, the live preview framed by crop marks on the right"></p>
+
+
 - **Pick a look** from the gallery (thumbnails, search, categories), step through them
-  with ‹ › or hit Surprise me. **Variations** shows eight random tweaks to choose from.
+  with the arrows (or `[` / `]`) or hit Surprise me. **Variations** shows eight random tweaks to choose from.
 - **Screen**: previews in your screen's exact shape by default; switch to a phone, an
   ultrawide or any preset. Looks frame themselves for each shape.
 - Tabs: **Look** (the main settings up front, every other parameter under More settings),
@@ -270,7 +273,7 @@ Complex numbers: `[re, im]` or `"-0.8+0.156j"`.
 - **Save wallpaper** renders at full size (this screen, 4K, 8K, phone and more), with
   optional 2× / 3× supersampling for smoother edges. It either downloads straight to your
   browser (nothing kept in the project) or saves to `backgrounds/gui/` with **Show in
-  Finder**; the choice is remembered. **Save as recipe**
+  Finder** (or your file manager); the choice is remembered. **Save as recipe**
   writes `custom/NAME.toml`. `?` lists the keyboard shortcuts.
 
 ### Same picture at every size
@@ -457,4 +460,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for how to add a look or a generator.
 
 ## License
 
-[MIT](LICENSE). See [CHANGELOG.md](CHANGELOG.md) for the 0.1.0 notes.
+[MIT](LICENSE). See [CHANGELOG.md](CHANGELOG.md) for release notes.
