@@ -1,5 +1,5 @@
-/* Darkroom chrome: true graphite so the chrome never tints how you see the picture,
-   one safelight accent for selection and focus, and crop marks around the print. */
+/* Neutral graphite styling designed to avoid color cast during preview,
+   accented with safelight orange and peripheral crop marks. */
 :root {
   --bg: #0f0f10;          /* deepest: stage, editor wells */
   --bg1: #161617;         /* top bar, sidebar, dialogs */

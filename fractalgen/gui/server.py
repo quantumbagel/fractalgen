@@ -336,7 +336,7 @@ def state_recipe(state: dict[str, Any], name: str = "gui") -> Recipe:
             edit = e["layers"]
             try:
                 layers = layering.patch_layers(base.layers, edit)
-            except (IndexError, KeyError):  # the orientations' stacks differ: the edited one wins
+            except (IndexError, KeyError):  # When orientation stacks differ, the edited stack takes precedence.
                 edit = layers = state_layers(state)[0]
             if isinstance(edit, list):
                 portrait.pop("layers", None)
@@ -607,7 +607,7 @@ def cli_command(state: dict[str, Any], width: int, height: int) -> str:
     ref_layers = layering.check_layers(ref.get("layers"))
     ref_bg = layering.check_background(ref.get("background"))
     new_mask, old_mask = layering.to_mask(layers, background), layering.to_mask(ref_layers, ref_bg)
-    if new_mask is not None and old_mask is not None:  # one cut-out layer: the compact --mask form
+    if new_mask is not None and old_mask is not None:  # Output a single cutout layer in compact --mask syntax.
         for k, val in sorted(_diff_maps(new_mask, old_mask).items()):
             if val is None:  # back to the default
                 val = MASK_KEYS[k].neutral
@@ -888,7 +888,7 @@ class Exports:
                 with progress.span(0.0, RENDER_SHARE):
                     recipe = state_recipe(state, state.get("recipe") or "gui")
                     # Supersampling renders a bigger frame (the look is the same at every size) and
-                    # averages it down: smoother edges and fine detail.
+                    # Supersampling averages down to target size, producing smoother edges and fine detail.
                     rgb = recipe.render(w * ss, h * ss, n_strips=default_n_strips(w * ss, h * ss))
                 with progress.span(RENDER_SHARE, 1.0, "saving"):
                     from ..color import downsample
@@ -897,7 +897,7 @@ class Exports:
                     rgb = downsample(rgb, ss)
                     save_image(path, rgb, fmt, jpeg_quality=int(body.get("jpeg_quality", 95)),
                                meta=image_meta(recipe, w, h))
-            # seconds before status: a poll that sees "done" must see the final time
+            # Record elapsed seconds before updating status to ensure final timings are visible when done.
             self.jobs[job].update(seconds=time.perf_counter() - t0, path=str(path))
             self.jobs[job]["status"] = "done"
         except Exception:
@@ -1143,7 +1143,7 @@ def serve(host: str = "127.0.0.1", port: int = 8765, open_browser: bool = True, 
     if bound != port:
         print(f"Port {port} busy; using {bound} instead.", flush=True)
     print(f"fractalgen GUI on {url}", flush=True)
-    print("Default look: julia_dragon — drag to pan, scroll to zoom, Shift+scroll or Alt+drag to rotate.", flush=True)
+    print("Default look: julia_dragon. Drag to pan, scroll to zoom, Shift+scroll or Alt+drag to rotate.", flush=True)
     print("First preview compiles kernels (a few seconds). Ctrl-C to stop.", flush=True)
     if open_browser:
         threading.Timer(0.5, lambda: webbrowser.open(url)).start()

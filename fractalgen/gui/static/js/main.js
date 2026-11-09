@@ -1,4 +1,4 @@
-// fractalgen GUI: top bar, side panel tabs, preview, dialogs and keyboard shortcuts.
+// Main application setup for the top bar, panel tabs, live canvas, modal overlays, and keyboard shortcuts.
 
 import { html, render, useEffect } from "../vendor/preact-htm.js";
 import { Icon } from "./icons.js";

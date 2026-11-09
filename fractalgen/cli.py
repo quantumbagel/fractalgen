@@ -22,7 +22,7 @@ from .params import deep_merge, parse_literal
 from .loader import CUSTOM_DIR
 
 _QUICKSTART = """\
-fractalgen — math / fractal wallpapers
+fractalgen: mathematical and fractal wallpapers
 
 Quick start:
   python -m fractalgen list                    # recipes by category
@@ -536,7 +536,7 @@ def _cmd_list(args, _loads) -> int:
         print(f"{cat}:")
         for name in by_cat[cat]:
             r = RECIPES.get(name)
-            desc = r.description or "—"
+            desc = r.description or "-"
             if args.long:
                 pal = r.palette if isinstance(r.palette, str) or r.palette is None else "<inline>"
                 extra = f"  {r.generator}  {str(pal or '-')}  {','.join(r.tags)}"
@@ -560,7 +560,7 @@ def _cmd_show(args, _loads) -> int:
     spec, params, view = r.resolve(w, h)
     print(f"recipe     {r.name}  ({r.source})")
     print(f"description {r.description or '-'}")
-    print(f"generator  {spec.name}  -- {spec.description}")
+    print(f"generator  {spec.name}: {spec.description}")
     print(f"tags       {', '.join(r.tags) or '-'}")
     if r.tone:
         print(f"tone       {r.tone}")
@@ -944,7 +944,7 @@ def _cmd_new(args, _loads) -> int:
         py_path.write_text(
             textwrap.dedent(
                 f'''\
-"""Custom generator `{name}` — loaded from {out_dir.name}/."""
+"""Custom generator `{name}` loaded from {out_dir.name}/."""
 
 import numpy as np
 
@@ -1086,7 +1086,7 @@ def _cmd_completion(args, _loads) -> int:
     if shell == "bash":
         script = textwrap.dedent(
             f"""\
-# bash completion for fractalgen — eval "$(python -m fractalgen completion bash)"
+# bash completion for fractalgen: eval "$(python -m fractalgen completion bash)"
 _fractalgen() {{
   local cur prev words cword
   _init_completion || return
@@ -1112,7 +1112,7 @@ complete -F _fractalgen python
     elif shell == "zsh":
         script = textwrap.dedent(
             f"""\
-# zsh completion for fractalgen — eval "$(python -m fractalgen completion zsh)"
+# zsh completion for fractalgen: eval "$(python -m fractalgen completion zsh)"
 #compdef fractalgen
 local -a commands recipes
 commands=({' '.join(_SUBCOMMANDS)})
@@ -1129,7 +1129,7 @@ fi
     else:
         script = textwrap.dedent(
             f"""\
-# fish completion for fractalgen — python -m fractalgen completion fish | source
+# fish completion for fractalgen: python -m fractalgen completion fish | source
 function __fractalgen_recipes
   python -m fractalgen list --names 2>/dev/null
 end

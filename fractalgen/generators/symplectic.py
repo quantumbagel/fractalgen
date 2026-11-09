@@ -140,7 +140,7 @@ def symplectic(
     sigma = ctx.ref_px(blur)
     out = np.zeros((h, w, 3))
     # Hits along a curve scale with steps / curve length; res_scale keeps that fixed.
-    # zoom_gain keeps the anchor view's exposure: the sea fills area, KAM curves are lines.
+    # Scale by zoom_gain to maintain anchor exposure across both area-filling seas and KAM curves.
     for name, buf, weight, power in (("sea", sea, sea_strength, 2.0), ("lines", lines, 1.0, 1.0)):
         hits = buf[..., 0]
         col = buf[..., 1:]

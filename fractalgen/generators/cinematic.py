@@ -46,7 +46,7 @@ def upsample(field: np.ndarray, width: int, height: int, order: int = 3) -> np.n
     z = (height / field.shape[0], width / field.shape[1])
     if field.ndim == 2:
         return zoom(field, z, order=order)[:height, :width]
-    # One 2D zoom per channel, in threads: a 3D zoom also spline-filters the
+    # Run a 2D zoom per channel in threads, since a full 3D zoom also spline-filters the
     # 3-long channel axis, which is ~20x slower for the same result.
     from ..parallel import _executor
 

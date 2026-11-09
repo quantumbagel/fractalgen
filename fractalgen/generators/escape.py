@@ -84,7 +84,7 @@ def register_formula(
     return FORMULAS.register(name, f, replace=replace)
 
 
-# Expression formulas: complex-scalar math compiled straight to numba.
+# Expression formulas compile complex-scalar arithmetic directly into Numba kernels.
 _CMATH = {n: f"cmath.{n}" for n in "sin cos tan sinh cosh tanh asin acos atan exp log sqrt".split()}
 _ALLOWED_NAMES = {"z", "c", "zp", "k", "abs", "conj", "re", "im", "pi", "i", "j", *(_CMATH)}
 

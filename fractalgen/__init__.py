@@ -1,17 +1,17 @@
-"""fractalgen: an extensible math / fractal wallpaper generator.
+"""fractalgen: an extensible math and fractal wallpaper generator.
 
-Third-party extensions:
+Third-party extensions can be registered via:
 
-* **pip** — declare a ``fractalgen.plugins`` entry point that calls ``register()`` hooks
-* **TOML** — ``custom/*.toml`` or ``--load`` (palettes, recipes, formulas, …)
-* **Python** — ``custom/*.py`` or ``--load`` with ``@generator``, ``@post_op``, etc.
+* **pip**: declare a ``fractalgen.plugins`` entry point that invokes ``register()`` hooks
+* **TOML**: add files under ``custom/*.toml`` or pass ``--load`` (palettes, recipes, formulas, etc.)
+* **Python**: add files under ``custom/*.py`` or pass ``--load`` with ``@generator``, ``@post_op``, etc.
 
-Use :func:`auto_tone` in generators so recipe ``tone`` adjustments apply. Type hints
-``Annotated[..., Range(...)]``, ``Literal[...]``, and ``Doc(...)`` feed the GUI when
-``ranges`` / ``choices`` / ``param_docs`` are omitted. Hot-reload user files with
-:func:`fractalgen.loader.reload_user_paths`.
+Call :func:`auto_tone` in custom generators so recipe ``tone`` settings apply. Type hints
+``Annotated[..., Range(...)]``, ``Literal[...]``, and ``Doc(...)`` supply schema metadata to
+the GUI when ``ranges``, ``choices``, or ``param_docs`` are omitted. Reload user-defined paths
+at runtime with :func:`fractalgen.loader.reload_user_paths`.
 
-Quick use::
+Quick start::
 
     import fractalgen as fg
     fg.bootstrap()
@@ -31,17 +31,17 @@ try:
 except PackageNotFoundError:
     __version__ = "0.1.0"
 
-from .color import hsv_to_rgb, histogram_index, log_tone, save_image
+from .color import histogram_index, hsv_to_rgb, log_tone, save_image
 from .context import RenderContext
 from .generators.base import GENERATORS, generator
-from .loader import bootstrap, load_path, section
-from .params import Doc, Range
 from .layers import LAYER_TYPES, apply_layers, layer_type
+from .loader import bootstrap, load_path, section
 from .mask import SHAPES, shape
-from .post import POST_OPS, apply_post, effect, post_op
-from .schema import Key
 from .palette import PALETTES, Palette, get_palette, register_palette, sample_palette
+from .params import Doc, Range
+from .post import POST_OPS, apply_post, effect, post_op
 from .recipe import RECIPES, Recipe, register_recipe
+from .schema import Key
 from .view import View, angle
 
 __all__ = [
@@ -95,7 +95,7 @@ def auto_tone(
     how: str = "histogram",
     **kw: Any,
 ) -> np.ndarray:
-    """Map raw generator values to [0, 1] for palette sampling (recipe ``tone`` hooks in).
+    """Map raw generator values to [0, 1] for palette sampling, integrating recipe tone adjustments.
 
     ``how="histogram"`` (default) calls :func:`histogram_index`; ``how="log"`` calls
     :func:`log_tone` on accumulation-style buffers.
@@ -110,8 +110,10 @@ def auto_tone(
 
 
 def render(recipe: str | Recipe, width: int, height: int, **overrides: Any):
-    """Render a recipe (name or object) to float RGB. ``overrides`` may hold
-    ``params``, ``view``, and ``palette`` like the CLI flags."""
+    """Render a recipe by name or instance to an RGB float array.
+
+    The ``overrides`` mapping supports ``params``, ``view``, and ``palette`` matching CLI options.
+    """
     bootstrap()
     r = RECIPES.get(recipe) if isinstance(recipe, str) else recipe
     return r.render(width, height, overrides=overrides or None)
@@ -122,7 +124,10 @@ def __getattr__(name: str):
         "register_map": ("fractalgen.generators.maps", "register_map"),
         "register_flow": ("fractalgen.generators.flows", "register_flow"),
         "register_formula": ("fractalgen.generators.escape", "register_formula"),
-        "register_vector_field": ("fractalgen.generators.fields", "register_vector_field"),
+        "register_vector_field": (
+            "fractalgen.generators.fields",
+            "register_vector_field",
+        ),
         "register_domain": ("fractalgen.generators.domain", "register_domain"),
         "progress": ("fractalgen.progress", None),
     }

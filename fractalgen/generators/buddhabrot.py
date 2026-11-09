@@ -119,7 +119,7 @@ def buddhabrot(
 
     acc = field_cached(fkey, _accumulate)
 
-    # zoom_gain: zoomed in, fewer orbit hits land per pixel; keep the anchor's exposure.
+    # Scale by zoom_gain to preserve the anchor exposure as orbit hit density changes under zoom.
     norm = ctx.density_norm(total, samples * ctx.reference().pixels) * ctx.zoom_gain(2.0)
     sigma = ctx.ref_px(blur)
     rgb = np.zeros((h, w, 3))

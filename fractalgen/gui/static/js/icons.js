@@ -1,4 +1,4 @@
-// Line icons: one 24-unit grid, 1.5 stroke, drawn in the text color of their button.
+// Line icons rendered on a 24-unit grid with 1.5 stroke width, styled via button text colors.
 
 import { html } from "../vendor/preact-htm.js";
 

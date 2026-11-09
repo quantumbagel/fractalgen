@@ -32,7 +32,7 @@ def toml_value(v: Any) -> str:
                          for ch in str(v)) + '"'
 
 
-# TOML basic strings: escape quotes, backslashes and control characters (newlines in mask text).
+# In basic TOML strings, escape quotes, backslashes, and control characters like newlines in mask text.
 _ESCAPES = {"\\": "\\\\", '"': '\\"', "\n": "\\n", "\t": "\\t", "\r": "\\r", "\b": "\\b", "\f": "\\f"}
 
 

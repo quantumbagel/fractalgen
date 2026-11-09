@@ -74,7 +74,7 @@ def escape_kernel(cr, ci, max_iter, kind, jcr, jci, pk, done):
             pi = 0.0
             did = 0
             n_esc = 0.0
-            # Brent cycle check: an orbit that exactly repeats a saved state can never escape.
+            # Brent cycle check; an orbit that repeats a saved state cannot escape.
             sr = 0.0
             si = 0.0
             spr = 0.0
@@ -997,7 +997,7 @@ def buddhabrot_escape(n, key, i0, x0, x1, y0, y1, max_iter, bailout2, kind):
                 continue
         zr = 0.0
         zi = 0.0
-        sr = 0.0  # Brent cycle check: an exactly repeating orbit never escapes
+        sr = 0.0  # Brent cycle check; an orbit that repeats a saved state cannot escape.
         si = 0.0
         armed = False  # (fastmath: no NaN sentinels)
         lim = 8

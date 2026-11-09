@@ -1,4 +1,4 @@
-// The preview: fits the frame to the chosen screen shape, pans / zooms / turns the view,
+// Preview canvas management, handling screen aspect fitting, panning, zooming, rotation,
 // and moves / resizes layers directly on the picture.
 
 import { html, useEffect, useRef, useState } from "../vendor/preact-htm.js";

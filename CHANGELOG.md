@@ -1,40 +1,17 @@
 # Changelog
 
-## 0.1.0 — 2026-11-09
+## 0.1.0 (2026-11-09)
 
-First public release. A recipe-driven rewrite of the original hard-coded
-wallpaper scripts (`generate.py`, `ultra.py`, `bg/` — still on the `old-code`
-branch).
+Initial public release, completely rewriting the original standalone wallpaper scripts (`generate.py`, `ultra.py`, and `bg/`, preserved on the `old-code` branch) into an extensible, recipe-driven engine.
 
-- **129 built-in looks** across escape-time fractals, Newton basins, Lyapunov
-  space, domain coloring, strange attractors, IFS, reaction-diffusion, flow
-  fields, slime mold, sandpiles, hyperbolic tilings, harmonographs, fractal
-  flames, Buddhabrots, KAM islands, caustics, and more.
-- **GUI** (`python -m fractalgen gui`): a task-first local page with a look gallery,
-  Variations, and tabs for Look / Frame / Color / Layers / Effects. It previews in your
-  screen's exact shape, has Compare, undo / redo, keyboard shortcuts and a phone layout,
-  and a Save wallpaper dialog with per-screen sizes, supersampling, and either a direct
-  browser download or the `backgrounds/gui/` folder. No build step: small ES modules
-  with a vendored Preact + htm.
-- **Data-driven looks.** A recipe is generator + params + palette + view +
-  tone + effects + layers, all TOML. Fork a built-in, extend it, or write one from
-  scratch.
-- **Layers**: any number of text, shape and image layers, each painted on top or cut
-  out of the render, with its own position, opacity, blend mode, outline, glow, shadow
-  and bevel. The older single `mask = {...}` still loads and renders identically.
-- **Ordered effects**: `[[post]]` tables that repeat, reorder, switch off and blend:
-  bloom, blur, sharpen, grain, chromatic aberration, gradient, posterize and more.
-- **The same picture at every size.** Looks are defined at a 4K reference
-  frame, so a 720p preview and a 16K export agree.
-- **Batch presets** for 4K / 8K / 16K desktops, iPhone, iPad, ultrawide, and
-  multi-monitor spans.
-- **Fast renders.** Numba kernels throughout; escape-time orbits that exactly repeat
-  stop early (Brent cycle detection), magnetic pendulum and polynomial Newton run as
-  parallel kernels.
-- **Extension hooks** in TOML or Python: generators, palettes, formulas, 2D
-  maps, 3D flows, vector fields, domain functions, effects, shapes and layer kinds.
-  Pip packages can register via the `fractalgen.plugins` entry point.
-- CLI: `render`, `list`, `fork`, `new`, `presets`, `doctor`, with `--layer`,
-  `--effect`, `--background`, `--no-layers` and `--no-post` overrides.
-- **Embedded recipes.** Every PNG / JPEG fractalgen writes carries the full
-  look, so you can fork a wallpaper back from the file.
+- Ships 129 built-in looks across escape-time fractals, Newton basins, Lyapunov parameter space, complex domain coloring, strange attractors, iterated function systems, reaction-diffusion simulations, flow fields, slime mold networks, abelian sandpiles, hyperbolic tilings, harmonographs, fractal flames, Buddhabrot densities, KAM islands, and caustics.
+- Adds an interactive local web GUI (`python -m fractalgen gui`) with real-time viewport adjustments, parameter sliders, variation generators, side-by-side comparisons, undo and redo history, keyboard navigation, and full-resolution wallpaper export with supersampling. The frontend runs as ES modules using bundled Preact and htm without build steps.
+- Introduces data-driven TOML recipes combining generator choices, parameters, palettes, view coordinates, tone mapping, composite layers, and post-processing stacks.
+- Supports multi-layer compositing for text, geometric shapes, and external images, offering independent opacity, blend modes, strokes, glows, drop shadows, and bevels. Legacy single-mask definitions remain compatible.
+- Implements an ordered post-processing pipeline using repeatable `[[post]]` tables for adjustments including bloom, blur, sharpening, film grain, chromatic aberration, gradients, and posterization.
+- Standardizes framing and exposure against a 4K reference canvas so preview windows and high-resolution exports produce matching composition and brightness.
+- Includes render presets for standard desktop resolutions, phone displays, ultrawides, and multi-monitor configurations up to 16K.
+- Accelerates core routines using parallel Numba kernels, Brent cycle detection for escape-time iterations, and multi-threaded simulation solvers.
+- Exposes plugin hooks for custom generators, palettes, formulas, 2D maps, 3D flows, vector fields, domain functions, and custom layers in Python or TOML, including discovery via `fractalgen.plugins` entry points.
+- Provides a unified CLI for rendering, cataloging, scaffolding extensions, and diagnosing dependencies.
+- Embeds complete recipe definitions directly into generated PNG and JPEG files, allowing any exported image to be restored or forked into a source recipe.

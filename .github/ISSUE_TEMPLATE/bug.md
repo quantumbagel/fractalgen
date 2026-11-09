@@ -1,22 +1,26 @@
 ---
 name: Bug report
-about: Something renders wrong, crashes, or the CLI/GUI misbehaves
+about: Report a rendering issue, application crash, or unexpected CLI/GUI behavior
 labels: bug
 ---
 
-**What happened**
+### Problem description
 
+Describe what went wrong.
 
-**What you expected**
+### Expected behavior
 
+Describe what should have happened.
 
-**Repro**
+### Reproduction steps
 
 ```sh
 python -m fractalgen doctor
-# the command or recipe that fails
+# Paste the failing command or recipe here
 ```
 
+### Environment
+
 - OS:
-- Python:
-- fractalgen version (printed by `doctor`):
+- Python version:
+- fractalgen version (`python -m fractalgen doctor`):

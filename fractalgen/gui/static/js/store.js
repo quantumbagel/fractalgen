@@ -11,7 +11,7 @@ export const S = {
   state: null, // the look being edited (a server "state")
   baseline: null, // the recipe as loaded: Reset / modified marks / Compare
   aspects: [],
-  aspect: "screen", // default: a wallpaper for the screen the GUI is open on
+  aspect: "screen", // Defaults to the current display aspect ratio
   previewSize: 960,
   modified: new Set(),
   ui: {
@@ -24,7 +24,7 @@ export const S = {
     showMore: false,
     compare: false,
     toasts: [],
-    sheet: false, // phone layout: panel open
+    sheet: false, // Controls sheet visibility on mobile layouts
     pick: null, // {title, onPick}: the Browse gallery is choosing a look for something else
   },
   view: {

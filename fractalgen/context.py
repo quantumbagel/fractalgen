@@ -46,7 +46,7 @@ class RenderContext:
         return (view or self.view).plane(self.width, self.height)
 
     # ---- resolution independence ------------------------------------------
-    # Looks are defined at the 4K reference: a frame with 3840x2160's pixel
+    # Looks are defined against the 4K reference canvas, sharing 3840x2160's pixel
     # count and this frame's aspect. Pixel-sized knobs are "pixels at 4K" and
     # simulations run on a grid sized from the reference, so a 720p preview and
     # a 16K export show the same picture (only the sampling differs).

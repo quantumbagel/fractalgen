@@ -1,17 +1,17 @@
 # docs/
 
-Release assets for the project README.
+Assets used by the project documentation and README.
 
-| File | What |
-|---|---|
-| `assets/header.jpg` | The word *fractalgen* cut from `julia_dragon` by the mask engine |
-| `assets/*.jpg` | Gallery thumbs (960px) of built-in looks and a few GUI sessions |
-| `assets/looks/*.jpg` | One look per family (480×270) for the README's "What it draws" grid |
-| `assets/gui.jpg` | Screenshot of the GUI (1440×900 window, Color tab) for the README |
-| `render_assets.py` | Regenerates the header (and gallery thumbs if `backgrounds/` is present) |
+| File                 | Description                                                          |
+| -------------------- | -------------------------------------------------------------------- |
+| `assets/header.jpg`  | Text mask rendering of the project name using `julia_dragon`         |
+| `assets/*.jpg`       | Gallery previews (960px) of built-in looks and GUI sessions          |
+| `assets/looks/*.jpg` | Reference thumbnails (480x270) representing each mathematical family |
+| `assets/gui.jpg`     | Interface capture for the README                                     |
+| `render_assets.py`   | Regeneration script for project assets                               |
 
 ```sh
-python docs/render_assets.py            # header
-python docs/render_assets.py --gallery  # header + thumbs
-python docs/render_assets.py --looks    # only the per-family grid, rendered fresh
+python docs/render_assets.py            # regenerates the header image
+python docs/render_assets.py --gallery  # regenerates the header and gallery thumbnails
+python docs/render_assets.py --looks    # re-renders only the mathematical family thumbnails
 ```
