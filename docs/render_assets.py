@@ -40,6 +40,31 @@ GALLERY = (
     ("backgrounds/8k/domain_exp.png", "domain_exp.jpg"),
 )
 
+# One look per family for the README's "What it draws" grid, rendered fresh from the
+# current recipes (1080p, scaled down for clean edges).
+LOOKS = (
+    "mandelbrot_spiral", "buddhabrot_nebula", "newton_star", "lyapunov_aurum",
+    "domain_sin_inv", "flame_bloom", "lorenz_butterfly", "hopalong",
+    "barnsley_fern", "gray_scott_coral", "physarum_biolum", "sandpile_ice",
+    "poincare_ember", "harmonograph_gold", "caustics_pool", "standard_map_golden",
+)
+
+
+def render_looks(size: tuple[int, int] = (480, 270)) -> None:
+    import fractalgen as fg
+    from fractalgen.color import to_image
+    from PIL import Image
+
+    fg.bootstrap()
+    out = ASSETS / "looks"
+    out.mkdir(parents=True, exist_ok=True)
+    for name in LOOKS:
+        rgb = fg.render(name, size[0] * 4, size[1] * 4)
+        im = to_image(rgb).convert("RGB").resize(size, Image.Resampling.LANCZOS)
+        dest = out / f"{name}.jpg"
+        im.save(dest, "JPEG", quality=84, optimize=True, progressive=True)
+        print(f"wrote {dest.relative_to(ROOT)}")
+
 
 def render_header() -> Path:
     import fractalgen as fg
@@ -92,7 +117,11 @@ def main() -> int:
         "'fractalgen' type). Pass --gallery to also rebuild thumbs from backgrounds/."
     )
     p.add_argument("--gallery", action="store_true", help="Also rebuild gallery thumbs")
+    p.add_argument("--looks", action="store_true", help="Only rebuild the per-family look thumbs")
     args = p.parse_args()
+    if args.looks:
+        render_looks()
+        return 0
     path = render_header()
     print(f"wrote {path.relative_to(ROOT)}")
     if args.gallery:

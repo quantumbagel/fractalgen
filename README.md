@@ -1,80 +1,138 @@
 <p align="center">
-  <img src="docs/assets/header.jpg" alt="fractalgen" width="100%">
+  <img src="docs/assets/header.jpg" alt="fractalgen, the word cut out of a Julia set" width="100%">
 </p>
 
+<h3 align="center">Math, as wallpaper.</h3>
+
 <p align="center">
-  <b>Math, as wallpaper.</b><br>
-  An extensible fractal / dynamical-systems generator with a live GUI,<br>
-  129 built-in looks, and recipes you can fork.
+  A fractal and dynamical-systems wallpaper generator with a live GUI,<br>
+  129 built-in looks, and recipes you can fork. Any screen, up to 16K.
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/python-3.11%2B-3776AB?style=flat-square" alt="Python 3.11+">
-  <img src="https://img.shields.io/badge/looks-129-ff6a00?style=flat-square" alt="129 looks">
+  <img src="https://img.shields.io/badge/looks-129-e8944f?style=flat-square" alt="129 looks">
+  <img src="https://img.shields.io/badge/renders-up_to_16K-555?style=flat-square" alt="Renders up to 16K">
   <img src="https://img.shields.io/badge/license-MIT-2ea44f?style=flat-square" alt="MIT">
 </p>
 
-The header above is the engine rendering its own name: `julia_dragon` cut into
-type with a glow, bevel, and a dimmed copy of itself behind the letters.
+<p align="center">
+  <a href="#quick-start">Quick start</a> ·
+  <a href="#what-it-draws">What it draws</a> ·
+  <a href="#gallery">Gallery</a> ·
+  <a href="#the-gui">The GUI</a> ·
+  <a href="#customizing-a-render">Recipes</a> ·
+  <a href="#extending">Extending</a> ·
+  <a href="#batch-rendering">Batch rendering</a>
+</p>
+
+## Quick start
 
 ```sh
 python -m venv .venv && .venv/bin/pip install -e .
-fractalgen gui                                   # live-tweaking GUI in your browser
-fractalgen list -l                               # recipes, generator, palette, tags
-fractalgen render julia_dragon --size 3840x2160
-fractalgen render --preset 8k iphone             # batch: presets pick recipes by tag
+fractalgen gui                                   # pick, tweak and save in your browser
+fractalgen list -l                               # every look, with its generator and palette
+fractalgen render julia_dragon --size 3840x2160  # one wallpaper
+fractalgen render --preset 8k iphone             # a batch: presets pick looks by tag
 ```
 
-(`python -m fractalgen` is the same command.)
+`python -m fractalgen` is the same command. Pictures land in `backgrounds/`, and every
+file carries its full recipe, so you can fork a wallpaper back from the image itself.
 
-Escape-time fractals, Newton basins, Lyapunov space, domain coloring, strange
-attractors, IFS, reaction-diffusion, flow fields, slime mold, sandpiles,
-hyperbolic tilings, harmonographs, fractal flames, Buddhabrots, KAM islands,
-caustics, and more. Everything that shapes a picture is data you can tweak:
-generator parameters, palettes, framing (center / zoom / **rotation**), camera
-angles, finishing effects, and layers (text, shapes and images painted over the
-render or cut out of it).
+<p align="center">
+  <img src="docs/assets/gui.jpg" width="100%" alt="The fractalgen GUI: settings on the left, the live preview framed by crop marks on the right">
+</p>
 
-The original hard-coded scripts (`generate.py`, `ultra.py`, `bg/`) live on the
-`old-code` branch. Every recipe reproduces their 4K output pixel-for-pixel except
-`physarum_dark_matter` (now simulated on all cores); other sizes are consistent
-with 4K (see [Same picture at every size](#same-picture-at-every-size)).
+## What it draws
+
+Sixteen families of math, each with its own generator and several tuned looks. One of each,
+rendered by the current code:
+
+<table>
+<tr>
+<td align="center" width="25%"><img src="docs/assets/looks/mandelbrot_spiral.jpg" alt="mandelbrot_spiral"><br><b>Escape-time</b><br><sub><code>mandelbrot_spiral</code></sub></td>
+<td align="center" width="25%"><img src="docs/assets/looks/buddhabrot_nebula.jpg" alt="buddhabrot_nebula"><br><b>Buddhabrots</b><br><sub><code>buddhabrot_nebula</code></sub></td>
+<td align="center" width="25%"><img src="docs/assets/looks/newton_star.jpg" alt="newton_star"><br><b>Newton basins</b><br><sub><code>newton_star</code></sub></td>
+<td align="center" width="25%"><img src="docs/assets/looks/lyapunov_aurum.jpg" alt="lyapunov_aurum"><br><b>Lyapunov space</b><br><sub><code>lyapunov_aurum</code></sub></td>
+</tr>
+<tr>
+<td align="center" width="25%"><img src="docs/assets/looks/domain_sin_inv.jpg" alt="domain_sin_inv"><br><b>Domain coloring</b><br><sub><code>domain_sin_inv</code></sub></td>
+<td align="center" width="25%"><img src="docs/assets/looks/flame_bloom.jpg" alt="flame_bloom"><br><b>Fractal flames</b><br><sub><code>flame_bloom</code></sub></td>
+<td align="center" width="25%"><img src="docs/assets/looks/lorenz_butterfly.jpg" alt="lorenz_butterfly"><br><b>Strange attractors</b><br><sub><code>lorenz_butterfly</code></sub></td>
+<td align="center" width="25%"><img src="docs/assets/looks/hopalong.jpg" alt="hopalong"><br><b>Orbit maps</b><br><sub><code>hopalong</code></sub></td>
+</tr>
+<tr>
+<td align="center" width="25%"><img src="docs/assets/looks/barnsley_fern.jpg" alt="barnsley_fern"><br><b>IFS fractals</b><br><sub><code>barnsley_fern</code></sub></td>
+<td align="center" width="25%"><img src="docs/assets/looks/gray_scott_coral.jpg" alt="gray_scott_coral"><br><b>Reaction-diffusion</b><br><sub><code>gray_scott_coral</code></sub></td>
+<td align="center" width="25%"><img src="docs/assets/looks/physarum_biolum.jpg" alt="physarum_biolum"><br><b>Slime mold</b><br><sub><code>physarum_biolum</code></sub></td>
+<td align="center" width="25%"><img src="docs/assets/looks/sandpile_ice.jpg" alt="sandpile_ice"><br><b>Sandpiles</b><br><sub><code>sandpile_ice</code></sub></td>
+</tr>
+<tr>
+<td align="center" width="25%"><img src="docs/assets/looks/poincare_ember.jpg" alt="poincare_ember"><br><b>Hyperbolic tilings</b><br><sub><code>poincare_ember</code></sub></td>
+<td align="center" width="25%"><img src="docs/assets/looks/harmonograph_gold.jpg" alt="harmonograph_gold"><br><b>Harmonographs</b><br><sub><code>harmonograph_gold</code></sub></td>
+<td align="center" width="25%"><img src="docs/assets/looks/caustics_pool.jpg" alt="caustics_pool"><br><b>Caustics</b><br><sub><code>caustics_pool</code></sub></td>
+<td align="center" width="25%"><img src="docs/assets/looks/standard_map_golden.jpg" alt="standard_map_golden"><br><b>KAM islands</b><br><sub><code>standard_map_golden</code></sub></td>
+</tr>
+</table>
+
+Everything that shapes a picture is data you can change: generator parameters, palettes,
+framing (center, zoom and rotation), camera angles, finishing effects, and layers of text,
+shapes and images painted over the render or cut out of it.
 
 ## Gallery
 
-<p align="center">
-  <img src="docs/assets/julia_dragon.jpg" width="49%" alt="julia_dragon">
-  <img src="docs/assets/julia_zoom.jpg" width="49%" alt="Julia zoom">
-</p>
-<p align="center"><sub><code>julia_dragon</code> · Julia zoom (GUI)</sub></p>
-<p align="center">
-  <img src="docs/assets/newton_sextic.jpg" width="49%" alt="newton_sextic">
-  <img src="docs/assets/julia_snowflake.jpg" width="49%" alt="julia_snowflake">
-</p>
-<p align="center"><sub><code>newton_sextic</code> · <code>julia_snowflake</code></sub></p>
-<p align="center">
-  <img src="docs/assets/clifford_gold.jpg" width="49%" alt="clifford_gold">
-  <img src="docs/assets/flow_ember.jpg" width="49%" alt="flow attractor">
-</p>
-<p align="center"><sub><code>clifford_gold</code> · flow attractor (GUI)</sub></p>
-<p align="center">
-  <img src="docs/assets/lyapunov_baba.jpg" width="49%" alt="lyapunov_baba">
-  <img src="docs/assets/mandelbrot_seahorse.jpg" width="49%" alt="mandelbrot_seahorse">
-</p>
-<p align="center"><sub><code>lyapunov_baba</code> · <code>mandelbrot_seahorse</code></sub></p>
-<p align="center">
-  <img src="docs/assets/burning_ship_cathedral.jpg" width="49%" alt="burning_ship_cathedral">
-  <img src="docs/assets/attractor_burst.jpg" width="49%" alt="attractor burst">
-</p>
-<p align="center"><sub><code>burning_ship_cathedral</code> · attractor burst (GUI)</sub></p>
-<p align="center">
-  <img src="docs/assets/magnetic_pendulum_tri.jpg" width="49%" alt="magnetic_pendulum_tri">
-  <img src="docs/assets/domain_exp.jpg" width="49%" alt="domain_exp">
-</p>
-<p align="center"><sub><code>magnetic_pendulum_tri</code> · <code>domain_exp</code></sub></p>
+<table>
+<tr>
+<td width="50%"><img src="docs/assets/julia_dragon.jpg" alt=""><br><sub><code>julia_dragon</code></sub></td>
+<td width="50%"><img src="docs/assets/julia_zoom.jpg" alt=""><br><sub>A Julia zoom made in the GUI</sub></td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/assets/newton_sextic.jpg" alt=""><br><sub><code>newton_sextic</code></sub></td>
+<td width="50%"><img src="docs/assets/julia_snowflake.jpg" alt=""><br><sub><code>julia_snowflake</code></sub></td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/assets/clifford_gold.jpg" alt=""><br><sub><code>clifford_gold</code></sub></td>
+<td width="50%"><img src="docs/assets/flow_ember.jpg" alt=""><br><sub>A flow attractor made in the GUI</sub></td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/assets/lyapunov_baba.jpg" alt=""><br><sub><code>lyapunov_baba</code></sub></td>
+<td width="50%"><img src="docs/assets/mandelbrot_seahorse.jpg" alt=""><br><sub><code>mandelbrot_seahorse</code></sub></td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/assets/burning_ship_cathedral.jpg" alt=""><br><sub><code>burning_ship_cathedral</code></sub></td>
+<td width="50%"><img src="docs/assets/attractor_burst.jpg" alt=""><br><sub>An attractor burst made in the GUI</sub></td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/assets/magnetic_pendulum_tri.jpg" alt=""><br><sub><code>magnetic_pendulum_tri</code></sub></td>
+<td width="50%"><img src="docs/assets/domain_exp.jpg" alt=""><br><sub><code>domain_exp</code></sub></td>
+</tr>
+</table>
 
-Rebuild the header (and gallery thumbs, if you have local 8K renders) with
-`python docs/render_assets.py`.
+The header is the engine rendering its own name: `julia_dragon` cut into type with a glow,
+a bevel, and a dimmed copy of itself behind the letters. `python docs/render_assets.py`
+rebuilds it, and `--looks` rebuilds the family grid above.
+
+## The GUI
+
+`fractalgen gui` opens a local page built for making a wallpaper quickly:
+
+- **Pick a look** from the gallery (thumbnails, search, categories), step through them
+  with the arrows (or `[` / `]`) or hit Surprise me. **Variations** shows eight random tweaks to choose from.
+- **Screen**: previews in your screen's exact shape by default; switch to a phone, an
+  ultrawide or any preset. Looks frame themselves for each shape.
+- Tabs: **Look** (the main settings up front, every other parameter under More settings),
+  **Frame** (drag to pan, scroll to zoom, Shift+scroll or Alt+drag to turn), **Color**
+  (palette swatches, brightness / contrast / saturation / hue / vignette, exposure),
+  **Layers** (add text, shapes or an uploaded image, drag them on the picture, style
+  presets like Neon or Emboss) and **Effects** (an ordered, reorderable stack with presets
+  like Film or Dreamy).
+- **Compare** (or hold `\`) shows the look as it was loaded; undo / redo cover every edit,
+  including switching screen shapes; the URL keeps your edits.
+- **Save wallpaper** renders at full size (this screen, 4K, 8K, phone and more), with
+  optional 2× / 3× supersampling for smoother edges. It either downloads straight to your
+  browser (nothing kept in the project) or saves to `backgrounds/gui/` with **Show in
+  Finder** (or your file manager); the choice is remembered. **Save as recipe**
+  writes `custom/NAME.toml`. `?` lists the keyboard shortcuts.
 
 ## Concepts
 
@@ -198,6 +256,9 @@ python -m fractalgen render julia_dragon --size 2048x2048 \
 python -m fractalgen mask                                            # every key, documented
 ```
 
+<details>
+<summary>Every layer key</summary>
+
 - **kind**: `text` (`\n` breaks lines; `font` takes a family name like `"Arial Black"` or
   `"Avenir Next Heavy"`, or a font file), `shape` (circle, ring, heart, star, hexagon,
   rounded, rectangle, diamond, triangle, crescent, plus any registered with `fg.shape`), or
@@ -213,6 +274,8 @@ python -m fractalgen mask                                            # every key
 - **background** (shown when any layer is a cut-out): `fill` = a hex color, `transparent`,
   `self` (the render itself, dimmed by `dim`, softened by `blur`), `recipe:NAME`, or
   `palette:NAME`.
+
+</details>
 
 Layers run before `post`, so effects finish the whole frame. Lengths are pixels at 4K, so
 previews match exports. The older single-layer form still works and renders the same:
@@ -246,37 +309,13 @@ The short table form still works and runs in a fixed order:
 `--no-post` drops the recipe's own. `python -m fractalgen post` lists every effect and its
 parameters.
 
-Palettes anywhere: a name (`"ember"`), reversed (`"ember_r"`), inline stops
-(`["000000", "ff6a00", "fff3d6"]`), or `{ stops = [...], positions = [0, 0.3, 1] }`.
-Angles anywhere: degrees (`30`), or strings like `"0.72rad"`, `"pi/6"`.
-Complex numbers: `[re, im]` or `"-0.8+0.156j"`.
+<table>
+<tr><td><b>Palettes</b></td><td>a name (<code>"ember"</code>), reversed (<code>"ember_r"</code>), inline stops (<code>["000000", "ff6a00", "fff3d6"]</code>), or <code>{ stops = [...], positions = [0, 0.3, 1] }</code></td></tr>
+<tr><td><b>Angles</b></td><td>degrees (<code>30</code>), or strings like <code>"0.72rad"</code> and <code>"pi/6"</code></td></tr>
+<tr><td><b>Complex numbers</b></td><td><code>[re, im]</code> or <code>"-0.8+0.156j"</code></td></tr>
+</table>
 
-### The GUI
-
-`python -m fractalgen gui` opens a local page built for making a wallpaper quickly:
-
-<p align="center"><img src="docs/assets/gui.jpg" width="100%" alt="The fractalgen GUI: settings on the left, the live preview framed by crop marks on the right"></p>
-
-
-- **Pick a look** from the gallery (thumbnails, search, categories), step through them
-  with the arrows (or `[` / `]`) or hit Surprise me. **Variations** shows eight random tweaks to choose from.
-- **Screen**: previews in your screen's exact shape by default; switch to a phone, an
-  ultrawide or any preset. Looks frame themselves for each shape.
-- Tabs: **Look** (the main settings up front, every other parameter under More settings),
-  **Frame** (drag to pan, scroll to zoom, Shift+scroll or Alt+drag to turn), **Color**
-  (palette swatches, brightness / contrast / saturation / hue / vignette, exposure),
-  **Layers** (add text, shapes or an uploaded image, drag them on the picture, style
-  presets like Neon or Emboss) and **Effects** (an ordered, reorderable stack with presets
-  like Film or Dreamy).
-- **Compare** (or hold `\`) shows the look as it was loaded; undo / redo cover every edit,
-  including switching screen shapes; the URL keeps your edits.
-- **Save wallpaper** renders at full size (this screen, 4K, 8K, phone and more), with
-  optional 2× / 3× supersampling for smoother edges. It either downloads straight to your
-  browser (nothing kept in the project) or saves to `backgrounds/gui/` with **Show in
-  Finder** (or your file manager); the choice is remembered. **Save as recipe**
-  writes `custom/NAME.toml`. `?` lists the keyboard shortcuts.
-
-### Same picture at every size
+## Same picture at every size
 
 Every look is defined at a 4K reference frame (3840×2160's pixel count, at your
 frame's aspect), so a 720p preview, a 4K wallpaper and a 16K export show the same
@@ -307,6 +346,17 @@ julia = true                  # pixel is z0 (else pixel is c)
 degree = 1.0                  # polynomial degree for smooth coloring (<= 1: plain counts)
 bailout = 50.0
 
+[recipe.sine_glow]
+generator = "escape_time"
+palette = "sunset"
+view = { center = [0, 0], half_width = 3.5, rotation = 30 }
+params = { formula = "sine_julia", c = [1.0, 0.1], max_iter = 120 }
+```
+
+<details>
+<summary>2D maps, 3D flows, vector fields and domain functions</summary>
+
+```toml
 [map.my_map]                  # 2D iterated map for map_attractor
 x = "sin(a*y) - cos(b*x)"
 y = "sin(c*x) - cos(d*y)"
@@ -326,13 +376,9 @@ params = { a = 1.7 }
 [domain.my_fn]                # complex function for domain_color (variable z)
 w = "(z**3 - a) / (z**2 + 1)"
 params = { a = 1.0 }
-
-[recipe.sine_glow]
-generator = "escape_time"
-palette = "sunset"
-view = { center = [0, 0], half_width = 3.5, rotation = 30 }
-params = { formula = "sine_julia", c = [1.0, 0.1], max_iter = 120 }
 ```
+
+</details>
 
 See `examples/extensions.toml` for a runnable version.
 
@@ -405,26 +451,25 @@ python -m fractalgen render --preset 8k --tag vip --skip-existing --jobs 1
 python -m fractalgen render --preset super-ultrawide julia_dragon   # 5120x1440, one picture
 ```
 
-Besides 4K / 8K / 16K desktops and iPhones there are `5k`, `macbook`, `ipad`, `ultrawide`
-(3440×1440), `ultrawide-5k`, `super-ultrawide` (32:9), and `dual-4k` / `triple-4k` for one
-picture spanning several monitors. `--size` overrides a preset's size but keeps its tags and
-format. The GUI's aspect menu lists every preset.
+| Preset | Size | | Preset | Size |
+|---|---|---|---|---|
+| `4k` | 3840×2160 | | `iphone` | 1290×2796 |
+| `5k` | 5120×2880 | | `iphone-8k` | 3840×8320 |
+| `8k` | 7680×4320 | | `iphone-16k` | 7680×16640 |
+| `16k` | 15360×8640 | | `ipad` | 2048×2732 |
+| `macbook` | 3456×2234 | | `ultrawide` | 3440×1440 |
+| `dual-4k` | 7680×2160 | | `ultrawide-5k` | 5120×2160 |
+| `triple-4k` | 11520×2160 | | `super-ultrawide` | 5120×1440 |
+
+`dual-4k` and `triple-4k` are one picture spanning several monitors. `--size` overrides a
+preset's size but keeps its tags and format, and the GUI's Screen menu lists every preset.
 
 Each recipe renders in its own process with a timeout (`--timeout`), so an OOM or a
 runaway render skips that wallpaper instead of the batch. Per-pixel kernels render in
 row strips at 8K/16K to bound memory. Output: `backgrounds/<preset>/<recipe>.png`.
 On a terminal, a live line shows each running recipe's progress and elapsed time.
 
-| old command | new command |
-|---|---|
-| `python generate.py` | `python -m fractalgen render --preset 4k` |
-| `python generate.py --only a b` | `python -m fractalgen render a b --size 3840x2160` |
-| `python ultra.py --preset 8k` (tier keep) | `python -m fractalgen render --preset 8k` |
-| `python ultra.py --tier vip` | `... --tag vip` |
-| `python ultra.py --tier all` | `... --all --exclude-tag draft` |
-| `python render.py --preset desktop-8k` | `python -m fractalgen render --preset desktop-8k` |
-
-Tags: `keep` (8K-worthy), `vip` (16K-worthy), `draft` (weaker looks skipped by `--tier all`).
+Tags: `keep` (8K-worthy), `vip` (16K-worthy), `draft` (weaker looks, skipped by `--all --exclude-tag draft`).
 
 ## Python API
 
@@ -457,6 +502,27 @@ boundary pixels, so identical recipes rendered differently between runs. Compili
 costs a second or two per process.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for how to add a look or a generator.
+
+## History
+
+fractalgen started as a few hard-coded scripts (`generate.py`, `ultra.py`, `bg/`), kept on
+the `old-code` branch. Every recipe reproduces their 4K output pixel for pixel except
+`physarum_dark_matter`, which is now simulated on all cores; other sizes match the 4K
+picture (see [Same picture at every size](#same-picture-at-every-size)).
+
+<details>
+<summary>Old commands and their replacements</summary>
+
+| old command | new command |
+|---|---|
+| `python generate.py` | `python -m fractalgen render --preset 4k` |
+| `python generate.py --only a b` | `python -m fractalgen render a b --size 3840x2160` |
+| `python ultra.py --preset 8k` (tier keep) | `python -m fractalgen render --preset 8k` |
+| `python ultra.py --tier vip` | `... --tag vip` |
+| `python ultra.py --tier all` | `... --all --exclude-tag draft` |
+| `python render.py --preset desktop-8k` | `python -m fractalgen render --preset desktop-8k` |
+
+</details>
 
 ## License
 
