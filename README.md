@@ -2,11 +2,11 @@
   <img src="docs/assets/header.jpg" alt="fractalgen" width="100%">
 </p>
 
-<h3 align="center">Math, as wallpaper.</h3>
+<h3 align="center">Math is beautiful.</h3>
 
 <p align="center">
-  A fractal and dynamical-systems wallpaper generator with an interactive GUI,<br>
-  129 built-in looks, and customizable recipes. Any screen, up to 16K.
+  fractalgen is a fractal and dynamical-systems wallpaper generator with an interactive GUI<br>
+  and customizable recipes. It is designed to render to any screen resolution, up to 16K.
 </p>
 
 <p align="center">
@@ -17,33 +17,38 @@
 </p>
 
 <p align="center">
-  <a href="#quick-start">Quick start</a> ·
-  <a href="#what-it-draws">What it draws</a> ·
-  <a href="#the-gui">The GUI</a> ·
-  <a href="#customizing-a-render">Recipes</a> ·
-  <a href="#extending">Extending</a> ·
-  <a href="#batch-rendering">Batch rendering</a>
+  <a href="#quick-start">get started!</a> ·
+  <a href="#examples">examples</a> ·
+  <a href="#the-gui-very-cool-i-promise">interface</a> ·
+  <a href="#customizing-a-render">customization</a> ·
+  <a href="#extending-fractalgen">adding more</a>
 </p>
 
 ## Quick start
 
 ```sh
-python -m venv .venv && .venv/bin/pip install -e .
+git clone https://github.com/quantumbagel/fractalgen && cd fractalgen
+python -m venv .venv && source .venv/bin/activate
+pip install -e .
+
 fractalgen gui                                   # interactive browser UI
+fractalgen render --random 3 --open              # surprise me: three random looks
 fractalgen list -l                               # list available looks
 fractalgen render julia_dragon --size 3840x2160  # render a wallpaper
 fractalgen render --preset 8k iphone             # batch render presets
 ```
 
+fractalgen is not on PyPI (the `fractalgen` name there is an unrelated project), so install it from source as above or with `pip install git+https://github.com/quantumbagel/fractalgen`.
+
 Renders save to `backgrounds/`. Every exported image embeds its full recipe metadata, so you can inspect or fork a look directly from the image file.
+
+The first render in each session takes a little longer while Numba compiles the kernels. The 8K and 16K presets are tuned for a machine with 16 GB of RAM.
 
 <p align="center">
   <img src="docs/assets/gui.jpg" width="100%" alt="fractalgen GUI">
 </p>
 
-## What it draws
-
-Sixteen mathematical families with tuned presets:
+## Examples
 
 <table>
 <tr>
@@ -92,19 +97,30 @@ Sixteen mathematical families with tuned presets:
 <td width="50%"><img src="docs/assets/lyapunov_baba.jpg" alt=""><br><sub><code>lyapunov_baba</code></sub></td>
 <td width="50%"><img src="docs/assets/mandelbrot_seahorse.jpg" alt=""><br><sub><code>mandelbrot_seahorse</code></sub></td>
 </tr>
+<tr>
+<td width="50%"><img src="docs/assets/burning_ship_cathedral.jpg" alt=""><br><sub><code>burning_ship_cathedral</code></sub></td>
+<td width="50%"><img src="docs/assets/attractor_burst.jpg" alt=""><br><sub>Attractor burst</sub></td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/assets/magnetic_pendulum_tri.jpg" alt=""><br><sub><code>magnetic_pendulum_tri</code></sub></td>
+<td width="50%"><img src="docs/assets/domain_exp.jpg" alt=""><br><sub><code>domain_exp</code></sub></td>
+</tr>
 </table>
 
 </details>
 
-## The GUI
+## The GUI (very cool I promise)
 
 Run `fractalgen gui` to launch the local web interface:
 
-- **Look selection**: Browse thumbnails, search, or click **Variations** for random tweaks.
-- **Framing**: Pan, zoom, and rotate interactively. Framing adapts automatically to your screen or chosen preset.
-- **Controls**: Tweak math parameters in **Look**, palettes and exposure in **Color**, text and shape overlays in **Layers**, and filter stacks in **Effects**.
-- **Comparison & History**: Hold `\` to compare with the initial preset. Full undo and redo history tracks all changes.
-- **Exporting**: Click **Save wallpaper** to export at full resolution (with optional 2x/3x supersampling), or **Save as recipe** to create a custom TOML file.
+- Browse thumbnails, search, or use the **Variations** for random tweaks on existing presets.
+- Pan, zoom, and rotate interactively. The app automatically shows the framing for your screen or chosen preset.
+- There are many customization options:
+  - math parameters in **Look**
+  - palettes and exposure in **Color**
+  - post-processing effects in **Effects** and **Layers**
+- Holding `\` compares with the initial preset. Full undo and redo history tracks all changes.
+- Click **Save wallpaper** to export at full resolution (with optional 2x/3x supersampling), or **Save as recipe** to create a custom TOML file with your configuration that can be reused later.
 
 ## Concepts
 
@@ -249,13 +265,15 @@ python -m fractalgen render --preset 16k                # render looks tagged "v
 python -m fractalgen render --preset 8k --tag vip --jobs 4
 ```
 
-| Preset    | Dimensions |     | Preset            | Dimensions |
-| --------- | ---------- | --- | ----------------- | ---------- |
-| `4k`      | 3840x2160  |     | `iphone`          | 1290x2796  |
-| `5k`      | 5120x2880  |     | `iphone-8k`       | 3840x8320  |
-| `8k`      | 7680x4320  |     | `ipad`            | 2048x2732  |
-| `16k`     | 15360x8640 |     | `ultrawide`       | 3440x1440  |
-| `macbook` | 3456x2234  |     | `super-ultrawide` | 5120x1440  |
+| Preset      | Dimensions |     | Preset            | Dimensions |
+| ----------- | ---------- | --- | ----------------- | ---------- |
+| `4k`        | 3840x2160  |     | `iphone`          | 1290x2796  |
+| `5k`        | 5120x2880  |     | `iphone-8k`       | 3840x8320  |
+| `8k`        | 7680x4320  |     | `iphone-16k`      | 7680x16640 |
+| `16k`       | 15360x8640 |     | `ipad`            | 2048x2732  |
+| `macbook`   | 3456x2234  |     | `ultrawide`       | 3440x1440  |
+| `dual-4k`   | 7680x2160  |     | `ultrawide-5k`    | 5120x2160  |
+| `triple-4k` | 11520x2160 |     | `super-ultrawide` | 5120x1440  |
 
 Recipes render in isolated processes with memory-safe row stripping at 8K and 16K.
 

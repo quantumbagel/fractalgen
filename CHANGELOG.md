@@ -2,7 +2,7 @@
 
 ## 0.1.0 (2026-11-09)
 
-Initial public release, completely rewriting the original standalone wallpaper scripts (`generate.py`, `ultra.py`, and `bg/`, preserved on the `old-code` branch) into an extensible, recipe-driven engine.
+Initial public release, completely rewriting the original standalone wallpaper scripts (`generate.py`, `ultra.py`, and `bg/`, preserved in the git history at commit `1bdc817`) into an extensible, recipe-driven engine.
 
 - Ships 129 built-in looks across escape-time fractals, Newton basins, Lyapunov parameter space, complex domain coloring, strange attractors, iterated function systems, reaction-diffusion simulations, flow fields, slime mold networks, abelian sandpiles, hyperbolic tilings, harmonographs, fractal flames, Buddhabrot densities, KAM islands, and caustics.
 - Adds an interactive local web GUI (`python -m fractalgen gui`) with real-time viewport adjustments, parameter sliders, variation generators, side-by-side comparisons, undo and redo history, keyboard navigation, and full-resolution wallpaper export with supersampling. The frontend runs as ES modules using bundled Preact and htm without build steps.

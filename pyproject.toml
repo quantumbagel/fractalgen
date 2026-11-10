@@ -7,8 +7,8 @@ name = "fractalgen"
 version = "0.1.0"
 description = "Extensible math / fractal wallpaper generator"
 readme = "README.md"
-license = {text = "MIT"}
-authors = [{name = "quantumbagel"}]
+license = { text = "MIT" }
+authors = [{ name = "quantumbagel" }]
 requires-python = ">=3.11"
 keywords = [
     "fractal",
@@ -34,6 +34,11 @@ classifiers = [
 ]
 dependencies = ["numpy>=2.0", "pillow>=11.0", "scipy>=1.14", "numba>=0.61"]
 
+[project.urls]
+Homepage = "https://github.com/quantumbagel/fractalgen"
+Issues = "https://github.com/quantumbagel/fractalgen/issues"
+Changelog = "https://github.com/quantumbagel/fractalgen/blob/main/CHANGELOG.md"
+
 [project.scripts]
 fractalgen = "fractalgen.cli:main"
 
@@ -46,4 +51,10 @@ fractalgen = "fractalgen.cli:main"
 include = ["fractalgen*"]
 
 [tool.setuptools.package-data]
-fractalgen = ["data/*.toml", "data/recipes/*.toml", "gui/static/*", "gui/static/js/*", "gui/static/vendor/*"]
+fractalgen = [
+    "data/*.toml",
+    "data/recipes/*.toml",
+    "gui/static/*",
+    "gui/static/js/*",
+    "gui/static/vendor/*",
+]
