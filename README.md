@@ -38,11 +38,9 @@ fractalgen render julia_dragon --size 3840x2160  # render a wallpaper
 fractalgen render --preset 8k iphone             # batch render presets
 ```
 
-fractalgen is not on PyPI (the `fractalgen` name there is an unrelated project), so install it from source as above or with `pip install git+https://github.com/quantumbagel/fractalgen`.
+Renders save to `backgrounds/`. Every exported image also stores its full recipe information in the image metadata, so you can inspect or fork a look directly from the image file.
 
-Renders save to `backgrounds/`. Every exported image embeds its full recipe metadata, so you can inspect or fork a look directly from the image file.
-
-The first render in each session takes a little longer while Numba compiles the kernels. The 8K and 16K presets are tuned for a machine with 16 GB of RAM.
+The first render in each session takes a little longer while Numba compiles the kernels.
 
 <p align="center">
   <img src="docs/assets/gui.jpg" width="100%" alt="fractalgen GUI">
@@ -247,7 +245,7 @@ def scanlines(rgb, amount, ctx):
     return rgb * (1.0 - amount * rows)[:, None, None]
 ```
 
-Scaffold templates with the CLI:
+You can also create templates with the CLI:
 
 ```sh
 python -m fractalgen new generator my_waves --view
@@ -275,9 +273,9 @@ python -m fractalgen render --preset 8k --tag vip --jobs 4
 | `dual-4k`   | 7680x2160  |     | `ultrawide-5k`    | 5120x2160  |
 | `triple-4k` | 11520x2160 |     | `super-ultrawide` | 5120x1440  |
 
-Recipes render in isolated processes with memory-safe row stripping at 8K and 16K.
-
 ## Python API
+
+This is pretty simple for now and doesn't provide much "useful" functionality for scripting.
 
 ```python
 import fractalgen as fg
